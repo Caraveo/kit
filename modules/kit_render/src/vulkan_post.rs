@@ -46,7 +46,11 @@ impl PostGpu {
         let shader = kit_graphics::compile_wgsl(gfx, &source, "kit post")?;
         let stages = vk::ShaderStageFlags::FRAGMENT | vk::ShaderStageFlags::VERTEX;
         let binding = |b: u32, ty: vk::DescriptorType| {
-            vk::DescriptorSetLayoutBinding::default().binding(b).descriptor_type(ty).descriptor_count(1).stage_flags(stages)
+            vk::DescriptorSetLayoutBinding::default()
+                .binding(b)
+                .descriptor_type(ty)
+                .descriptor_count(1)
+                .stage_flags(stages)
         };
         let bindings = [
             binding(0, vk::DescriptorType::UNIFORM_BUFFER_DYNAMIC),
@@ -58,15 +62,20 @@ impl PostGpu {
         ];
         let total = (VIEW_SLOTS * MAX_PASSES) as u32;
         unsafe {
-            let set_layout =
-                device.create_descriptor_set_layout(&vk::DescriptorSetLayoutCreateInfo::default().bindings(&bindings), None)?;
+            let set_layout = device.create_descriptor_set_layout(
+                &vk::DescriptorSetLayoutCreateInfo::default().bindings(&bindings),
+                None,
+            )?;
             let layout = device.create_pipeline_layout(
                 &vk::PipelineLayoutCreateInfo::default().set_layouts(std::slice::from_ref(&set_layout)),
                 None,
             )?;
             let pool = device.create_descriptor_pool(
                 &vk::DescriptorPoolCreateInfo::default().max_sets(total).pool_sizes(&[
-                    vk::DescriptorPoolSize { ty: vk::DescriptorType::UNIFORM_BUFFER_DYNAMIC, descriptor_count: total * 2 },
+                    vk::DescriptorPoolSize {
+                        ty: vk::DescriptorType::UNIFORM_BUFFER_DYNAMIC,
+                        descriptor_count: total * 2,
+                    },
                     vk::DescriptorPoolSize { ty: vk::DescriptorType::SAMPLER, descriptor_count: total },
                     vk::DescriptorPoolSize { ty: vk::DescriptorType::SAMPLED_IMAGE, descriptor_count: total * 3 },
                 ]),
@@ -358,7 +367,9 @@ impl Renderer {
             ];
             let sampler = [vk::DescriptorImageInfo::default().sampler(post.sampler)];
             let image_info = |v: vk::ImageView| {
-                [vk::DescriptorImageInfo::default().image_view(v).image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)]
+                [vk::DescriptorImageInfo::default()
+                    .image_view(v)
+                    .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)]
             };
             let (ia, ib, id) = (image_info(a), image_info(b), image_info(depth.1));
             let writes = [

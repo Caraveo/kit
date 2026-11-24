@@ -4,11 +4,14 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#161220" />
+    <link rel="canonical" href="https://kitgameengine.com/" />
     <meta
       name="description"
       content="Sketch motion, build 2D and 3D scenes, and share playable games with Kit."
     />
     <meta property="og:title" content="Kit — Draw a path. Press play." />
+    <meta property="og:url" content="https://kitgameengine.com/" />
+    <meta property="og:image" content="https://kitgameengine.com/assets/icon.png" />
     <meta
       property="og:description"
       content="A native 2D and 3D game engine for ideas you can play."
@@ -27,8 +30,11 @@
           ><img src="assets/icon.png" width="34" height="34" alt="" />Kit</a
         >
         <nav aria-label="Main navigation">
-          <a href="#editor">Editor</a><a href="#playground">Playground</a
-          ><a href="#assets">Assets</a>
+          <a href="#editor">Editor</a><a href="#diagrams">Diagrams</a
+          ><a href="#playground">Playground</a><a href="#assets">Assets</a
+          ><a class="nav-forge" href="https://forge.kitgameengine.com/"
+            >FORGE <span aria-hidden="true">↗</span></a
+          >
         </nav>
         <a class="outline" href="https://github.com/caraveo/kit"
           >GitHub <span aria-hidden="true">↗</span></a
@@ -47,7 +53,7 @@
           <div class="actions">
             <a
               class="button primary"
-              href="https://github.com/caraveo/kit/releases"
+              href="https://github.com/caraveo/kit/releases/latest"
               >Download Kit <span aria-hidden="true">↓</span></a
             >
             <a class="button quiet" href="#playground"
@@ -102,6 +108,15 @@
               >
                 GLB import
               </button>
+              <button type="button" data-shot="physics" aria-pressed="false">
+                Physics
+              </button>
+              <button type="button" data-shot="new-script" aria-pressed="false">
+                New script
+              </button>
+              <button type="button" data-shot="diagram" aria-pressed="false">
+                Diagram
+              </button>
             </div>
             <button
               class="expand"
@@ -128,6 +143,73 @@
             ×</button
           ><img alt="" />
         </dialog>
+      </section>
+      <section class="diagram-section section" id="diagrams">
+        <div class="wrap">
+          <div class="diagram-intro">
+            <div>
+              <p class="kicker"><span></span> VISUAL LOGIC</p>
+              <h2>Events in.<br /><em>Actions out.</em></h2>
+            </div>
+            <div class="diagram-copy">
+              <p>
+                Connect events to actions with nodes and wires. Build behavior
+                in a Diagram beside the scene it controls, with the object and
+                its settings still in view.
+              </p>
+              <a class="button quiet" href="#editor"
+                >See Diagram in the editor <span aria-hidden="true">↑</span></a
+              >
+            </div>
+          </div>
+          <figure class="diagram-shot">
+            <img
+              src="assets/diagram.webp"
+              alt="Kit editor showing an On Start node wired to Set Visible for a Ring object, with the scene and Inspector nearby"
+              width="1600"
+              height="973"
+              loading="lazy"
+            />
+            <figcaption>
+              <span>RING · VISUAL LOGIC</span>
+              <span>ON START <b>→</b> SET VISIBLE</span>
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+      <section class="forge-launch section" id="forge">
+        <div class="wrap forge-card">
+          <div class="forge-copy">
+            <p class="kicker"><span></span> FORGE · 3D WORKSHOP</p>
+            <h2>Turn a sentence<br /><em>into a 3D model.</em></h2>
+            <p>
+              Make a reference image and textured model locally, then bring the
+              GLB into Kit. FORGE is a separate companion app for compatible
+              AMD PCs.
+            </p>
+            <div class="forge-specs" aria-label="FORGE system requirements">
+              <span>Windows x64</span><span>AMD Radeon</span><span>16 GB VRAM</span><span>32 GB RAM</span>
+            </div>
+            <a
+              class="button primary"
+              href="https://forge.kitgameengine.com/"
+              >Explore FORGE <span aria-hidden="true">↗</span></a
+            >
+            <p class="forge-note">
+              Kit runs on Linux, macOS, and Windows. FORGE currently requires
+              Windows and compatible AMD hardware.
+            </p>
+          </div>
+          <div class="forge-visual" aria-hidden="true">
+            <div class="forge-orbit orbit-one"></div>
+            <div class="forge-orbit orbit-two"></div>
+            <div class="forge-model">
+              <img src="assets/turtle.webp" alt="" loading="lazy" />
+            </div>
+            <div class="forge-label label-top">TEXTURED · GLB</div>
+            <div class="forge-label label-bottom">IDEA → OBJECT</div>
+          </div>
+        </div>
       </section>
       <section class="play section" id="playground">
         <div class="wrap play-grid">
@@ -219,7 +301,7 @@
         <div class="actions">
           <a
             class="button primary"
-            href="https://github.com/caraveo/kit/releases"
+            href="https://github.com/caraveo/kit/releases/latest"
             >Download Kit <span aria-hidden="true">↓</span></a
           ><a
             class="button outline"
@@ -233,7 +315,6 @@
       <a class="brand" href="./"
         ><img src="assets/icon.png" width="28" height="28" alt="" />Kit</a
       >
-      <p>Rust · Vulkan · WebGPU</p>
       <a href="https://github.com/caraveo/kit">GitHub ↗</a>
     </footer>
   </body>

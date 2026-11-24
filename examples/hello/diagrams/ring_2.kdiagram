@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "id": 1,
+      "kind": {
+        "type": "OnTriggerEnter"
+      },
+      "pos": [
+        0.0,
+        0.0
+      ],
+      "inputs": {},
+      "target": "SelfObject"
+    },
+    {
+      "id": 2,
+      "kind": {
+        "type": "SetTint"
+      },
+      "pos": [
+        320.0,
+        -100.0
+      ],
+      "inputs": {
+        "color": {
+          "Color": [
+            0.0,
+            1.0,
+            0.0,
+            1.0
+          ]
+        }
+      },
+      "target": "SelfObject"
+    },
+    {
+      "id": 3,
+      "kind": {
+        "type": "MoveOverTime"
+      },
+      "pos": [
+        640.0,
+        0.0
+      ],
+      "inputs": {
+        "destination": {
+          "Vector3": [
+            0.0,
+            2.0,
+            0.0
+          ]
+        },
+        "duration": {
+          "Float": 1.5
+        }
+      },
+      "target": "SelfObject"
+    }
+  ],
+  "links": [
+    {
+      "from": {
+        "node": 1,
+        "pin": "then"
+      },
+      "to": {
+        "node": 2,
+        "pin": "exec"
+      }
+    },
+    {
+      "from": {
+        "node": 2,
+        "pin": "then"
+      },
+      "to": {
+        "node": 3,
+        "pin": "exec"
+      }
+    }
+  ],
+  "variables": [],
+  "next_id": 4
+}

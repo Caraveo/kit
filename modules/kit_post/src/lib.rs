@@ -40,11 +40,7 @@ pub const SHADER: &str = include_str!("post.wgsl");
 
 /// The shader for a depth buffer with `samples` samples per pixel.
 pub fn shader_source(samples: u32) -> String {
-    if samples > 1 {
-        SHADER.to_owned()
-    } else {
-        SHADER.replace("texture_depth_multisampled_2d", "texture_depth_2d")
-    }
+    if samples > 1 { SHADER.to_owned() } else { SHADER.replace("texture_depth_multisampled_2d", "texture_depth_2d") }
 }
 
 /// "Objects inside" volumes evaluated per pixel (more are ignored, lowest
@@ -291,10 +287,10 @@ pub fn frame(world: &World, camera: &CameraInfo, width: u32, height: u32) -> Opt
     if volumes.is_empty() {
         return None;
     }
-    let (camera_volumes, object_volumes): (Vec<_>, Vec<_>) = volumes
-        .iter()
-        .partition(|(v, _, _)| v.shape == VolumeShape::Global || v.affect == VolumeAffect::Camera);
-    let placed: Vec<Placed> = camera_volumes.iter().map(|(v, m, o)| Placed { volume: v, world: *m, order: *o }).collect();
+    let (camera_volumes, object_volumes): (Vec<_>, Vec<_>) =
+        volumes.iter().partition(|(v, _, _)| v.shape == VolumeShape::Global || v.affect == VolumeAffect::Camera);
+    let placed: Vec<Placed> =
+        camera_volumes.iter().map(|(v, m, o)| Placed { volume: v, world: *m, order: *o }).collect();
     let settings = resolve(&placed, camera.position);
     let mut objects: Vec<&(PostVolume, Mat4, usize)> = object_volumes;
     {
@@ -347,11 +343,8 @@ fn build(
 
 fn pass(entry: &'static str, a: Option<Slot>, b: Option<Slot>, output: Slot, w: u32, h: u32, extra: [f32; 4]) -> Pass {
     let (dw, dh) = slot_size(output, w, h);
-    let mut uniforms = PassUniforms {
-        dst: [dw as f32, dh as f32, 1.0 / dw as f32, 1.0 / dh as f32],
-        a: extra,
-        ..Default::default()
-    };
+    let mut uniforms =
+        PassUniforms { dst: [dw as f32, dh as f32, 1.0 / dw as f32, 1.0 / dh as f32], a: extra, ..Default::default() };
     if let Some(src) = a {
         let (sw, sh) = slot_size(src, w, h);
         uniforms.a[0] = 1.0 / sw as f32;
@@ -387,7 +380,15 @@ pub fn plan(s: &Settings, on: [bool; 6], w: u32, h: u32) -> Vec<Pass> {
     if s.glow_active() || on[2] {
         passes.push(pass("fs_bloom_prefilter", Some(current), None, Slot::Temp(down(1)), w, h, [0.0; 4]));
         for level in 2..=BLOOM_LEVELS {
-            passes.push(pass("fs_bloom_down", Some(Slot::Temp(down(level - 1))), None, Slot::Temp(down(level)), w, h, [0.0; 4]));
+            passes.push(pass(
+                "fs_bloom_down",
+                Some(Slot::Temp(down(level - 1))),
+                None,
+                Slot::Temp(down(level)),
+                w,
+                h,
+                [0.0; 4],
+            ));
         }
         let mut lower = Slot::Temp(down(BLOOM_LEVELS));
         for level in (1..BLOOM_LEVELS).rev() {
@@ -456,7 +457,13 @@ mod tests {
     }
 
     fn camera(at: Vec3) -> CameraInfo {
-        CameraInfo { view_proj: Mat4::IDENTITY, position: at, forward: Vec3::NEG_Z, orthographic: false, ndc_y_up: false }
+        CameraInfo {
+            view_proj: Mat4::IDENTITY,
+            position: at,
+            forward: Vec3::NEG_Z,
+            orthographic: false,
+            ndc_y_up: false,
+        }
     }
 
     #[test]
@@ -496,7 +503,10 @@ mod tests {
 
     #[test]
     fn object_volumes_go_to_the_gpu_and_enable_their_passes() {
-        let fx = PostEffects { glow: GlowFx { mode: Override::On, intensity: 2.0, ..Default::default() }, ..Default::default() };
+        let fx = PostEffects {
+            glow: GlowFx { mode: Override::On, intensity: 2.0, ..Default::default() },
+            ..Default::default()
+        };
         let v = PostVolume { affect: VolumeAffect::Objects, effects: fx, ..Default::default() };
         let w = world_with(&[v]);
         // Camera far away: the camera's own settings are neutral, but the glow

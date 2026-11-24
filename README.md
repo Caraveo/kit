@@ -6,7 +6,7 @@
 
 Kit is a 2D and 3D game engine for making playable prototypes and building on them. Sketch movement directly in the viewport, wire up gameplay with **Diagrams**, set the mood with post-processing **Effects**, bring your own sprites, sounds and 3D models, and press **F5** to try the result in the same window. When you're ready to share, export a desktop build or a browser build.
 
-[Download Kit](https://github.com/caraveo/kit/releases) · [Make your first game](documentation/src/content/docs/getting-started/first-game.mdx) · [Browse the source](https://github.com/caraveo/kit)
+[Download Kit](https://github.com/caraveo/kit/releases/latest) · [Make your first game](documentation/src/content/docs/getting-started/first-game.mdx) · [Browse the source](https://github.com/caraveo/kit)
 
 ![Kit’s native editor with a scene hierarchy, 3D viewport, and inspector](docs/editor.png)
 
@@ -35,7 +35,7 @@ Kit is a 2D and 3D game engine for making playable prototypes and building on th
 
 ## Try it in a minute
 
-1. Get the package for your platform from [GitHub Releases](https://github.com/caraveo/kit/releases), then open **Kit** and choose **Open example**.
+1. Get the package for your platform from [GitHub Releases](https://github.com/caraveo/kit/releases/latest), then open **Kit** and choose **Open example**.
 2. Select an object in the scene and press **5** to enter Canvas mode. Drag in the viewport to sketch a path.
 3. Press **7** to open the Diagram view, click **+ Add Diagram**, then right-click the canvas to add nodes and drag wires between them.
 4. Press **F5** to play. Click the viewport to pass keyboard input to the game.
@@ -71,7 +71,7 @@ CREATE Player[
 
 ## Build from source
 
-Kit is written in Rust. The desktop renderer uses Vulkan, browser builds use WebGPU, and the engine organizes scenes with an ECS and scene graph. The native editor and standalone player share the engine. Rust applications can also use Kit through the [Rust API](documentation/src/content/docs/engine/rust-api.md).
+Kit is written in Rust. The desktop renderer uses Vulkan, browser builds use WebGPU, and the engine organizes scenes with an ECS and scene graph. The native editor and standalone player share the engine.
 
 ```sh
 git clone https://github.com/caraveo/kit

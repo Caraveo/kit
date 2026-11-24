@@ -19,6 +19,18 @@ const shots = {
     "The textured FORGE turtle imported into the Kit editor",
     "A textured FORGE turtle imported as GLB and placed in a Kit scene.",
   ],
+  physics: [
+    "Project Settings with Kit's physics simulation and gravity controls",
+    "Choose gravity, simulation, and fixed-step physics settings for a project.",
+  ],
+  "new-script": [
+    "The New Script dialog in Kit's native editor",
+    "Create a gameplay script directly inside the project editor.",
+  ],
+  diagram: [
+    "An On Start event wired to a Set Visible action in Kit's Diagram editor",
+    "Connect an event to an object action in the visual Diagram editor.",
+  ],
 };
 const screenshot = document.querySelector("#editor-shot");
 const caption = document.querySelector("#shot-caption");

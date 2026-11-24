@@ -1,0 +1,16 @@
+[package]
+name = "kit_rex"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Rex, Kit's AI puppy: client for the Kit AI service (sign-in, modes, streaming chat) and checks for the scripts and Diagrams Rex writes."
+
+[dependencies]
+kit_x.workspace = true
+kit_diagram.workspace = true
+kit_gamedata.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+log.workspace = true
+ureq = { version = "=3.5.1", default-features = false, features = ["rustls", "json"] }

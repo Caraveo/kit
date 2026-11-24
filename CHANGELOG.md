@@ -1,5 +1,35 @@
 # Changelog
 
+## v0.0.3: Rex, the AI puppy
+
+### Major feature: Rex
+- **Rex** is Kit's AI helper, a cheerful puppy who knows x scripting and Diagrams. Press **8**, use the **Rex** button in the viewport bar, or choose **Project → View → Rex**. He sits at the bottom of the center area.
+- **Six modes:**
+  - **Buddy:** chat about your game.
+  - **Fetch:** writes x scripts.
+  - **Sniff:** fixes bugs.
+  - **Dig:** builds Diagrams.
+  - **Zoomies:** brainstorms ideas.
+  - **Sit & Learn:** teaches step by step.
+- **Sign-in:** with your Kit account. The editor shows a code; approve it in the browser.
+- **Using his work:** scripts and Diagrams are checked by Kit's own parser and validator. Add a script to the selected object with one click, or use a Diagram on it. Diagrams show as a summary card.
+- **Replies:** rendered with formatting (headings, lists, bold, code) in Material-style chat cards.
+- **Ask Rex** next to console errors.
+- New `kit_rex` module (client, sign-in, streaming chat, snippet checks).
+
+### Editor
+- **Hideable views:** Project → View shows or hides each panel, and Default restores the layout. At least one view always stays open.
+- **Rebindable controls:** in Project Settings.
+- **New Project wizard:** six templates (3D/2D starters, Explorer, Diagram Starter, empty), with a suggested name and folder.
+- The Diagram view and Rex keep their space at the bottom, and the game view fills the rest.
+
+### Logo and polish
+- Updated the Kit app icon on Ubuntu, macOS, and Windows. The new artwork also appears in the editor header and dock, the welcome screen, and web export loading screens.
+- Editor views have clean headers without close buttons.
+- Website download buttons open the latest Kit release.
+
+![Kit v0.0.3 editor showing the updated logo and view headers](https://raw.githubusercontent.com/caraveo/kit/v0.0.3/docs/releases/v0.0.3.png)
+
 ## v0.0.2: Diagrams and Effects
 
 ### Major features

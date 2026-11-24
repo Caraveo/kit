@@ -357,11 +357,21 @@ fn assets_grouped_with_per_group_new_buttons() {
 /// Press at `from`, move to `to` in steps, release.
 fn drag(h: &mut Harness, from: Pos2, to: Pos2) {
     h.frame(vec![Event::PointerMoved(from)]);
-    h.frame(vec![Event::PointerButton { pos: from, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE }]);
+    h.frame(vec![Event::PointerButton {
+        pos: from,
+        button: PointerButton::Primary,
+        pressed: true,
+        modifiers: Modifiers::NONE,
+    }]);
     for i in 1..=10 {
         h.frame(vec![Event::PointerMoved(from + (to - from) * (i as f32 / 10.0))]);
     }
-    h.frame(vec![Event::PointerButton { pos: to, button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE }]);
+    h.frame(vec![Event::PointerButton {
+        pos: to,
+        button: PointerButton::Primary,
+        pressed: false,
+        modifiers: Modifiers::NONE,
+    }]);
     h.frame(vec![]);
 }
 
@@ -480,10 +490,7 @@ fn dropping_a_sound_file_on_the_viewport_imports_and_places_it() {
     std::fs::write(&bad, b"not really audio").unwrap();
     let center = h.st.viewport_rect.center();
     h.frame(vec![Event::PointerMoved(center)]);
-    h.frame_with_files(
-        vec![],
-        vec![std::sync::Arc::new(DroppedSound(source)), std::sync::Arc::new(DroppedSound(bad))],
-    );
+    h.frame_with_files(vec![], vec![std::sync::Arc::new(DroppedSound(source)), std::sync::Arc::new(DroppedSound(bad))]);
     h.frame(vec![]);
     assert!(h.dir.join("sounds/Door Bell.wav").is_file(), "copied into sounds/");
     assert!(!h.dir.join("sounds/broken.mp3").exists(), "unplayable files are refused");
@@ -600,7 +607,13 @@ fn number_keys_toggle_the_viewport_bar_and_wasd_moves_the_view() {
         for _ in 0..10 {
             h.frame(vec![]);
         }
-        h.frame(vec![Event::Key { key, physical_key: None, pressed: false, repeat: false, modifiers: Modifiers::NONE }]);
+        h.frame(vec![Event::Key {
+            key,
+            physical_key: None,
+            pressed: false,
+            repeat: false,
+            modifiers: Modifiers::NONE,
+        }]);
     };
     hold(&mut h, Key::W);
     assert!(h.ed.camera.distance < d, "W zooms in");
@@ -971,7 +984,6 @@ fn press_at(h: &mut Harness, pos: Pos2, button: PointerButton, pressed: bool) {
     h.frame(vec![Event::PointerButton { pos, button, pressed, modifiers: Modifiers::NONE }]);
 }
 
-
 #[test]
 fn diagram_view_adds_nodes_wires_them_and_undoes_over_the_canvas() {
     use kit::diagram::{NodeKind, PinRef};
@@ -982,8 +994,10 @@ fn diagram_view_adds_nodes_wires_them_and_undoes_over_the_canvas() {
     assert!(h.ed.settings.diagram, "7 opens the Diagram view");
     // Add a Diagram to the cube (what the view's button and the component menu do).
     let path = crate::diagram_view::add_diagram(&mut h.ed, cube).unwrap();
-    h.frame(vec![]);
-    h.frame(vec![]);
+    // Let the panel finish sliding open before measuring positions.
+    for _ in 0..30 {
+        h.frame(vec![]);
+    }
     assert_eq!(h.st.diagram.path(), Some(path.as_str()));
     let start = h.st.diagram.graph.nodes[0].id;
     let gd = kit::gamedata::GameData::default();
@@ -997,13 +1011,28 @@ fn diagram_view_adds_nodes_wires_them_and_undoes_over_the_canvas() {
     h.frame(vec![]);
     h.frame(vec![Event::Text("set visible".into())]);
     h.key(Key::Enter);
-    let vis = h.st.diagram.graph.nodes.iter().find(|n| n.kind == NodeKind::SetVisible).map(|n| n.id).expect("node added from the picker");
+    let vis =
+        h.st.diagram
+            .graph
+            .nodes
+            .iter()
+            .find(|n| n.kind == NodeKind::SetVisible)
+            .map(|n| n.id)
+            .expect("node added from the picker");
     h.frame(vec![]);
 
     // Drag a wire from On Start's exec output to the new node's exec input.
     let to = h.st.diagram.pin_screen_pos(&gd, &PinRef::new(vis, "exec"), false).unwrap();
     drag(&mut h, then, to);
-    assert!(h.st.diagram.graph.links.iter().any(|l| l.from == PinRef::new(start, "then") && l.to == PinRef::new(vis, "exec")), "{:?}", h.st.diagram.graph.links);
+    assert!(
+        h.st.diagram
+            .graph
+            .links
+            .iter()
+            .any(|l| l.from == PinRef::new(start, "then") && l.to == PinRef::new(vis, "exec")),
+        "{:?}",
+        h.st.diagram.graph.links
+    );
     // Saved to disk right away.
     let saved = std::fs::read_to_string(h.dir.join(&path)).unwrap();
     assert!(kit::diagram::Graph::from_json(&saved).unwrap().links.len() == 1);
@@ -1015,7 +1044,13 @@ fn diagram_view_adds_nodes_wires_them_and_undoes_over_the_canvas() {
     assert_eq!(h.st.diagram.selected_wire(), Some(&link), "clicking a wire selects it");
     h.key(Key::Backspace);
     assert!(h.st.diagram.graph.links.is_empty() && h.st.diagram.graph.node(vis).is_some(), "only the wire is deleted");
-    h.frame(vec![Event::Key { key: Key::Z, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::COMMAND }]);
+    h.frame(vec![Event::Key {
+        key: Key::Z,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: Modifiers::COMMAND,
+    }]);
     h.frame(vec![]);
     assert_eq!(h.st.diagram.graph.links, vec![link]);
     // Clicking empty canvas deselects the wire.
@@ -1029,7 +1064,13 @@ fn diagram_view_adds_nodes_wires_them_and_undoes_over_the_canvas() {
     assert!(h.st.diagram.graph.node(vis).is_none());
     assert!(h.ed.world().is_alive(cube), "Delete over the diagram doesn't delete the object");
     // Undo over the canvas brings it (and its wire) back.
-    h.frame(vec![Event::Key { key: Key::Z, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::COMMAND }]);
+    h.frame(vec![Event::Key {
+        key: Key::Z,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: Modifiers::COMMAND,
+    }]);
     h.frame(vec![]);
     assert!(h.st.diagram.graph.node(vis).is_some() && h.st.diagram.graph.links.len() == 1);
 }
@@ -1045,8 +1086,10 @@ fn import_accepts_every_kind_kit_uses_and_explains_the_rest() {
     std::fs::write(src.join("door.kdiagram"), kit::diagram::Graph::default().to_json()).unwrap();
     std::fs::write(src.join("notes.docx"), "nope").unwrap();
     std::fs::write(src.join("fake.png"), "not an image").unwrap();
-    let got: Vec<String> =
-        ["hero.png", "enemy.x", "boss.kscene", "door.kdiagram"].iter().map(|f| h.ed.import_asset(&src.join(f)).unwrap().unwrap()).collect();
+    let got: Vec<String> = ["hero.png", "enemy.x", "boss.kscene", "door.kdiagram"]
+        .iter()
+        .map(|f| h.ed.import_asset(&src.join(f)).unwrap().unwrap())
+        .collect();
     assert_eq!(got, ["sprites/hero.png", "scripts/enemy.x", "scenes/boss.kscene", "diagrams/door.kdiagram"]);
     for g in &got {
         assert!(h.dir.join(g).is_file() && h.ed.assets.contains(g), "{g}");
@@ -1062,7 +1105,6 @@ fn import_accepts_every_kind_kit_uses_and_explains_the_rest() {
     let _ = std::fs::remove_dir_all(&src);
 }
 
-
 #[test]
 fn console_starts_collapsed_and_counts_new_errors() {
     let mut h = Harness::new("console_badge");
@@ -1077,3 +1119,82 @@ fn console_starts_collapsed_and_counts_new_errors() {
     h.frame(vec![]);
     assert_eq!(h.st.errors_seen_for_test(), 1);
 }
+
+#[test]
+fn dragging_the_viewport_pans_and_right_drag_orbits() {
+    let mut h = Harness::new("drag_pan");
+    let c = h.st.viewport_rect.center();
+    let (target, yaw) = (h.ed.camera.target, h.ed.camera.yaw);
+    drag(&mut h, c, c + egui::vec2(120.0, 40.0));
+    assert!(h.ed.camera.target.distance(target) > 0.1, "drag pans");
+    assert_eq!(h.ed.camera.yaw, yaw, "drag doesn't orbit");
+    let target = h.ed.camera.target;
+    let from = c + egui::vec2(-40.0, 0.0);
+    h.frame(vec![Event::PointerMoved(from)]);
+    h.frame(vec![Event::PointerButton {
+        pos: from,
+        button: PointerButton::Secondary,
+        pressed: true,
+        modifiers: Modifiers::NONE,
+    }]);
+    for i in 1..=10 {
+        h.frame(vec![Event::PointerMoved(from + egui::vec2(12.0 * i as f32, 0.0))]);
+    }
+    h.frame(vec![Event::PointerButton {
+        pos: from + egui::vec2(120.0, 0.0),
+        button: PointerButton::Secondary,
+        pressed: false,
+        modifiers: Modifiers::NONE,
+    }]);
+    assert_ne!(h.ed.camera.yaw, yaw, "right-drag orbits");
+    assert!(h.ed.camera.target.distance(target) < 1e-4, "orbiting keeps the target");
+}
+
+#[test]
+fn project_menu_opens_wizard_and_uses_selected_template_settings() {
+    let mut h = Harness::new("wizard");
+    h.click(ui::marked(&h.ctx, "project_menu").unwrap().center());
+    h.click(ui::marked(&h.ctx, "new_project_menu").unwrap().center());
+    let wizard = h.st.new_project.as_mut().expect("New Project opens a wizard");
+    wizard.select_location(&h.dir);
+    wizard.options.title = "Pixel Game".into();
+    wizard.options.template = crate::templates::Template::Empty2D;
+    wizard.options.width = 800;
+    wizard.options.height = 600;
+    wizard.options.physics = false;
+    wizard.folder = "pixel".into();
+    h.frame(vec![]);
+    h.frame(vec![]);
+    h.click(ui::marked(&h.ctx, "create_project").unwrap().center());
+    let [ui::Request::CreateProject(path, options)] = h.st.requests.as_slice() else {
+        panic!(
+            "expected a create request, got {:?}, wizard open: {}, button: {:?}",
+            h.st.requests,
+            h.st.new_project.is_some(),
+            ui::marked(&h.ctx, "create_project")
+        );
+    };
+    assert_eq!(path, &h.dir.join("pixel"));
+    h.ed.create_project_from(path, options).unwrap();
+    let config = &h.ed.project.as_ref().unwrap().config;
+    assert_eq!(config.project.title, "Pixel Game");
+    assert_eq!((config.display.width, config.display.height), (800, 600));
+    assert!(!config.physics.enabled);
+    assert!(h.ed.camera.two_d);
+    assert_eq!(h.ed.world().entity_count(), 1);
+}
+
+#[test]
+fn rebound_play_shortcut_uses_the_new_key() {
+    let mut h = Harness::new("rebound_play");
+    h.ed.controls
+        .set(crate::controls::Shortcut::Play, 0, Some(crate::controls::Binding::new(Key::F8, Modifiers::NONE)))
+        .unwrap();
+    h.key(Key::F5);
+    assert!(!h.ed.playing);
+    h.key(Key::F8);
+    assert!(h.ed.playing);
+    h.key(Key::F8);
+    assert!(!h.ed.playing);
+}
+

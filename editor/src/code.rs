@@ -72,7 +72,11 @@ pub fn highlight(src: &str) -> LayoutJob {
             }
         } else {
             i += 1;
-            if "[](){}".contains(c) { LABEL() } else { if is_light() { MUTED() } else { Color32::from_rgb(0xb8, 0xb0, 0xcc) } }
+            if "[](){}".contains(c) {
+                LABEL()
+            } else {
+                if is_light() { MUTED() } else { Color32::from_rgb(0xb8, 0xb0, 0xcc) }
+            }
         };
         job.append(&src[byte(start)..byte(i)], 0.0, fmt(color));
     }
@@ -90,6 +94,8 @@ pub fn script_window(ctx: &egui::Context, ed: &mut Editor) {
     let mut close = None;
     let mut switch = None;
     let title = format!("Script — {}", ed.scripts[active].path);
+    let save_shortcut = ed.controls.label(crate::controls::Shortcut::Save);
+    let close_button = ed.controls.gestures.close_script_tab.egui();
     egui::Window::new(RichText::new("Script").strong())
         .id(Id::new("script_window"))
         .open(&mut open)
@@ -118,7 +124,7 @@ pub fn script_window(ctx: &egui::Context, ed: &mut Editor) {
                     if r.clicked() {
                         switch = Some(i);
                     }
-                    if r.middle_clicked() {
+                    if r.clicked_by(close_button) {
                         close = Some(i);
                     }
                 }
@@ -131,7 +137,7 @@ pub fn script_window(ctx: &egui::Context, ed: &mut Editor) {
                     if ui.button("Close").clicked() {
                         close = Some(active);
                     }
-                    let save_label = if doc.dirty() { "Save  Ctrl S" } else { "Saved" };
+                    let save_label = if doc.dirty() { format!("Save  {save_shortcut}") } else { "Saved".into() };
                     if ui.add_enabled(doc.dirty(), egui::Button::new(save_label)).clicked() {
                         save = Some(active);
                     }

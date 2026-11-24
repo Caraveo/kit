@@ -23,17 +23,17 @@
 //! | engine | `kit_engine` | the windowed runtime |
 
 pub use glam as math;
+pub use kit_audio as audio;
 pub use kit_collider as collider;
-pub use kit_diagram as diagram;
-pub use kit_gamedata as gamedata;
 pub use kit_core as core;
+pub use kit_diagram as diagram;
 pub use kit_ecs as ecs;
 pub use kit_engine as engine;
+pub use kit_gamedata as gamedata;
 pub use kit_gamesys as gamesys;
 pub use kit_graphics as graphics;
 pub use kit_input as input;
 pub use kit_path as path;
-pub use kit_audio as audio;
 pub use kit_physics as physics;
 pub use kit_render as render;
 pub use kit_resource as resource;

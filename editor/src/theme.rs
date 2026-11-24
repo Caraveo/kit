@@ -92,7 +92,6 @@ pub fn is_light() -> bool {
     LIGHT.load(Ordering::Relaxed)
 }
 
-
 static VIEWPORT_LIGHT: AtomicBool = AtomicBool::new(false);
 
 /// Colors for overlays drawn on the 3D viewport. They follow the viewport's
@@ -361,8 +360,10 @@ pub fn set_light(ctx: &egui::Context, light: bool) {
     v.window_fill = DIALOG_BG();
     v.window_stroke = Stroke::new(1.0, DIALOG_BORDER());
     v.window_corner_radius = CornerRadius::same(15);
-    v.window_shadow = Shadow { offset: [0, 18], blur: 60, spread: 0, color: Color32::from_black_alpha(if light { 50 } else { 170 }) };
-    v.popup_shadow = Shadow { offset: [0, 12], blur: 35, spread: 0, color: Color32::from_black_alpha(if light { 35 } else { 110 }) };
+    v.window_shadow =
+        Shadow { offset: [0, 18], blur: 60, spread: 0, color: Color32::from_black_alpha(if light { 50 } else { 170 }) };
+    v.popup_shadow =
+        Shadow { offset: [0, 12], blur: 35, spread: 0, color: Color32::from_black_alpha(if light { 35 } else { 110 }) };
     v.menu_corner_radius = CornerRadius::same(10);
     v.extreme_bg_color = FIELD_BG();
     v.text_edit_bg_color = Some(FIELD_BG());
@@ -371,7 +372,11 @@ pub fn set_light(ctx: &egui::Context, light: bool) {
     v.hyperlink_color = ACCENT();
     v.error_fg_color = ERROR();
     v.warn_fg_color = WARN();
-    v.selection.bg_fill = if light { Color32::from_rgba_unmultiplied(0x7a, 0x58, 0xdc, 0x40) } else { Color32::from_rgba_unmultiplied(0xb6, 0x9a, 0xf3, 0x55) };
+    v.selection.bg_fill = if light {
+        Color32::from_rgba_unmultiplied(0x7a, 0x58, 0xdc, 0x40)
+    } else {
+        Color32::from_rgba_unmultiplied(0xb6, 0x9a, 0xf3, 0x55)
+    };
     v.selection.stroke = Stroke::new(1.0, ACCENT());
     v.collapsing_header_frame = false;
     // Filled slider track in the accent color, visible on dark dialogs.
@@ -387,19 +392,23 @@ pub fn set_light(ctx: &egui::Context, light: bool) {
 
     v.widgets.inactive.bg_fill = pick(light, Color32::from_rgb(0xdc, 0xd5, 0xec), Color32::from_rgb(0x2e, 0x28, 0x40)); // slider rails, checkbox boxes
     v.widgets.inactive.weak_bg_fill = FIELD_BG();
-    v.widgets.inactive.bg_stroke = Stroke::new(1.0, pick(light, Color32::from_rgb(0xdb, 0xd4, 0xea), Color32::from_rgb(0x2c, 0x27, 0x3b)));
+    v.widgets.inactive.bg_stroke =
+        Stroke::new(1.0, pick(light, Color32::from_rgb(0xdb, 0xd4, 0xea), Color32::from_rgb(0x2c, 0x27, 0x3b)));
     v.widgets.inactive.fg_stroke = Stroke::new(1.0, TEXT());
     v.widgets.inactive.corner_radius = r;
 
     v.widgets.hovered.bg_fill = pick(light, Color32::from_rgb(0xe9, 0xe4, 0xf5), Color32::from_rgb(0x26, 0x21, 0x35));
-    v.widgets.hovered.weak_bg_fill = pick(light, Color32::from_rgb(0xe9, 0xe4, 0xf5), Color32::from_rgb(0x26, 0x21, 0x35));
-    v.widgets.hovered.bg_stroke = Stroke::new(1.0, pick(light, Color32::from_rgb(0xc4, 0xb8, 0xe0), Color32::from_rgb(0x4d, 0x43, 0x5f)));
+    v.widgets.hovered.weak_bg_fill =
+        pick(light, Color32::from_rgb(0xe9, 0xe4, 0xf5), Color32::from_rgb(0x26, 0x21, 0x35));
+    v.widgets.hovered.bg_stroke =
+        Stroke::new(1.0, pick(light, Color32::from_rgb(0xc4, 0xb8, 0xe0), Color32::from_rgb(0x4d, 0x43, 0x5f)));
     v.widgets.hovered.fg_stroke = Stroke::new(1.0, TEXT_STRONG());
     v.widgets.hovered.corner_radius = r;
     v.widgets.hovered.expansion = 0.0;
 
     v.widgets.active.bg_fill = pick(light, Color32::from_rgb(0xe2, 0xd9, 0xf7), Color32::from_rgb(0x33, 0x2a, 0x4a));
-    v.widgets.active.weak_bg_fill = pick(light, Color32::from_rgb(0xe2, 0xd9, 0xf7), Color32::from_rgb(0x33, 0x2a, 0x4a));
+    v.widgets.active.weak_bg_fill =
+        pick(light, Color32::from_rgb(0xe2, 0xd9, 0xf7), Color32::from_rgb(0x33, 0x2a, 0x4a));
     v.widgets.active.bg_stroke = Stroke::new(1.0, ACCENT());
     v.widgets.active.fg_stroke = Stroke::new(1.0, PRESSED_TEXT());
     v.widgets.active.corner_radius = r;

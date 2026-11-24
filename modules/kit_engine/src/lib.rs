@@ -142,7 +142,8 @@ pub fn screenshot_project(project: Project, out: &std::path::Path, frames: u32, 
     renderer.destroy(&gfx);
     kit_script::stop_scripts(&mut app.world);
     kit_audio::reset(&mut app.world);
-    image::save_buffer(out, &pixels, width, height, image::ExtendedColorType::Rgba8).context("saving the screenshot")?;
+    image::save_buffer(out, &pixels, width, height, image::ExtendedColorType::Rgba8)
+        .context("saving the screenshot")?;
     Ok(())
 }
 

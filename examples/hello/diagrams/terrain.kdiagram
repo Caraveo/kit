@@ -28,9 +28,21 @@
         }
       },
       "target": "SelfObject"
+    },
+    {
+      "id": 3,
+      "kind": {
+        "type": "OnTimer"
+      },
+      "pos": [
+        639.0,
+        95.75
+      ],
+      "inputs": {},
+      "target": "SelfObject"
     }
   ],
   "links": [],
   "variables": [],
-  "next_id": 2
+  "next_id": 3
 }

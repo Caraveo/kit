@@ -387,7 +387,8 @@ impl Parser {
             let word = if access == Access::Edit { "EDIT" } else { "PUBLIC" };
             if self.eat_kw(Kw::CREATE) {
                 if access.is_public() {
-                    return self.err(format!("{word} goes in front of a field (`{word} FLOAT Speed: 5.0`), not a method"));
+                    return self
+                        .err(format!("{word} goes in front of a field (`{word} FLOAT Speed: 5.0`), not a method"));
                 }
                 let n = self.ident("a method name")?;
                 methods.push(self.func_rest(n, Vec::new(), mline)?);
@@ -412,7 +413,10 @@ impl Parser {
                         return Err(XError::at(
                             line,
                             1,
-                            format!("EDIT fields must be STRING, INTEGER, FLOAT, BOOL or VECTOR; `{name}` is {} (use PUBLIC to show it read-only)", ty.name()),
+                            format!(
+                                "EDIT fields must be STRING, INTEGER, FLOAT, BOOL or VECTOR; `{name}` is {} (use PUBLIC to show it read-only)",
+                                ty.name()
+                            ),
                         ));
                     }
                     fields.push(FieldDecl { access, ty, name, init, line })

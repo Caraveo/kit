@@ -2,7 +2,7 @@
 
 use glam::{Mat4, Vec2, Vec3, Vec4Swizzles};
 use kit_ecs::{Entity, World};
-use kit_gamesys::{AudioSource, Camera, PostVolume, Light, MeshKind, Model, Sprite, Terrain};
+use kit_gamesys::{AudioSource, Camera, Light, MeshKind, Model, PostVolume, Sprite, Terrain};
 use kit_scene::GlobalTransform;
 
 /// A world-space ray.

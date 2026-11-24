@@ -101,6 +101,8 @@ pub struct ViewSettings {
     pub volumes: bool,
     /// Show the Diagram (visual logic) view under the viewport.
     pub diagram: bool,
+    /// Show Rex, the AI puppy, at the bottom of the center area.
+    pub rex: bool,
     /// Terrain sculpting tool (when a terrain is selected).
     pub sculpt: Option<kit::gamesys::SculptTool>,
     pub brush_radius: f32,
@@ -120,6 +122,7 @@ impl Default for ViewSettings {
             colliders: true,
             volumes: true,
             diagram: false,
+            rex: false,
             sculpt: None,
             brush_radius: 4.0,
             brush_strength: 0.5,
@@ -148,6 +151,7 @@ pub struct Editor {
     pub selected: Option<Entity>,
     pub camera: EditorCamera,
     pub settings: ViewSettings,
+    pub controls: crate::controls::Controls,
     pub playing: bool,
     play_snapshot: Option<(SceneFile, Option<usize>)>,
     undo: Vec<SceneFile>,
@@ -211,6 +215,7 @@ impl Editor {
             selected: None,
             camera: EditorCamera::default(),
             settings: ViewSettings::default(),
+            controls: Default::default(),
             playing: false,
             play_snapshot: None,
             undo: Vec::new(),
@@ -276,12 +281,25 @@ impl Editor {
         Ok(())
     }
 
+    #[cfg(test)]
     pub fn create_project(&mut self, dir: &Path) -> Result<()> {
         if dir.join(kit::resource::PROJECT_FILE).exists() {
             bail!("{} already contains a Kit project", dir.display());
         }
         templates::create_project(dir)?;
         self.open_project(dir)
+    }
+
+    pub fn create_project_from(&mut self, dir: &Path, options: &templates::NewProject) -> Result<()> {
+        templates::create_from(dir, options)?;
+        self.open_project(dir)?;
+        self.camera.set_two_d(options.template.two_d());
+        self.settings.diagram = options.template == templates::Template::Diagram3D;
+        if self.settings.diagram {
+            self.selected = kit::scene::find_by_name(self.world(), "Lift");
+        }
+        self.frame_all();
+        Ok(())
     }
 
     pub fn project_title(&self) -> &str {
@@ -312,10 +330,7 @@ impl Editor {
     pub fn import_sound(&mut self, source: &Path) -> Result<String> {
         let project = self.project.as_ref().context("Open a project before adding sounds")?;
         let name = source.file_name().and_then(|n| n.to_str()).context("The sound's file name must be valid UTF-8")?;
-        anyhow::ensure!(
-            kit::gamesys::is_sound(name),
-            "Kit plays WAV, MP3, Ogg Vorbis, FLAC and AAC (.m4a) sounds"
-        );
+        anyhow::ensure!(kit::gamesys::is_sound(name), "Kit plays WAV, MP3, Ogg Vorbis, FLAC and AAC (.m4a) sounds");
         let bytes = std::fs::read(source).with_context(|| format!("reading {}", source.display()))?;
         let ext = Path::new(name).extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
         kit::audio::decode(bytes.clone(), &ext).with_context(|| format!("{name} can't be played"))?;
@@ -375,7 +390,11 @@ impl Editor {
                 crate::model_import::SOURCE_EXTENSIONS.iter().map(|e| e.to_uppercase()).collect::<Vec<_>>().join(", ")
             ),
         };
-        let rel = match source.canonicalize().ok().and_then(|s| s.strip_prefix(root.canonicalize().ok()?).ok().map(|r| r.to_path_buf())) {
+        let rel = match source
+            .canonicalize()
+            .ok()
+            .and_then(|s| s.strip_prefix(root.canonicalize().ok()?).ok().map(|r| r.to_path_buf()))
+        {
             Some(inside) => inside.to_string_lossy().replace('\\', "/"),
             None => copy_into_project(&root, folder, &name, &bytes)?,
         };

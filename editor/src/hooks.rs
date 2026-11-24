@@ -154,7 +154,8 @@ pub fn load(dirs: &[PathBuf]) -> Vec<Platform> {
     let mut hooks: Vec<Platform> = BUILTIN.iter().map(|t| parse(t, None).expect("built-in hook.toml")).collect();
     for dir in dirs {
         let Ok(entries) = std::fs::read_dir(dir) else { continue };
-        let mut found: Vec<PathBuf> = entries.flatten().map(|e| e.path()).filter(|p| p.join("hook.toml").is_file()).collect();
+        let mut found: Vec<PathBuf> =
+            entries.flatten().map(|e| e.path()).filter(|p| p.join("hook.toml").is_file()).collect();
         found.sort();
         for hook_dir in found {
             let parsed = std::fs::read_to_string(hook_dir.join("hook.toml"))
@@ -210,7 +211,11 @@ mod tests {
              [export]\ncommand = \"export.sh\"\nargs = [\"{project}\", \"{out}\"]\n",
         )
         .unwrap();
-        std::fs::write(dir.join("broken/hook.toml"), "id = \"../evil\"\nname = \"x\"\ngroup = \"console\"\naccess = \"open\"\n").unwrap();
+        std::fs::write(
+            dir.join("broken/hook.toml"),
+            "id = \"../evil\"\nname = \"x\"\ngroup = \"console\"\naccess = \"open\"\n",
+        )
+        .unwrap();
         let hooks = load(&[dir.clone()]);
         let switch = hooks.iter().find(|h| h.id == "switch").unwrap();
         let export = switch.export.expect("installed hook brings its exporter");

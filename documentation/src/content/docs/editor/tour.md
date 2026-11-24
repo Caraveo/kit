@@ -32,14 +32,20 @@ Files in your project, grouped by type: **Scenes, Scripts, Sprites, Models, Audi
 - Click an image while a sprite or model is selected to use it as that object's texture.
 - The **+** on the Scenes and Scripts groups creates a new one.
 
+## Arrange your views
+
+Use **Project → View** to show or hide Hierarchy, Assets, Inspector, Diagram,
+Game View, and Console. Kit keeps at least one pane open. Hiding Game View gives Diagram the full central
+area. Choose **Project → View → Default** to restore the standard layout.
+
 ## Viewport (center)
 
 Your scene, rendered live with Vulkan.
 
 | Action | Mouse |
 |---|---|
-| Orbit | Left drag |
-| Pan | <kbd>Shift</kbd> + drag, right drag, or middle drag |
+| Pan | Drag (left or middle button) |
+| Orbit | Right drag, or <kbd>Shift</kbd> + drag |
 | Zoom | Scroll |
 | Select | Click an object |
 | Frame the object | Double-click, or <kbd>F</kbd> |

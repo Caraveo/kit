@@ -368,7 +368,10 @@ impl Host for EntityHost<'_> {
                 };
                 match member {
                     "PlaySound" => {
-                        let clip = args.first().and_then(|a| a.as_str()).ok_or("PlaySound(\"sounds/file.wav\", volume, pitch)")?;
+                        let clip = args
+                            .first()
+                            .and_then(|a| a.as_str())
+                            .ok_or("PlaySound(\"sounds/file.wav\", volume, pitch)")?;
                         let volume = args.get(1).map(|v| f(v, "volume")).transpose()?.unwrap_or(1.0);
                         let pitch = args.get(2).map(|v| f(v, "pitch")).transpose()?.unwrap_or(1.0);
                         // From this object, with its source's proximity when it has a 3D one.
@@ -392,7 +395,9 @@ impl Host for EntityHost<'_> {
                         push(AudioCommand::Stop(e))?;
                         Ok(Value::Null)
                     }
-                    "Playing" => Ok(Value::Bool(w.try_resource::<AudioState>().is_some_and(|s| s.playing.contains(&e)))),
+                    "Playing" => {
+                        Ok(Value::Bool(w.try_resource::<AudioState>().is_some_and(|s| s.playing.contains(&e))))
+                    }
                     _ => {
                         let mut a = w.get_mut::<AudioSource>(e).ok_or("this object has no Audio Source")?;
                         match member {
@@ -412,7 +417,11 @@ impl Host for EntityHost<'_> {
                             }
                             "Clip" => Ok(Value::Str(a.clip.clone().into())),
                             "SetClip" => {
-                                a.clip = args.first().and_then(|v| v.as_str()).ok_or("SetClip(\"sounds/file.wav\")")?.to_owned();
+                                a.clip = args
+                                    .first()
+                                    .and_then(|v| v.as_str())
+                                    .ok_or("SetClip(\"sounds/file.wav\")")?
+                                    .to_owned();
                                 Ok(Value::Null)
                             }
                             _ => Err(format!("unknown member `{member}`")),

@@ -68,7 +68,8 @@ pub fn primary(ui: &mut Ui, text: &str, kbd: Option<&str>) -> Response {
 
 /// A dock toggle (Wireframe / Lighting / Grid ...).
 pub fn dock_toggle(ui: &mut Ui, icon: &str, label: &str, on: bool) -> Response {
-    let text = RichText::new(format!("{icon}  {label}")).size(13.0).color(if on { PRESSED_TEXT() } else { DOCK_TEXT() });
+    let text =
+        RichText::new(format!("{icon}  {label}")).size(13.0).color(if on { PRESSED_TEXT() } else { DOCK_TEXT() });
     let button = Button::new(text)
         .fill(if on {
             egui::Color32::from_rgba_unmultiplied(0xb6, 0x9a, 0xf3, 0x2b)
@@ -116,27 +117,23 @@ pub fn spaced(text: &str, size: f32, color: egui::Color32) -> egui::text::Layout
     job
 }
 
-/// Painted cube logo (the Dimension mark, in Kit's colors).
+/// Paint the Kit app icon at the requested size.
 pub fn logo(ui: &mut Ui, size: f32) -> Response {
-    let (rect, resp) = ui.allocate_exact_size(Vec2::splat(size), egui::Sense::hover());
-    let p = ui.painter();
-    let c = rect.center();
-    let r = size * 0.46;
-    let hex: Vec<egui::Pos2> = (0..6)
-        .map(|i| {
-            let a = std::f32::consts::FRAC_PI_3 * i as f32 - std::f32::consts::FRAC_PI_2;
-            c + egui::vec2(a.cos(), a.sin()) * r
-        })
-        .collect();
-    let stroke = Stroke::new(size * 0.06, ACCENT());
-    p.add(egui::Shape::convex_polygon(
-        vec![hex[0], hex[1], c, hex[5]],
-        egui::Color32::from_rgba_unmultiplied(0xc1, 0xa9, 0xff, 0x40),
-        Stroke::NONE,
-    ));
-    p.add(egui::Shape::closed_line(hex.clone(), stroke));
-    p.line_segment([c, hex[1]], stroke);
-    p.line_segment([c, hex[5]], stroke);
-    p.line_segment([c, hex[3]], stroke);
-    resp
+    let id = egui::Id::new("kit-logo-texture");
+    let texture = match ui.ctx().data(|data| data.get_temp::<egui::TextureHandle>(id)) {
+        Some(texture) => texture,
+        None => {
+            let image = image::load_from_memory(include_bytes!("../../packaging/icons/kit-128.png"))
+                .expect("valid bundled Kit logo")
+                .into_rgba8();
+            let pixels = egui::ColorImage::from_rgba_unmultiplied(
+                [image.width() as usize, image.height() as usize],
+                image.as_raw(),
+            );
+            let texture = ui.ctx().load_texture("Kit logo", pixels, egui::TextureOptions::LINEAR);
+            ui.ctx().data_mut(|data| data.insert_temp(id, texture.clone()));
+            texture
+        }
+    };
+    ui.image((texture.id(), Vec2::splat(size)))
 }

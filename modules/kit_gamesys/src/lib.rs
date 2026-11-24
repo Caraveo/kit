@@ -9,8 +9,8 @@
 
 pub mod audio;
 pub mod bridge;
-pub mod post;
 mod physics;
+pub mod post;
 mod scene_file;
 mod terrain;
 
@@ -21,12 +21,14 @@ pub use physics::{
     RayHit, RigidBody,
 };
 
-pub use audio::{AudioCommand, AudioCommands, AudioSource, AudioState, Rolloff, SOUND_EXTENSIONS, is_sound, stereo_pan};
+pub use audio::{
+    AudioCommand, AudioCommands, AudioSource, AudioState, Rolloff, SOUND_EXTENSIONS, is_sound, stereo_pan,
+};
+pub use bridge::{BridgeValue, Diagram, GraphEvent, GraphEvents, ScriptCall, ScriptCalls};
 pub use post::{
     AmbientFx, AoQuality, ColorFx, ExposureFx, FocusFx, GlowFx, ImageFx, Override, PostEffects, PostVolume, Tonemap,
     VolumeAffect, VolumeShape,
 };
-pub use bridge::{BridgeValue, Diagram, GraphEvent, GraphEvents, ScriptCall, ScriptCalls};
 pub use scene_file::{EntityData, ExtraData, SCENE_EXTENSION, SceneFile, clone_subtree, load_scene, save_scene};
 
 use glam::{Mat4, Vec2, Vec3, Vec4};

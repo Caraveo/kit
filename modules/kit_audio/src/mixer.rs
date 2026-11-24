@@ -116,10 +116,7 @@ impl Mixer {
 
     pub fn play(&mut self, id: u64, clip: Arc<Clip>, volume: f32, pan: f32, pitch: f32, looping: bool) {
         let g = pan_gains(volume, pan);
-        self.voices.insert(
-            id,
-            Voice { clip, pos: 0.0, looping, pitch, target: g, current: g, fresh: true },
-        );
+        self.voices.insert(id, Voice { clip, pos: 0.0, looping, pitch, target: g, current: g, fresh: true });
     }
 
     /// Change a playing voice (volume/pan ramp over the next buffer).
@@ -176,7 +173,13 @@ impl Mixer {
                 }
                 let i0 = v.pos as usize;
                 let t = (v.pos - i0 as f64) as f32;
-                let i1 = if i0 + 1 < len { i0 + 1 } else if v.looping { 0 } else { i0 };
+                let i1 = if i0 + 1 < len {
+                    i0 + 1
+                } else if v.looping {
+                    0
+                } else {
+                    i0
+                };
                 let (a, b) = (v.clip.frames[i0], v.clip.frames[i1]);
                 let k = (i + 1) as f32 / frames as f32;
                 let gl = start[0] + (v.target[0] - start[0]) * k;

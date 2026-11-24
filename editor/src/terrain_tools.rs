@@ -43,19 +43,20 @@ pub fn handle_input(
     view: &View,
 ) -> bool {
     let Some(tool) = ed.settings.sculpt else { return false };
-    let down = ui.input(|i| i.pointer.primary_down());
+    let button = ed.controls.gestures.sculpt.egui();
+    let down = ui.input(|i| i.pointer.button_down(button));
     if !down {
         brush.flatten_to = None;
         return false;
     }
-    if !(resp.is_pointer_button_down_on() || resp.dragged_by(egui::PointerButton::Primary)) {
+    if !(resp.is_pointer_button_down_on() || resp.dragged_by(button)) {
         return false;
     }
     let Some(pos) = ui.input(|i| i.pointer.interact_pos()) else { return false };
     let Some((e, hit, g)) = hover(ed, rect, view, pos) else { return true };
     let local = g.inverse().transform_point3(hit);
     let scale = g.to_scale_rotation_translation().0;
-    let ctrl = ui.input(|i| i.modifiers.command);
+    let ctrl = ui.input(|i| ed.controls.gestures.reverse_sculpt.held(i.modifiers));
     let tool = match (tool, ctrl) {
         (SculptTool::Raise, true) => SculptTool::Lower,
         (SculptTool::Lower, true) => SculptTool::Raise,

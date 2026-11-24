@@ -87,7 +87,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          awk -v version="$GITHUB_REF_NAME" '
+            /^## / { if (found) exit; found = ($2 == version || $2 == version ":") }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          test -s release-notes.md
           gh release create "${GITHUB_REF_NAME}" artifacts/* \
             --title "Kit ${GITHUB_REF_NAME}" \
-            --notes-file CHANGELOG.md \
+            --notes-file release-notes.md \
             --verify-tag

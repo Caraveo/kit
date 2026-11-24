@@ -1,6 +1,7 @@
 //! Editor layout: header, hierarchy, viewport, inspector, console, footer.
 
 use crate::code;
+use crate::controls::Shortcut;
 use crate::state::{Editor, Preset};
 use crate::theme::*;
 use crate::widgets::{self, badge, dock_toggle, ghost, ghost_kbd, primary};
@@ -16,7 +17,8 @@ use std::time::Duration;
 /// Things the UI asks the host loop to do (OS dialogs, quitting).
 #[derive(Clone, Debug)]
 pub enum Request {
-    NewProject,
+    BrowseNewProject,
+    CreateProject(PathBuf, crate::templates::NewProject),
     OpenProject,
     OpenExample,
     ImportModels,
@@ -29,7 +31,47 @@ pub enum Request {
     SaveTheme,
 }
 
+#[derive(Clone, Copy)]
+enum ViewPane {
+    Hierarchy,
+    Assets,
+    Inspector,
+    Diagram,
+    Game,
+    Console,
+    Rex,
+}
+
+impl ViewPane {
+    const ALL: [(Self, &'static str); 7] = [
+        (Self::Hierarchy, "Hierarchy"),
+        (Self::Assets, "Assets"),
+        (Self::Inspector, "Inspector"),
+        (Self::Diagram, "Diagram"),
+        (Self::Game, "Game View"),
+        (Self::Console, "Console"),
+        (Self::Rex, "Rex"),
+    ];
+}
+
+struct Views {
+    /// Whether the combined Hierarchy / Assets dock is expanded.
+    left_dock: bool,
+    hierarchy: bool,
+    assets: bool,
+    inspector: bool,
+    game: bool,
+}
+
+impl Default for Views {
+    fn default() -> Self {
+        Self { left_dock: true, hierarchy: true, assets: true, inspector: true, game: true }
+    }
+}
+
 pub struct UiState {
+    pub new_project: Option<crate::new_project::Wizard>,
+    views: Views,
     pub viewport_tex: Option<egui::TextureId>,
     /// Desired viewport render size in physical pixels.
     pub viewport_px: [u32; 2],
@@ -45,6 +87,7 @@ pub struct UiState {
     pub gizmo: crate::move_gizmo::MoveGizmo,
     pub export: crate::export_wizard::ExportWizard,
     pub diagram: crate::diagram_view::DiagramView,
+    pub rex: crate::rex_panel::RexPanel,
     /// Camera preview (picture-in-picture): texture and desired pixel size; [0, 0] = hidden.
     pub preview_tex: Option<egui::TextureId>,
     pub preview_px: [u32; 2],
@@ -67,6 +110,77 @@ pub(crate) enum AssetKind {
 }
 
 impl UiState {
+    fn pane_visible(&self, ed: &Editor, pane: ViewPane) -> bool {
+        match pane {
+            ViewPane::Hierarchy => self.views.left_dock && self.views.hierarchy,
+            ViewPane::Assets => self.views.left_dock && self.views.assets,
+            ViewPane::Inspector => self.views.inspector,
+            ViewPane::Game => self.views.game,
+            ViewPane::Diagram => ed.settings.diagram,
+            ViewPane::Console => ed.settings.console,
+            ViewPane::Rex => ed.settings.rex,
+        }
+    }
+
+    fn can_hide(&self, ed: &Editor) -> bool {
+        ViewPane::ALL.iter().filter(|(pane, _)| self.pane_visible(ed, *pane)).count() > 1
+    }
+
+    fn has_visible(&self, ed: &Editor) -> bool {
+        ViewPane::ALL.iter().any(|(pane, _)| self.pane_visible(ed, *pane))
+    }
+
+    fn toggle_pane(&mut self, ed: &mut Editor, pane: ViewPane) {
+        let was_visible = self.pane_visible(ed, pane);
+        if was_visible && !self.can_hide(ed) {
+            ed.notify("Keep at least one view open.");
+            return;
+        }
+        let visible = match pane {
+            ViewPane::Hierarchy => &mut self.views.hierarchy,
+            ViewPane::Assets => &mut self.views.assets,
+            ViewPane::Inspector => &mut self.views.inspector,
+            ViewPane::Game => &mut self.views.game,
+            ViewPane::Diagram => &mut ed.settings.diagram,
+            ViewPane::Console => &mut ed.settings.console,
+            ViewPane::Rex => &mut ed.settings.rex,
+        };
+        *visible = !was_visible;
+        if !was_visible && matches!(pane, ViewPane::Rex) {
+            self.rex.ask_focus();
+        }
+        if !was_visible && matches!(pane, ViewPane::Hierarchy | ViewPane::Assets) {
+            self.views.left_dock = true;
+        }
+        if !self.views.game {
+            self.hide_viewport();
+        }
+    }
+
+    pub(crate) fn ensure_visible(&mut self, ed: &mut Editor) {
+        if !ViewPane::ALL.iter().any(|(pane, _)| self.pane_visible(ed, *pane)) {
+            self.views.game = true;
+        }
+    }
+
+    fn hide_viewport(&mut self) {
+        self.viewport_rect = egui::Rect::NOTHING;
+        self.viewport_px = [0, 0];
+        self.viewport_focused = false;
+        self.preview_px = [0, 0];
+        self.preview_camera = None;
+    }
+
+    fn restore_views(&mut self, ctx: &egui::Context, ed: &mut Editor) {
+        self.views = Views::default();
+        ed.settings.diagram = false;
+        ed.settings.console = false;
+        ed.settings.rex = false;
+        for name in ["hierarchy", "inspector", "diagram", "console", "game_view", "rex"] {
+            ctx.data_mut(|data| data.remove::<egui::panel::PanelState>(Id::new(name)));
+        }
+    }
+
     #[cfg(test)]
     pub fn errors_seen_for_test(&self) -> u64 {
         self.errors_seen
@@ -74,6 +188,8 @@ impl UiState {
 
     pub fn new(recent: Vec<PathBuf>, gpu_name: String) -> Self {
         Self {
+            new_project: None,
+            views: Views::default(),
             viewport_tex: None,
             viewport_px: [0, 0],
             viewport_rect: egui::Rect::NOTHING,
@@ -87,6 +203,7 @@ impl UiState {
             gizmo: Default::default(),
             export: Default::default(),
             diagram: Default::default(),
+            rex: Default::default(),
             preview_tex: None,
             preview_px: [0, 0],
             preview_camera: None,
@@ -177,7 +294,10 @@ fn apply(ed: &mut Editor, st: &mut UiState, actions: Vec<Action>) {
 /// Build the whole editor UI for one frame.
 pub fn draw(root: &mut Ui, ed: &mut Editor, st: &mut UiState) {
     let ctx = root.ctx().clone();
-    shortcuts(&ctx, ed, st);
+    st.ensure_visible(ed);
+    if st.new_project.is_none() && !st.settings.capturing() {
+        shortcuts(&ctx, ed, st);
+    }
     // Files dropped from the system: sounds go to Assets → Sounds (and, dropped
     // on the viewport, into the scene); 3D models are imported.
     let drop_pos = ctx.input(|i| i.pointer.latest_pos());
@@ -229,66 +349,148 @@ pub fn draw(root: &mut Ui, ed: &mut Editor, st: &mut UiState) {
         .show_separator_line(false)
         .show(root, |ui| footer(ui, ed, st));
 
-    egui::Panel::left("hierarchy")
-        .default_size(250.0)
-        .size_range(180.0..=420.0)
-        .resizable(true)
-        .frame(Frame::NONE.inner_margin(Margin { left: 20, right: 6, top: 0, bottom: 8 }).fill(BG()))
-        .show_separator_line(false)
-        .show(root, |ui| {
-            theme_card().show(ui, |ui| {
-                ui.set_min_size(ui.available_size());
-                hierarchy(ui, ed, st);
+    {
+        let left_open_before = st.views.left_dock;
+        let mut left_open = left_open_before;
+        egui::Panel::left("hierarchy")
+            .default_size(250.0)
+            .size_range(180.0..=420.0)
+            .resizable(true)
+            .frame(Frame::NONE.inner_margin(Margin { left: 20, right: 6, top: 0, bottom: 8 }).fill(BG()))
+            .show_separator_line(false)
+            .show_collapsible(root, &mut left_open, |ui| {
+                theme_card().show(ui, |ui| {
+                    ui.set_min_size(ui.available_size());
+                    if st.views.hierarchy {
+                        hierarchy(ui, ed, st);
+                    }
+                    if st.views.assets {
+                        if st.views.hierarchy {
+                            ui.add_space(6.0);
+                            ui.separator();
+                        }
+                        assets(ui, ed, st);
+                    }
+                });
             });
-        });
+        st.views.left_dock = left_open;
+        if left_open_before && !st.views.left_dock && !st.has_visible(ed) {
+            st.views.left_dock = true;
+            ed.notify("Keep at least one view open.");
+        }
+    }
 
-    egui::Panel::right("inspector")
-        .default_size(300.0)
-        .size_range(240.0..=520.0)
-        .resizable(true)
-        .frame(Frame::NONE.inner_margin(Margin { left: 6, right: 20, top: 0, bottom: 8 }).fill(BG()))
-        .show_separator_line(false)
-        .show(root, |ui| {
-            theme_card().show(ui, |ui| {
-                ui.set_min_size(ui.available_size());
-                inspector(ui, ed);
+    {
+        let inspector_open_before = st.views.inspector;
+        let mut inspector_open = inspector_open_before;
+        egui::Panel::right("inspector")
+            .default_size(300.0)
+            .size_range(240.0..=520.0)
+            .resizable(true)
+            .frame(Frame::NONE.inner_margin(Margin { left: 6, right: 20, top: 0, bottom: 8 }).fill(BG()))
+            .show_separator_line(false)
+            .show_collapsible(root, &mut inspector_open, |ui| {
+                theme_card().show(ui, |ui| {
+                    ui.set_min_size(ui.available_size());
+                    inspector(ui, ed);
+                });
             });
-        });
+        st.views.inspector = inspector_open;
+        if inspector_open_before && !st.views.inspector && !st.has_visible(ed) {
+            st.views.inspector = true;
+            ed.notify("Keep at least one view open.");
+        }
+    }
 
     egui::CentralPanel::default()
         .frame(Frame::NONE.inner_margin(Margin { left: 6, right: 6, top: 0, bottom: 8 }).fill(BG()))
         .show(root, |ui| {
-            if ed.settings.console {
+            {
+                // Bottom panels are laid out first (Rex at the very bottom, then the
+                // Console and the Diagram view); the game view fills what's left.
+                let rex_open_before = ed.settings.rex;
+                let mut rex_open = rex_open_before;
+                egui::Panel::bottom("rex")
+                    .default_size(380.0)
+                    // Leave room for the game view above.
+                    .size_range(230.0..=(ui.available_height() * 0.8).max(240.0))
+                    .resizable(true)
+                    .frame(Frame::NONE.inner_margin(Margin { left: 0, right: 0, top: 8, bottom: 0 }))
+                    .show_separator_line(false)
+                    .show_collapsible(ui, &mut rex_open, |ui| {
+                        theme_card().inner_margin(Margin::symmetric(14, 10)).show(ui, |ui| {
+                            ui.set_min_size(ui.available_size());
+                            crate::rex_panel::show(ui, ed, &mut st.rex);
+                        });
+                    });
+                ed.settings.rex = rex_open;
+                if rex_open_before && !ed.settings.rex && !st.has_visible(ed) {
+                    ed.settings.rex = true;
+                    ed.notify("Keep at least one view open.");
+                }
+            }
+            {
+                let console_open_before = ed.settings.console;
+                let mut console_open = console_open_before;
                 egui::Panel::bottom("console")
                     .default_size(150.0)
                     .size_range(80.0..=500.0)
                     .resizable(true)
                     .frame(Frame::NONE.inner_margin(Margin { left: 0, right: 0, top: 8, bottom: 0 }))
                     .show_separator_line(false)
-                    .show(ui, |ui| {
+                    .show_collapsible(ui, &mut console_open, |ui| {
                         theme_card().inner_margin(Margin::symmetric(14, 10)).show(ui, |ui| {
                             ui.set_min_size(ui.available_size());
                             console(ui, ed, st);
                         });
                     });
+                ed.settings.console = console_open;
+                if console_open_before && !ed.settings.console && !st.has_visible(ed) {
+                    ed.settings.console = true;
+                    ed.notify("Keep at least one view open.");
+                }
             }
-            if ed.settings.diagram {
+            {
+                let diagram_open_before = ed.settings.diagram;
+                let mut diagram_open = diagram_open_before;
+                let diagram_min = if st.views.game { 180.0 } else { 100.0 };
                 egui::Panel::bottom("diagram")
-                    .default_size(ui.available_height() * 0.6)
-                    .size_range(180.0..=(ui.available_height() - 120.0).max(200.0))
+                    .default_size(if st.views.game { ui.available_height() * 0.6 } else { ui.available_height() }.max(diagram_min))
+                    .size_range(diagram_min..=if st.views.game { ui.available_height() * 0.85 } else { ui.available_height() }.max(diagram_min))
                     .resizable(true)
                     .frame(Frame::NONE.inner_margin(Margin { left: 0, right: 0, top: 8, bottom: 0 }))
                     .show_separator_line(false)
-                    .show(ui, |ui| {
+                    .show_collapsible(ui, &mut diagram_open, |ui| {
                         theme_card().inner_margin(Margin::symmetric(12, 10)).show(ui, |ui| {
                             ui.set_min_size(ui.available_size());
-                            crate::diagram_view::show(ui, ed, &mut st.diagram);
+                            diagram_panel(ui, ed, st);
                         });
                     });
-            } else {
-                st.diagram.hovered = false;
+                ed.settings.diagram = diagram_open;
+                if diagram_open_before && !ed.settings.diagram && !st.has_visible(ed) {
+                    ed.settings.diagram = true;
+                    ed.notify("Keep at least one view open.");
+                }
             }
-            viewport(ui, ed, st);
+            let game_open_before = st.views.game;
+            let mut game_open = game_open_before;
+            egui::Panel::top("game_view")
+                // Laid out last: the game view always fills the room the panels
+                // below leave (resize those panels to change the split).
+                .exact_size(ui.available_height().max(140.0))
+                .resizable(false)
+                .frame(Frame::NONE)
+                .show_separator_line(false)
+                .show_collapsible(ui, &mut game_open, |ui| viewport(ui, ed, st));
+            st.views.game = game_open;
+            if game_open_before && !st.views.game && !st.has_visible(ed) {
+                st.views.game = true;
+                ed.notify("Keep at least one view open.");
+            }
+
+            if !st.views.game {
+                st.hide_viewport();
+            }
         });
 
     if std::mem::take(&mut ed.request_settings) {
@@ -305,8 +507,22 @@ pub fn draw(root: &mut Ui, ed: &mut Editor, st: &mut UiState) {
         st.requests.push(Request::ImportPublisherKey);
     }
     welcome(&ctx, ed, st);
-    help(&ctx, st);
+    if let Some(wizard) = st.new_project.as_mut() {
+        match crate::new_project::window(&ctx, wizard) {
+            Some(crate::new_project::Action::Browse) => st.requests.push(Request::BrowseNewProject),
+            Some(crate::new_project::Action::Create(path, options)) => {
+                st.requests.push(Request::CreateProject(path, options))
+            }
+            Some(crate::new_project::Action::Close) => st.new_project = None,
+            None => {}
+        }
+    }
+    help(&ctx, st, &ed.controls);
     notice(&ctx, ed);
+}
+
+fn diagram_panel(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
+    crate::diagram_view::show(ui, ed, &mut st.diagram);
 }
 
 fn theme_card() -> Frame {
@@ -318,132 +534,137 @@ fn theme_card() -> Frame {
 fn shortcuts(ctx: &egui::Context, ed: &mut Editor, st: &mut UiState) {
     let typing = ctx.egui_wants_keyboard_input();
     let script_focused = code::script_editor_focused(ctx);
-    let (cmd_s, undo, redo, f5, f1, esc) = ctx.input_mut(|i| {
-        let cmd = egui::Modifiers::COMMAND;
+    let (save, play, help, release) = ctx.input_mut(|input| {
+        let controls = &ed.controls;
         (
-            i.consume_key(cmd, Key::S),
-            i.consume_key(cmd, Key::Z),
-            i.consume_key(cmd | egui::Modifiers::SHIFT, Key::Z) || i.consume_key(cmd, Key::Y),
-            i.consume_key(egui::Modifiers::NONE, Key::F5),
-            i.consume_key(egui::Modifiers::NONE, Key::F1),
-            i.key_pressed(Key::Escape),
+            controls.take(input, Shortcut::Save),
+            controls.take(input, Shortcut::Play),
+            controls.take(input, Shortcut::Help),
+            (st.viewport_focused || ed.settings.canvas && !typing && !st.diagram.hovered)
+                && controls.take(input, Shortcut::Release),
         )
     });
-    if cmd_s {
+    if save {
         if script_focused {
             if let Some(i) = ed.active_script {
                 ed.save_script(i);
             }
         } else {
-            let r = ed.save_scene();
-            ed.report(r);
+            let result = ed.save_scene();
+            ed.report(result);
         }
     }
-    if f5 {
+    if play {
         if ed.playing { ed.stop() } else { ed.play() }
     }
-    if f1 {
+    if help {
         st.help = !st.help;
     }
-    if esc && st.viewport_focused {
+    if release && st.viewport_focused {
         st.viewport_focused = false;
     }
-    // While the game has the keyboard, leave keys to it.
-    if ed.playing && st.viewport_focused {
+
+    if ed.playing && st.viewport_focused || typing {
         return;
     }
-    if typing {
-        return;
-    }
-    // Over the Diagram view, editing keys act on the graph.
     let in_diagram = ed.settings.diagram && st.diagram.hovered;
+    let pressed = |action| ctx.input_mut(|input| ed.controls.take(input, action));
+    let (undo, redo, delete, duplicate, diagram, console, rex) = (
+        pressed(Shortcut::Undo),
+        pressed(Shortcut::Redo),
+        pressed(Shortcut::Delete),
+        pressed(Shortcut::Duplicate),
+        pressed(Shortcut::Diagram),
+        pressed(Shortcut::Console),
+        pressed(Shortcut::Rex),
+    );
+    if rex {
+        st.toggle_pane(ed, ViewPane::Rex);
+    }
     if undo && !redo {
         if in_diagram { st.diagram.undo(ed) } else { ed.undo() }
     }
     if redo {
         if in_diagram { st.diagram.redo(ed) } else { ed.redo() }
     }
+    if diagram {
+        st.toggle_pane(ed, ViewPane::Diagram);
+    }
+    if console {
+        st.toggle_pane(ed, ViewPane::Console);
+    }
     if in_diagram {
-        let pressed = |k: Key| ctx.input(|i| i.key_pressed(k) && i.modifiers.is_none());
-        if pressed(Key::Delete) || pressed(Key::Backspace) {
-            st.diagram.delete_selected(ed);
-        }
-        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, Key::D)) {
-            st.diagram.duplicate_selected(ed);
-        }
-        if pressed(Key::Num7) {
-            ed.settings.diagram = false;
+        if !ed.playing {
+            if delete {
+                st.diagram.delete_selected(ed);
+            }
+            if duplicate {
+                st.diagram.duplicate_selected(ed);
+            }
         }
         return;
     }
-    let pressed = |k: Key| ctx.input(|i| i.key_pressed(k) && i.modifiers.is_none());
-    if pressed(Key::F) {
-        ed.frame_selected();
+
+    for action in [
+        Shortcut::Frame,
+        Shortcut::Wireframe,
+        Shortcut::Lighting,
+        Shortcut::Grid,
+        Shortcut::Colliders,
+        Shortcut::Canvas,
+        Shortcut::Volumes,
+        Shortcut::Rotate,
+        Shortcut::Dimension,
+        Shortcut::Rename,
+    ] {
+        if !ctx.input_mut(|input| ed.controls.take(input, action)) {
+            continue;
+        }
+        match action {
+            Shortcut::Frame => ed.frame_selected(),
+            Shortcut::Wireframe => ed.settings.wireframe = !ed.settings.wireframe,
+            Shortcut::Lighting => ed.settings.lighting = !ed.settings.lighting,
+            Shortcut::Grid => ed.settings.grid = !ed.settings.grid,
+            Shortcut::Colliders => ed.settings.colliders = !ed.settings.colliders,
+            Shortcut::Canvas if !ed.playing => ed.settings.canvas = !ed.settings.canvas,
+            Shortcut::Volumes => ed.settings.volumes = !ed.settings.volumes,
+            Shortcut::Rotate => ed.camera.auto_rotate = !ed.camera.auto_rotate,
+            Shortcut::Dimension => ed.camera.set_two_d(!ed.camera.two_d),
+            Shortcut::Rename if !ed.playing => {
+                if let Some(entity) = ed.selected {
+                    ed.renaming = Some((entity, ed.entity_label(entity)));
+                }
+            }
+            _ => {}
+        }
     }
-    // 1–6: the viewport toggles, in the bar's order.
-    if pressed(Key::Num1) {
-        ed.settings.wireframe = !ed.settings.wireframe;
-    }
-    if pressed(Key::Num2) {
-        ed.settings.lighting = !ed.settings.lighting;
-    }
-    if pressed(Key::Num3) {
-        ed.settings.grid = !ed.settings.grid;
-    }
-    if pressed(Key::Num4) {
-        ed.settings.colliders = !ed.settings.colliders;
-    }
-    if pressed(Key::Num5) && !ed.playing {
-        ed.settings.canvas = !ed.settings.canvas;
-    }
-    if pressed(Key::Num6) {
-        ed.settings.volumes = !ed.settings.volumes;
-    }
-    if pressed(Key::Num7) {
-        ed.settings.diagram = !ed.settings.diagram;
-    }
-    // W/S zoom, A/D pan (+ Q/E, Shift) while the mouse is over the viewport.
-    let over_viewport = ctx.input(|i| i.pointer.hover_pos()).is_some_and(|p| st.viewport_rect.contains(p));
-    let using_game_camera = ed.playing && ed.settings.game_camera;
-    if over_viewport && !using_game_camera {
-        let (dir, fast, dt) = ctx.input(|i| {
-            let k = |key: Key| if i.key_down(key) { 1.0 } else { 0.0 };
-            let dir = kit::math::Vec3::new(
-                k(Key::D) - k(Key::A),
-                k(Key::E) - k(Key::Q),
-                k(Key::W) - k(Key::S),
+
+    let over_viewport =
+        st.views.game && ctx.input(|i| i.pointer.hover_pos()).is_some_and(|p| st.viewport_rect.contains(p));
+    if over_viewport && !(ed.playing && ed.settings.game_camera) {
+        let (dir, fast, dt) = ctx.input(|input| {
+            let held = |action| ed.controls.held(input, action);
+            let dir = Vec3::new(
+                held(Shortcut::Right) - held(Shortcut::Left),
+                held(Shortcut::Up) - held(Shortcut::Down),
+                held(Shortcut::Forward) - held(Shortcut::Back),
             );
-            (dir, i.modifiers.shift, i.stable_dt.min(0.1))
+            (dir, ed.controls.gestures.fast_camera.held(input.modifiers), input.stable_dt.min(0.1))
         });
-        if dir != kit::math::Vec3::ZERO && !ctx.input(|i| i.modifiers.command || i.modifiers.alt) {
+        if dir != Vec3::ZERO {
             ed.camera.fly(dir, dt, fast);
             ctx.request_repaint();
         }
     }
-    if pressed(Key::R) {
-        ed.camera.auto_rotate = !ed.camera.auto_rotate;
-    }
-    if pressed(Key::T) {
-        let two_d = !ed.camera.two_d;
-        ed.camera.set_two_d(two_d);
-    }
-
-    if esc && ed.settings.canvas {
+    if release {
         ed.settings.canvas = false;
     }
-    if pressed(Key::Backtick) {
-        ed.settings.console = !ed.settings.console;
-    }
     if !ed.playing {
-        if let Some(sel) = ed.selected {
-            if pressed(Key::Delete) || pressed(Key::Backspace) {
-                ed.delete(sel);
-            }
-            if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, Key::D)) {
-                ed.duplicate(sel);
-            }
-            if pressed(Key::F2) {
-                ed.renaming = Some((sel, ed.entity_label(sel)));
+        if let Some(entity) = ed.selected {
+            if delete {
+                ed.delete(entity);
+            } else if duplicate {
+                ed.duplicate(entity);
             }
         }
     }
@@ -467,13 +688,16 @@ fn header(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
         }
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             let play_label = if ed.playing { "■  Stop" } else { "▶  Play" };
-            if primary(ui, play_label, Some("F5")).clicked() {
+            if primary(ui, play_label, Some(&ed.controls.label(Shortcut::Play))).clicked() {
                 if ed.playing { ed.stop() } else { ed.play() }
             }
             ui.add_space(6.0);
             let light = crate::theme::is_light();
-            let toggle = ghost(ui, if light { "🌙" } else { "☀" })
-                .on_hover_text(if light { "Switch to dark mode" } else { "Switch to light mode" });
+            let toggle = ghost(ui, if light { "🌙" } else { "☀" }).on_hover_text(if light {
+                "Switch to dark mode"
+            } else {
+                "Switch to light mode"
+            });
             mark(ui, "theme_toggle", toggle.rect);
             if toggle.clicked() {
                 crate::theme::set_light(ui.ctx(), !light);
@@ -485,7 +709,7 @@ fn header(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                 if export.clicked() {
                     st.export.show(ed);
                 }
-                if ghost_kbd(ui, "Save", "Ctrl S").clicked() {
+                if ghost_kbd(ui, "Save", &ed.controls.label(Shortcut::Save)).clicked() {
                     let r = ed.save_scene();
                     ed.report(r);
                 }
@@ -516,9 +740,11 @@ fn header(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                 });
             });
             mark(ui, "header_new", new_menu.response.rect);
-            ui.menu_button(RichText::new("Project").color(TEXT()), |ui| {
-                if ui.button("New project…").clicked() {
-                    st.requests.push(Request::NewProject);
+            let project_menu = ui.menu_button(RichText::new("Project").color(TEXT()), |ui| {
+                let new_project = ui.button("New project…");
+                mark(ui, "new_project_menu", new_project.rect);
+                if new_project.clicked() {
+                    st.new_project = Some(crate::new_project::Wizard::new(&crate::user_projects_dir()));
                     ui.close();
                 }
                 if ui.button("Open project…").clicked() {
@@ -530,10 +756,23 @@ fn header(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                     ui.close();
                 }
                 ui.separator();
-                if ui
-                    .add_enabled(ed.project.is_some(), egui::Button::new("Project settings…  (gravity, window…)"))
-                    .clicked()
-                {
+                ui.menu_button("View", |ui| {
+                    for (pane, label) in ViewPane::ALL {
+                        let mut visible = st.pane_visible(ed, pane);
+                        if ui
+                            .add_enabled(!visible || st.can_hide(ed), egui::Checkbox::new(&mut visible, label))
+                            .changed()
+                        {
+                            st.toggle_pane(ed, pane);
+                        }
+                    }
+                    ui.separator();
+                    if ui.button("Default").on_hover_text("Restore the default panel layout").clicked() {
+                        st.restore_views(ui.ctx(), ed);
+                        ui.close();
+                    }
+                });
+                if ui.add_enabled(ed.project.is_some(), egui::Button::new("Project settings…")).clicked() {
                     st.settings.open(ed);
                     ui.close();
                 }
@@ -547,13 +786,14 @@ fn header(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                     }
                 }
             });
+            mark(ui, "project_menu", project_menu.response.rect);
             ui.add_enabled_ui(ed.can_redo(), |ui| {
-                if ghost(ui, "↷").on_hover_text("Redo (Ctrl Shift Z)").clicked() {
+                if ghost(ui, "↷").on_hover_text(format!("Redo ({})", ed.controls.label(Shortcut::Redo))).clicked() {
                     ed.redo();
                 }
             });
             ui.add_enabled_ui(ed.can_undo(), |ui| {
-                if ghost(ui, "↶").on_hover_text("Undo (Ctrl Z)").clicked() {
+                if ghost(ui, "↶").on_hover_text(format!("Undo ({})", ed.controls.label(Shortcut::Undo))).clicked() {
                     ed.undo();
                 }
             });
@@ -578,17 +818,17 @@ fn footer(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
         ui.label(RichText::new(format!("{} entities", ed.world().entity_count())).size(11.0).color(MUTED()));
         ui.label(RichText::new(format!("{:.0} fps", st.fps)).size(11.0).color(MUTED()));
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            let tips: &[&str] = if ed.playing && st.viewport_focused {
-                &["Esc to release input", "F5 to stop"]
-            } else if ed.camera.two_d {
-                &["F1 shortcuts", "Scroll to zoom", "Drag to pan"]
+            let tip = if ed.playing && st.viewport_focused {
+                format!(
+                    "{} release input · {} stop",
+                    ed.controls.label(Shortcut::Release),
+                    ed.controls.label(Shortcut::Play)
+                )
             } else {
-                &["F1 shortcuts", "W/S zoom · A/D pan", "Shift + drag to pan", "Scroll to zoom", "Drag to orbit"]
+                format!("{} shortcuts", ed.controls.label(Shortcut::Help))
             };
-            for t in tips {
-                ui.label(RichText::new(*t).size(11.0).color(MUTED()));
-                ui.add_space(6.0);
-            }
+            ui.label(RichText::new(tip).size(11.0).color(MUTED()));
+            ui.add_space(6.0);
             // Collapsed by default; new errors show a count here.
             let total = ed.world().try_resource::<kit::core::Console>().map_or(0, |c| c.errors_total);
             if ed.settings.console {
@@ -597,7 +837,10 @@ fn footer(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
             let unseen = total.saturating_sub(st.errors_seen);
             if unseen > 0 {
                 let badge = ui
-                    .add(egui::Label::new(RichText::new(format!("● {unseen}")).size(11.0).color(ERROR())).sense(egui::Sense::click()))
+                    .add(
+                        egui::Label::new(RichText::new(format!("● {unseen}")).size(11.0).color(ERROR()))
+                            .sense(egui::Sense::click()),
+                    )
                     .on_hover_text(format!("{unseen} new error{} in the console", if unseen == 1 { "" } else { "s" }));
                 if badge.clicked() {
                     ed.settings.console = true;
@@ -606,7 +849,7 @@ fn footer(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
             if ghost(ui, RichText::new(if ed.settings.console { "Console ▾" } else { "Console ▸" }).size(11.0).text())
                 .clicked()
             {
-                ed.settings.console = !ed.settings.console;
+                st.toggle_pane(ed, ViewPane::Console);
             }
         });
     });
@@ -713,7 +956,11 @@ fn hierarchy(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
 
     let avail = ui.available_height();
     // Only as tall as the rows need (up to half the panel), leaving room for assets.
-    let tree_height = (rows.len() as f32 * 25.0 + 48.0).clamp(90.0, (avail * 0.5).max(90.0));
+    let tree_height = if st.views.assets {
+        (rows.len() as f32 * 25.0 + 48.0).clamp(90.0, (avail * 0.5).max(90.0))
+    } else {
+        avail.max(0.0)
+    };
     egui::ScrollArea::vertical().id_salt("tree").max_height(tree_height).auto_shrink([false, false]).show(ui, |ui| {
         ui.spacing_mut().item_spacing.y = 1.0;
         for row in &rows {
@@ -741,10 +988,6 @@ fn hierarchy(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
         });
     });
     apply(ed, st, actions);
-
-    ui.add_space(6.0);
-    ui.separator();
-    assets(ui, ed, st);
 }
 
 fn tree_row(ui: &mut Ui, ed: &mut Editor, st: &UiState, row: &Row, actions: &mut Vec<Action>) {
@@ -832,7 +1075,8 @@ fn tree_row(ui: &mut Ui, ed: &mut Editor, st: &UiState, row: &Row, actions: &mut
         );
         // Long names (imported models) end in "…" instead of spilling past the card.
         let color = if selected { PRESSED_TEXT() } else { TEXT() };
-        let mut job = egui::text::LayoutJob::simple_singleline(row.name.clone(), egui::FontId::proportional(13.0), color);
+        let mut job =
+            egui::text::LayoutJob::simple_singleline(row.name.clone(), egui::FontId::proportional(13.0), color);
         job.wrap = egui::text::TextWrapping::truncate_at_width((rect.right() - 8.0 - (x0 + 32.0)).max(10.0));
         let galley = painter.layout_job(job);
         painter.galley(egui::pos2(x0 + 32.0, cy - galley.size().y / 2.0), galley, color);
@@ -879,15 +1123,15 @@ fn tree_row(ui: &mut Ui, ed: &mut Editor, st: &UiState, row: &Row, actions: &mut
                     }
                 }
             });
-            if ui.button("Rename        F2").clicked() {
+            if ui.button(format!("Rename    {}", ed.controls.label(Shortcut::Rename))).clicked() {
                 actions.push(Action::StartRename(e));
                 ui.close();
             }
-            if ui.button("Duplicate     Ctrl D").clicked() {
+            if ui.button(format!("Duplicate    {}", ed.controls.label(Shortcut::Duplicate))).clicked() {
                 actions.push(Action::Duplicate(e));
                 ui.close();
             }
-            if ui.button("Delete        Del").clicked() {
+            if ui.button(format!("Delete    {}", ed.controls.label(Shortcut::Delete))).clicked() {
                 actions.push(Action::Delete(e));
                 ui.close();
             }
@@ -965,7 +1209,9 @@ fn assets(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                 }
                 if ui
                     .add_enabled(ed.project.is_some(), egui::Button::new("Import files…"))
-                    .on_hover_text("Sounds, sprites, 3D models, scripts, scenes and diagrams. You can also drag files onto Kit.")
+                    .on_hover_text(
+                        "Sounds, sprites, 3D models, scripts, scenes and diagrams. You can also drag files onto Kit.",
+                    )
                     .clicked()
                 {
                     st.requests.push(Request::ImportModels);
@@ -1362,7 +1608,8 @@ fn delayed_scroll_bar(ui: &Ui, id: &str) -> egui::scroll_area::ScrollBarVisibili
         (i.time, hovered, hovered && i.smooth_scroll_delta.y != 0.0)
     });
     let key = egui::Id::new(("scroll_bar_delay", id));
-    let (mut since, mut last_scroll): (Option<f64>, f64) = ctx.data(|d| d.get_temp(key)).unwrap_or((None, f64::NEG_INFINITY));
+    let (mut since, mut last_scroll): (Option<f64>, f64) =
+        ctx.data(|d| d.get_temp(key)).unwrap_or((None, f64::NEG_INFINITY));
     since = if hovered { Some(since.unwrap_or(now)) } else { None };
     if scrolling {
         last_scroll = now;
@@ -1397,18 +1644,21 @@ fn inspector(ui: &mut Ui, ed: &mut Editor) {
     let images = ed.assets_with(&["png", "jpg", "jpeg"]);
     let models = ed.assets_with(crate::model_import::EDITABLE_EXTENSIONS);
     let bar = delayed_scroll_bar(ui, "inspector");
-    egui::ScrollArea::vertical().id_salt("inspector").auto_shrink([false, false]).scroll_bar_visibility(bar).show(ui, |ui| {
-        // Keep content clear of the scroll bar so it never covers buttons.
-        ui.set_max_width(ui.available_width() - SCROLL_BAR_ROOM);
-        components(ui, ed, e, &images, &models);
-        physics_sections(ui, ed, e);
-        // Script section needs &mut Editor (opening files), so it is drawn separately.
-        audio_section(ui, ed, e);
-        volume_section(ui, ed, e);
-        diagram_section(ui, ed, e);
-        script_section(ui, ed, e);
-        add_component_menu(ui, ed, e);
-    });
+    egui::ScrollArea::vertical().id_salt("inspector").auto_shrink([false, false]).scroll_bar_visibility(bar).show(
+        ui,
+        |ui| {
+            // Keep content clear of the scroll bar so it never covers buttons.
+            ui.set_max_width(ui.available_width() - SCROLL_BAR_ROOM);
+            components(ui, ed, e, &images, &models);
+            physics_sections(ui, ed, e);
+            // Script section needs &mut Editor (opening files), so it is drawn separately.
+            audio_section(ui, ed, e);
+            volume_section(ui, ed, e);
+            diagram_section(ui, ed, e);
+            script_section(ui, ed, e);
+            add_component_menu(ui, ed, e);
+        },
+    );
 }
 
 fn components(ui: &mut Ui, ed: &mut Editor, e: Entity, images: &[String], models: &[String]) {
@@ -1452,29 +1702,34 @@ fn components(ui: &mut Ui, ed: &mut Editor, e: Entity, images: &[String], models
                     ui.add_sized([62.0, 20.0], egui::Label::new(RichText::new("Mesh").size(12.0).color(LABEL())));
                     // Imported models live at long paths: show just the file name, full path on hover.
                     let file_name = |path: &str| path.rsplit('/').next().unwrap_or(path).to_owned();
-                    let label = if m.mesh_asset.is_empty() { m.mesh.label().to_owned() } else { file_name(&m.mesh_asset) };
+                    let label =
+                        if m.mesh_asset.is_empty() { m.mesh.label().to_owned() } else { file_name(&m.mesh_asset) };
                     let combo = egui::ComboBox::from_id_salt("mesh")
                         .selected_text(label)
                         .width((ui.available_width() - 4.0).max(60.0))
                         .truncate()
                         .show_ui(ui, |ui| {
-                        for kind in MeshKind::ALL {
-                            if ui.selectable_label(m.mesh_asset.is_empty() && m.mesh == kind, kind.label()).clicked() {
-                                m.mesh = kind;
-                                m.mesh_asset.clear();
-                                m.animation.clear();
-                            }
-                        }
-                        for path in models {
-                            let item = ui.selectable_label(m.mesh_asset == *path, file_name(path)).on_hover_text(path);
-                            if item.clicked() {
-                                if m.mesh_asset != *path {
+                            for kind in MeshKind::ALL {
+                                if ui
+                                    .selectable_label(m.mesh_asset.is_empty() && m.mesh == kind, kind.label())
+                                    .clicked()
+                                {
+                                    m.mesh = kind;
+                                    m.mesh_asset.clear();
                                     m.animation.clear();
                                 }
-                                m.mesh_asset.clone_from(path);
                             }
-                        }
-                    });
+                            for path in models {
+                                let item =
+                                    ui.selectable_label(m.mesh_asset == *path, file_name(path)).on_hover_text(path);
+                                if item.clicked() {
+                                    if m.mesh_asset != *path {
+                                        m.animation.clear();
+                                    }
+                                    m.mesh_asset.clone_from(path);
+                                }
+                            }
+                        });
                     if !m.mesh_asset.is_empty() {
                         combo.response.on_hover_text(&m.mesh_asset);
                     }
@@ -1572,11 +1827,17 @@ fn components(ui: &mut Ui, ed: &mut Editor, e: Entity, images: &[String], models
                 match &mut c.projection {
                     Projection::Perspective { fov_y, near, far } => {
                         ui.horizontal(|ui| {
-                            ui.add_sized([62.0, 20.0], egui::Label::new(RichText::new("FOV").size(12.0).color(LABEL())));
+                            ui.add_sized(
+                                [62.0, 20.0],
+                                egui::Label::new(RichText::new("FOV").size(12.0).color(LABEL())),
+                            );
                             ui.add(egui::Slider::new(fov_y, 10.0..=120.0).suffix("°"));
                         });
                         ui.horizontal(|ui| {
-                            ui.add_sized([62.0, 20.0], egui::Label::new(RichText::new("Clip").size(12.0).color(LABEL())));
+                            ui.add_sized(
+                                [62.0, 20.0],
+                                egui::Label::new(RichText::new("Clip").size(12.0).color(LABEL())),
+                            );
                             ui.add(egui::DragValue::new(near).speed(0.01).range(0.001..=10.0).prefix("near "));
                             ui.add(egui::DragValue::new(far).speed(1.0).range(1.0..=100000.0).prefix("far "));
                         });
@@ -1807,7 +2068,10 @@ fn audio_section(ui: &mut Ui, ed: &mut Editor, e: Entity) {
             let can_preview = !a.clip.is_empty();
             let is_previewing = previewing.as_deref() == Some(a.clip.as_str());
             let button = ui
-                .add_enabled(can_preview, egui::Button::new(if is_previewing { "■" } else { "▶" }).min_size(Vec2::new(26.0, 22.0)))
+                .add_enabled(
+                    can_preview,
+                    egui::Button::new(if is_previewing { "■" } else { "▶" }).min_size(Vec2::new(26.0, 22.0)),
+                )
                 .on_hover_text(if is_previewing { "Stop" } else { "Listen" });
             mark(ui, "audio_preview", button.rect);
             if button.clicked() {
@@ -1857,7 +2121,8 @@ fn audio_section(ui: &mut Ui, ed: &mut Editor, e: Entity) {
             // The volume curve over distance.
             ui.horizontal(|ui| {
                 ui.add_space(66.0);
-                let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width().min(220.0), 46.0), Sense::hover());
+                let (rect, _) =
+                    ui.allocate_exact_size(Vec2::new(ui.available_width().min(220.0), 46.0), Sense::hover());
                 let painter = ui.painter_at(rect.expand(1.0));
                 painter.rect_filled(rect, 6.0, FIELD_BG());
                 let span = a.max_distance * 1.15;
@@ -1873,8 +2138,17 @@ fn audio_section(ui: &mut Ui, ed: &mut Editor, e: Entity) {
                 painter.add(egui::Shape::line(pts, Stroke::new(1.8, ACCENT())));
                 for (d, text) in [(a.min_distance, "min"), (a.max_distance, "max")] {
                     let x = rect.left() + rect.width() * d / span;
-                    painter.line_segment([egui::pos2(x, rect.top() + 3.0), egui::pos2(x, rect.bottom() - 3.0)], Stroke::new(1.0, MUTED()));
-                    painter.text(egui::pos2(x + 3.0, rect.top() + 3.0), Align2::LEFT_TOP, text, egui::FontId::proportional(9.5), MUTED());
+                    painter.line_segment(
+                        [egui::pos2(x, rect.top() + 3.0), egui::pos2(x, rect.bottom() - 3.0)],
+                        Stroke::new(1.0, MUTED()),
+                    );
+                    painter.text(
+                        egui::pos2(x + 3.0, rect.top() + 3.0),
+                        Align2::LEFT_TOP,
+                        text,
+                        egui::FontId::proportional(9.5),
+                        MUTED(),
+                    );
                 }
             });
         } else {
@@ -1950,9 +2224,13 @@ fn terrain_section(ui: &mut Ui, ed: &mut Editor, e: Entity) {
         });
         if sculpt.is_some() {
             ui.label(
-                RichText::new("Drag on the terrain to sculpt · Ctrl inverts raise/lower · right-drag orbits")
-                    .size(11.0)
-                    .color(ACCENT()),
+                RichText::new(format!(
+                    "{}-drag to sculpt · {} reverses the brush",
+                    ed.controls.gestures.sculpt.label(),
+                    ed.controls.gestures.reverse_sculpt.label()
+                ))
+                .size(11.0)
+                .color(ACCENT()),
             );
         }
         ui.add_space(4.0);
@@ -2288,7 +2566,11 @@ fn script_section(ui: &mut Ui, ed: &mut Editor, e: Entity) {
                                         }
                                     }
                                     if s.values.contains_key(&f.name) {
-                                        if ui.small_button("↺").on_hover_text(format!("Back to the script's default ({})", f.text)).clicked() {
+                                        if ui
+                                            .small_button("↺")
+                                            .on_hover_text(format!("Back to the script's default ({})", f.text))
+                                            .clicked()
+                                        {
                                             s.values.remove(&f.name);
                                         }
                                     } else {
@@ -2297,7 +2579,9 @@ fn script_section(ui: &mut Ui, ed: &mut Editor, e: Entity) {
                                 }
                                 _ => {
                                     ui.label(RichText::new(&f.text).size(12.0).monospace().color(MUTED()))
-                                        .on_hover_text("PUBLIC: shown, not editable. Write EDIT in front to edit it here.");
+                                        .on_hover_text(
+                                            "PUBLIC: shown, not editable. Write EDIT in front to edit it here.",
+                                        );
                                     ui.label("");
                                 }
                             }
@@ -2320,7 +2604,11 @@ fn script_section(ui: &mut Ui, ed: &mut Editor, e: Entity) {
                     .collect();
                 if !stale.is_empty() && d.error.is_none() {
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new(format!("Unused saved values: {}", stale.join(", "))).size(11.0).color(WARN()));
+                        ui.label(
+                            RichText::new(format!("Unused saved values: {}", stale.join(", ")))
+                                .size(11.0)
+                                .color(WARN()),
+                        );
                         if ui.small_button("Remove").clicked() {
                             for k in &stale {
                                 s.values.remove(k);
@@ -2356,16 +2644,20 @@ fn diagram_section(ui: &mut Ui, ed: &mut Editor, e: Entity) {
         ui.horizontal(|ui| {
             ui.add_sized([62.0, 20.0], egui::Label::new(RichText::new("Graph").size(12.0).color(LABEL())));
             let shown = if d.graph.is_empty() { "None".to_string() } else { d.graph.clone() };
-            egui::ComboBox::from_id_salt("diagram_file").selected_text(shown).width(ui.available_width() - 4.0).show_ui(ui, |ui| {
-                ui.selectable_value(&mut d.graph, String::new(), "None");
-                for g in &graphs {
-                    ui.selectable_value(&mut d.graph, g.clone(), g);
-                }
-            });
+            egui::ComboBox::from_id_salt("diagram_file")
+                .selected_text(shown)
+                .width(ui.available_width() - 4.0)
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut d.graph, String::new(), "None");
+                    for g in &graphs {
+                        ui.selectable_value(&mut d.graph, g.clone(), g);
+                    }
+                });
         });
         ui.horizontal(|ui| {
             ui.add_space(66.0);
-            if ui.button(if ed.settings.diagram { "Hide Diagram view (7)" } else { "Open Diagram view (7)" }).clicked() {
+            let label = if ed.settings.diagram { "Hide Diagram view" } else { "Open Diagram view" };
+            if ui.button(format!("{label} ({})", ed.controls.label(Shortcut::Diagram))).clicked() {
                 ed.settings.diagram = !ed.settings.diagram;
             }
         });
@@ -2536,11 +2828,19 @@ fn viewport(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
     painter.galley(label_pos + Vec2::new(12.0, -galley.size().y / 2.0), galley, crate::theme::viewport::LABEL());
 
     // Camera controls.
+    let gestures = &ed.controls.gestures;
+    let select_button = gestures.select.egui();
+    let pan_button = gestures.pan.egui();
+    let alternate_pan = gestures.alternate_pan.egui();
+    let orbit_button = gestures.orbit.egui();
+    let alternate_orbit = gestures.alternate_orbit;
+    let canvas_restart = gestures.canvas_restart.label();
     let using_game_cam = ed.playing && ed.settings.game_camera;
     let aspect = rect.width() / rect.height().max(1.0);
     let editor_view = ed.camera.view(aspect);
-    if resp.hovered() && !using_game_cam {
-        let scroll = ui.ctx().input(|i| i.smooth_scroll_delta.y);
+    if resp.hovered() && !using_game_cam && gestures.scroll_zoom {
+        let direction = if gestures.invert_scroll { -1.0 } else { 1.0 };
+        let scroll = ui.ctx().input(|i| i.smooth_scroll_delta.y) * direction;
         if scroll != 0.0 {
             ed.camera.zoom(scroll / 50.0);
         }
@@ -2549,8 +2849,7 @@ fn viewport(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
         st.pointer_moved = 0.0;
     }
     // Move gizmo: drag the colored arrows to move the selection along X / Y / Z.
-    let moving =
-        !using_game_cam && crate::move_gizmo::handle_input(&mut st.gizmo, &resp, ui, ed, rect, &editor_view);
+    let moving = !using_game_cam && crate::move_gizmo::handle_input(&mut st.gizmo, &resp, ui, ed, rect, &editor_view);
     // Terrain sculpting: left-drag on a selected terrain; right-drag orbits.
     let sculpting_mode = ed.settings.sculpt.is_some()
         && !ed.playing
@@ -2567,22 +2866,22 @@ fn viewport(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
         let d = resp.drag_delta();
         st.pointer_moved += d.length();
         let d = kit::math::Vec2::new(d.x, d.y);
-        let shift = ui.ctx().input(|i| i.modifiers.shift);
-        let pan = if canvas {
-            resp.dragged_by(egui::PointerButton::Middle) || shift || ed.camera.two_d
+        let alternate = ui.input(|i| alternate_orbit.held(i.modifiers));
+        let orbit = if canvas {
+            resp.dragged_by(orbit_button) && !alternate
         } else {
-            resp.dragged_by(egui::PointerButton::Secondary)
-                || resp.dragged_by(egui::PointerButton::Middle)
-                || shift
-                || ed.camera.two_d
+            resp.dragged_by(orbit_button) || alternate && resp.dragged_by(pan_button)
         };
-        if pan {
-            ed.camera.pan(d, rect.height());
-        } else {
+        let pan = resp.dragged_by(pan_button)
+            || resp.dragged_by(alternate_pan)
+            || canvas && alternate && resp.dragged_by(orbit_button);
+        if orbit && !ed.camera.two_d {
             ed.camera.orbit(d);
+        } else if pan || orbit {
+            ed.camera.pan(d, rect.height());
         }
     }
-    if resp.clicked() && !sculpting_mode && !moving {
+    if resp.clicked_by(select_button) && !sculpting_mode && !moving {
         if ed.playing {
             st.viewport_focused = true;
         } else if let Some(pos) = resp.interact_pointer_pos() {
@@ -2594,7 +2893,7 @@ fn viewport(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
             ed.selected = kit::render::pick::pick(ed.world(), &ray);
         }
     }
-    if resp.double_clicked() && !ed.playing && ed.selected.is_some() {
+    if resp.double_clicked_by(select_button) && !ed.playing && ed.selected.is_some() {
         ed.frame_selected();
     }
     // A sound dragged from Assets: show where it lands, place it on release.
@@ -2639,7 +2938,7 @@ fn viewport(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
     if ed.settings.canvas && !ed.playing {
         let text = match ed.selected.filter(|e| ed.world().is_alive(*e)) {
             Some(e) => format!(
-                "Drag to draw {}'s path · rotate the view and drag again to continue · Shift starts over · drag a dot to move it",
+                "Drag to draw {}'s path · rotate the view and drag again to continue · {canvas_restart} starts over · drag a dot to move it",
                 ed.entity_label(e)
             ),
             None => "Select an object, then drag to draw its path".to_string(),
@@ -2689,16 +2988,22 @@ fn viewport(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
             ui.horizontal(|ui| {
                 let two_d = ed.camera.two_d;
                 if viewport_ghost(ui, RichText::new(if two_d { "2D" } else { "3D" }).size(13.0).strong().text())
-                    .on_hover_text("Toggle 2D / 3D view (T)")
+                    .on_hover_text(format!("Toggle 2D / 3D ({})", ed.controls.label(Shortcut::Dimension)))
                     .clicked()
                 {
                     ed.camera.set_two_d(!two_d);
                 }
-                if viewport_ghost(ui, RichText::new("⛶").size(18.0).text()).on_hover_text("Frame selection (F)").clicked() {
+                if viewport_ghost(ui, RichText::new("⛶").size(18.0).text())
+                    .on_hover_text(format!("Frame selection ({})", ed.controls.label(Shortcut::Frame)))
+                    .clicked()
+                {
                     ed.frame_selected();
                 }
                 let rot = if ed.camera.auto_rotate { "⟳" } else { "↻" };
-                if viewport_ghost(ui, RichText::new(rot).size(18.0).text()).on_hover_text("Auto-rotate (R)").clicked() {
+                if viewport_ghost(ui, RichText::new(rot).size(18.0).text())
+                    .on_hover_text(format!("Auto-rotate ({})", ed.controls.label(Shortcut::Rotate)))
+                    .clicked()
+                {
                     ed.camera.auto_rotate = !ed.camera.auto_rotate;
                 }
             });
@@ -2719,42 +3024,71 @@ fn viewport(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 4.0;
+                        widgets::logo(ui, 26.0).on_hover_text("Kit");
                         let s = &mut ed.settings;
-                        if dock_toggle(ui, "◇", "Wireframe", s.wireframe).on_hover_text("Wireframe (1)").clicked() {
+                        if dock_toggle(ui, "◇", "Wireframe", s.wireframe)
+                            .on_hover_text(format!("Wireframe ({})", ed.controls.label(Shortcut::Wireframe)))
+                            .clicked()
+                        {
                             s.wireframe = !s.wireframe;
                         }
-                        if dock_toggle(ui, "☀", "Lighting", s.lighting).on_hover_text("Lighting (2)").clicked() {
+                        if dock_toggle(ui, "☀", "Lighting", s.lighting)
+                            .on_hover_text(format!("Lighting ({})", ed.controls.label(Shortcut::Lighting)))
+                            .clicked()
+                        {
                             s.lighting = !s.lighting;
                         }
-                        if dock_toggle(ui, "#", "Grid", s.grid).on_hover_text("Grid (3)").clicked() {
+                        if dock_toggle(ui, "#", "Grid", s.grid)
+                            .on_hover_text(format!("Grid ({})", ed.controls.label(Shortcut::Grid)))
+                            .clicked()
+                        {
                             s.grid = !s.grid;
                         }
                         if dock_toggle(ui, "⬚", "Colliders", s.colliders)
-                            .on_hover_text("Show collider outlines (4)")
+                            .on_hover_text(format!(
+                                "Show collider outlines ({})",
+                                ed.controls.label(Shortcut::Colliders)
+                            ))
                             .clicked()
                         {
                             s.colliders = !s.colliders;
                         }
                         if !ed.playing
                             && dock_toggle(ui, "✏", "Canvas", s.canvas)
-                                .on_hover_text("Sketch movement paths: select an object and drag (5)")
+                                .on_hover_text(format!(
+                                    "Sketch movement paths ({})",
+                                    ed.controls.label(Shortcut::Canvas)
+                                ))
                                 .clicked()
                         {
                             s.canvas = !s.canvas;
                         }
-                        let r = dock_toggle(ui, "✨", "Volumes", s.volumes)
-                            .on_hover_text("Preview post-processing volumes from the editor camera (6)");
+                        let r = dock_toggle(ui, "✨", "Volumes", s.volumes).on_hover_text(format!(
+                            "Preview post-processing volumes ({})",
+                            ed.controls.label(Shortcut::Volumes)
+                        ));
                         mark(ui, "toggle_volumes", r.rect);
                         if r.clicked() {
                             s.volumes = !s.volumes;
                         }
-                        let r = dock_toggle(ui, "◫", "Diagram", s.diagram).on_hover_text("Visual logic for the selected object (7)");
+                        let r = dock_toggle(ui, "◫", "Diagram", s.diagram).on_hover_text(format!(
+                            "Visual logic for the selected object ({})",
+                            ed.controls.label(Shortcut::Diagram)
+                        ));
                         mark(ui, "toggle_diagram", r.rect);
                         if r.clicked() {
-                            s.diagram = !s.diagram;
+                            st.toggle_pane(ed, ViewPane::Diagram);
                         }
-                        if ed.playing && dock_toggle(ui, "🎥", "Game camera", s.game_camera).clicked() {
-                            s.game_camera = !s.game_camera;
+                        let r = dock_toggle(ui, "●", "Rex", ed.settings.rex).on_hover_text(format!(
+                            "Rex, your AI game-making puppy ({})",
+                            ed.controls.label(Shortcut::Rex)
+                        ));
+                        mark(ui, "toggle_rex", r.rect);
+                        if r.clicked() {
+                            st.toggle_pane(ed, ViewPane::Rex);
+                        }
+                        if ed.playing && dock_toggle(ui, "🎥", "Game camera", ed.settings.game_camera).clicked() {
+                            ed.settings.game_camera = !ed.settings.game_camera;
                         }
                     });
                 });
@@ -2846,6 +3180,7 @@ fn console(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
     }
     let console = ed.world().resource::<kit::core::Console>();
     let rev = console.revision;
+    let mut ask_rex: Option<String> = None;
     egui::ScrollArea::vertical().id_salt("console").auto_shrink([false, false]).stick_to_bottom(true).show(ui, |ui| {
         ui.spacing_mut().item_spacing.y = 2.0;
         if console.lines().is_empty() {
@@ -2860,10 +3195,25 @@ fn console(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
             ui.horizontal_wrapped(|ui| {
                 ui.label(RichText::new(&line.source).size(11.0).monospace().color(MUTED()));
                 ui.label(RichText::new(&line.text).size(12.0).monospace().color(color));
+                if matches!(line.level, kit::core::LogLevel::Error)
+                    && ui
+                        .add(egui::Button::new(RichText::new("Ask Rex").size(10.5).color(ACCENT())).small())
+                        .on_hover_text("Rex (Sniff mode) explains the error and how to fix it")
+                        .clicked()
+                {
+                    ask_rex = Some(format!("Help me fix this error from the console:\n[{}] {}", line.source, line.text));
+                }
             });
         }
     });
     st.console_rev = rev;
+    drop(console);
+    if let Some(question) = ask_rex {
+        st.rex.ask("sniff", question);
+        if !ed.settings.rex {
+            st.toggle_pane(ed, ViewPane::Rex);
+        }
+    }
 }
 
 // ------------------------------------------------------------------- dialogs
@@ -2903,7 +3253,7 @@ fn welcome(ctx: &egui::Context, ed: &mut Editor, st: &mut UiState) {
             ui.add_space(14.0);
             ui.horizontal(|ui| {
                 if primary(ui, "New project…", None).clicked() {
-                    st.requests.push(Request::NewProject);
+                    st.new_project = Some(crate::new_project::Wizard::new(&crate::user_projects_dir()));
                 }
                 if ghost(ui, "Open project…").clicked() {
                     st.requests.push(Request::OpenProject);
@@ -2931,7 +3281,7 @@ fn welcome(ctx: &egui::Context, ed: &mut Editor, st: &mut UiState) {
         });
 }
 
-fn help(ctx: &egui::Context, st: &mut UiState) {
+fn help(ctx: &egui::Context, st: &mut UiState, controls: &crate::controls::Controls) {
     if !st.help {
         return;
     }
@@ -2947,37 +3297,16 @@ fn help(ctx: &egui::Context, st: &mut UiState) {
             ui.set_width(380.0);
             ui.label(RichText::new("Shortcuts").size(20.0).strong());
             ui.add_space(8.0);
-            egui::Grid::new("shortcuts").num_columns(2).spacing([30.0, 6.0]).show(ui, |ui| {
-                for (a, k) in [
-                    ("Play / stop", "F5"),
-                    ("Save", "Ctrl S"),
-                    ("Undo / redo", "Ctrl Z / Ctrl Shift Z"),
-                    ("Orbit", "Left drag"),
-                    ("Pan", "Shift + drag, right drag"),
-                    ("Zoom", "Scroll"),
-                    ("Frame selection", "F"),
-                    ("2D / 3D view", "T"),
-                    ("Zoom in / out", "W / S"),
-                    ("Pan left / right", "A / D (Q / E down / up, Shift faster)"),
-                    ("Wireframe", "1"),
-                    ("Lighting", "2"),
-                    ("Grid", "3"),
-                    ("Collider outlines", "4"),
-                    ("Canvas mode (sketch paths)", "5"),
-                    ("Volumes preview", "6"),
-                    ("Diagram view (visual logic)", "7"),
-                    ("Auto-rotate", "R"),
-                    ("Rename", "F2"),
-                    ("Duplicate", "Ctrl D"),
-                    ("Delete", "Del"),
-                    ("Console", "`"),
-                    ("Release game input", "Esc"),
-                ] {
-                    ui.label(RichText::new(a).color(LABEL()));
-                    ui.label(RichText::new(k).color(MUTED()));
-                    ui.end_row();
-                }
+            egui::ScrollArea::vertical().max_height((ctx.content_rect().height() - 170.0).max(100.0)).show(ui, |ui| {
+                egui::Grid::new("shortcuts").num_columns(2).spacing([30.0, 6.0]).show(ui, |ui| {
+                    for &action in Shortcut::ALL {
+                        ui.label(RichText::new(action.label()).color(LABEL()));
+                        ui.label(RichText::new(controls.label(action)).color(MUTED()));
+                        ui.end_row();
+                    }
+                });
             });
+            ui.label("Rebind keys and pointer gestures in Project Settings → Editor Controls.");
             ui.add_space(10.0);
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if primary(ui, "Got it", None).clicked() {
@@ -3024,4 +3353,25 @@ fn viewport_ghost(ui: &mut Ui, text: impl Into<String>) -> egui::Response {
             .stroke(Stroke::NONE)
             .corner_radius(egui::CornerRadius::same(9)),
     )
+}
+
+#[cfg(test)]
+mod view_tests {
+    use super::*;
+
+    #[test]
+    fn last_view_stays_open_and_default_restores_regular_panes() {
+        let mut editor = Editor::new();
+        let mut ui = UiState::new(Vec::new(), String::new());
+        ui.toggle_pane(&mut editor, ViewPane::Diagram);
+        for pane in [ViewPane::Game, ViewPane::Assets, ViewPane::Hierarchy, ViewPane::Inspector, ViewPane::Diagram] {
+            ui.toggle_pane(&mut editor, pane);
+        }
+        assert_eq!(ui.viewport_px, [0, 0]);
+        assert!(editor.settings.diagram);
+        assert!(!ui.can_hide(&editor));
+        ui.restore_views(&egui::Context::default(), &mut editor);
+        assert!(ui.views.game && ui.views.assets && ui.views.hierarchy && ui.views.inspector);
+        assert!(!editor.settings.diagram && !editor.settings.console);
+    }
 }

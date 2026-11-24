@@ -125,7 +125,12 @@ pub enum AudioCommand {
     Play(Entity),
     Stop(Entity),
     /// Fire-and-forget: play a sound file once at a position (`None` = not spatial).
-    OneShot { clip: String, volume: f32, pitch: f32, at: Option<(Vec3, f32, f32)> },
+    OneShot {
+        clip: String,
+        volume: f32,
+        pitch: f32,
+        at: Option<(Vec3, f32, f32)>,
+    },
     StopAll,
 }
 

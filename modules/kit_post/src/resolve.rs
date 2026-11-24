@@ -288,7 +288,8 @@ mod tests {
         assert!((mid - 0.5).abs() < 1e-5, "{mid}");
         assert_eq!(influence(&v, &m, Vec3::new(4.0, 0.0, 0.0)), 0.0);
         // Monotonic fade.
-        let samples: Vec<f32> = (0..=20).map(|i| influence(&v, &m, Vec3::new(2.0 + i as f32 * 0.1, 0.0, 0.0))).collect();
+        let samples: Vec<f32> =
+            (0..=20).map(|i| influence(&v, &m, Vec3::new(2.0 + i as f32 * 0.1, 0.0, 0.0))).collect();
         assert!(samples.windows(2).all(|w| w[1] <= w[0]));
     }
 

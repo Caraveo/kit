@@ -24,6 +24,8 @@ anyhow.workspace = true
 env_logger.workspace = true
 log.workspace = true
 rfd.workspace = true
+kit_rex.workspace = true
+webbrowser = "1"
 image.workspace = true
 tempfile = "3"
 

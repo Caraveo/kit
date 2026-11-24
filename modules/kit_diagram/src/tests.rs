@@ -138,10 +138,17 @@ fn renames_keep_wiring_and_deleted_fields_are_flagged_on_the_pin() {
     if let NodeKind::DatasetRow { dataset, .. } = &mut g2.node_mut(data).unwrap().kind {
         *dataset = ds2.clone();
     }
-    g2.links.iter_mut().for_each(|l| if l.from.node == data { l.from.pin = tint2.clone() });
+    g2.links.iter_mut().for_each(|l| {
+        if l.from.node == data {
+            l.from.pin = tint2.clone()
+        }
+    });
     gd2.dataset_mut(&ds2).unwrap().fields[0].value_type = ValueType::Float;
     let diags = validate(&g2, &gd2);
-    assert!(diags.iter().any(|d| d.node == Some(set) && d.pin.as_deref() == Some("color") && d.message.contains("Float")), "{diags:?}");
+    assert!(
+        diags.iter().any(|d| d.node == Some(set) && d.pin.as_deref() == Some("color") && d.message.contains("Float")),
+        "{diags:?}"
+    );
 }
 
 #[test]
@@ -243,7 +250,8 @@ fn missing_components_name_the_node_and_object_and_loops_hit_the_budget() {
     let mut rig = Rig::new(&[("g.kdiagram", &g)], &gd);
     let e = rig.spawn("Crate", Vec3::ZERO, Some("g.kdiagram"));
     rig.frames(1);
-    let console: Vec<String> = rig.app.world.resource::<kit_core::Console>().lines().iter().map(|l| l.text.clone()).collect();
+    let console: Vec<String> =
+        rig.app.world.resource::<kit_core::Console>().lines().iter().map(|l| l.text.clone()).collect();
     assert!(
         console.iter().any(|t| t.contains("Set Gravity Scale") && t.contains("\"Crate\"") && t.contains("Rigid Body")),
         "{console:?}"
@@ -307,7 +315,6 @@ CREATE Pump[
     assert_eq!(node, bad);
     assert!(why.contains("PUBLIC (read-only)"), "{why}");
     // The picker offers Get for PUBLIC and EDIT, Set only for EDIT, nothing for private.
-    let titles: Vec<String> =
-        NodeKind::script_field_nodes(&fields).iter().map(|k| k.title(&gd)).collect();
+    let titles: Vec<String> = NodeKind::script_field_nodes(&fields).iter().map(|k| k.title(&gd)).collect();
     assert_eq!(titles, ["Get Power", "Set Power", "Get Level"]);
 }

@@ -69,6 +69,9 @@
       },
       "script": {
         "path": "scripts/spinner.x"
+      },
+      "diagram": {
+        "graph": "diagrams/ring_2.kdiagram"
       }
     },
     {
@@ -382,10 +385,10 @@
           0.0
         ],
         "rotation": [
-          -0.107586056,
-          -0.15976551,
-          0.13438965,
-          0.9720286
+          0.03732948,
+          -0.17788127,
+          0.10928796,
+          0.97725177
         ],
         "scale": [
           1.0,
@@ -17066,76 +17069,13 @@
         "sand_height": -0.6,
         "snow_height": 7.0,
         "collide": true
+      },
+      "diagram": {
+        "graph": "diagrams/terrain.kdiagram"
       }
     },
     {
       "id": 9,
-      "name": "Banana_20261123_030458_675940",
-      "transform": {
-        "translation": [
-          -3.0267196,
-          1.530482,
-          4.2864056
-        ],
-        "rotation": [
-          0.0,
-          0.0,
-          0.0,
-          1.0
-        ],
-        "scale": [
-          1.0,
-          1.0,
-          1.0
-        ]
-      },
-      "model": {
-        "mesh": "Cube",
-        "mesh_asset": "models/Banana_20261123_030458_675940/Banana_20261123_030458_675940.kmodel",
-        "animation_speed": 1.0,
-        "animation_loop": true,
-        "animation_enabled": true,
-        "color": [
-          1.0,
-          1.0,
-          1.0,
-          1.0
-        ],
-        "texture": "",
-        "unlit": false,
-        "visible": true
-      },
-      "collider": {
-        "shape": {
-          "kind": "Box",
-          "size": [
-            1.0,
-            1.0,
-            1.0
-          ]
-        },
-        "offset": [
-          0.0,
-          0.0,
-          0.0
-        ],
-        "trigger": true,
-        "friction": 0.6,
-        "restitution": 0.1
-      },
-      "rigid_body": {
-        "kind": "Dynamic",
-        "mass": 1.0,
-        "gravity_scale": 1.0,
-        "linear_damping": 0.0,
-        "angular_damping": 0.05,
-        "lock_rotation": false,
-        "lock_2d": false,
-        "ccd": false
-      }
-    },
-    {
-      "id": 10,
       "name": "Banana_20261123_030458_675940",
       "transform": {
         "translation": [
@@ -17170,6 +17110,176 @@
         "texture": "",
         "unlit": false,
         "visible": true
+      },
+      "path": {
+        "points": [
+          [
+            -6.0,
+            5.8014517,
+            14.0
+          ],
+          [
+            -2.8575134,
+            1.6124992,
+            4.1606026
+          ],
+          [
+            -0.22325134,
+            -1.4586525,
+            -7.461511
+          ]
+        ],
+        "speed": 3.0,
+        "mode": "Once",
+        "playing": true,
+        "face_direction": true,
+        "smooth": true
+      },
+      "audio": {
+        "clip": "sounds/Thunder.mp3",
+        "volume": 1.0,
+        "pitch": 1.0,
+        "looping": false,
+        "play_on_start": false,
+        "spatial": true,
+        "min_distance": 1.0,
+        "max_distance": 20.0,
+        "rolloff": "Smooth"
+      },
+      "diagram": {
+        "graph": "diagrams/banana_20261123_030458_675940.kdiagram"
+      }
+    },
+    {
+      "id": 10,
+      "name": "Cube",
+      "transform": {
+        "translation": [
+          -6.8985906,
+          1.2844372,
+          13.873636
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "model": {
+        "mesh": "Cube",
+        "animation_speed": 1.0,
+        "animation_loop": true,
+        "animation_enabled": true,
+        "color": [
+          0.76,
+          0.66,
+          1.0,
+          1.0
+        ],
+        "texture": "",
+        "unlit": false,
+        "visible": true
+      },
+      "script": {
+        "path": "scripts/player.x"
+      }
+    },
+    {
+      "id": 11,
+      "name": "Pineapple_20261123_030943_913589",
+      "transform": {
+        "translation": [
+          -9.624706,
+          5.2306957,
+          26.1236
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "model": {
+        "mesh": "Cube",
+        "mesh_asset": "models/Pineapple_20261123_030943_913589/Pineapple_20261123_030943_913589.kmodel",
+        "animation_speed": 1.0,
+        "animation_loop": true,
+        "animation_enabled": true,
+        "color": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "texture": "",
+        "unlit": false,
+        "visible": true
+      },
+      "audio": {
+        "clip": "",
+        "volume": 1.0,
+        "pitch": 1.0,
+        "looping": false,
+        "play_on_start": true,
+        "spatial": true,
+        "min_distance": 1.0,
+        "max_distance": 20.0,
+        "rolloff": "Inverse"
+      },
+      "diagram": {
+        "graph": "diagrams/pineapple_20261123_030943_913589.kdiagram"
+      }
+    },
+    {
+      "id": 12,
+      "name": "Camera",
+      "transform": {
+        "translation": [
+          0.0,
+          2.0,
+          8.0
+        ],
+        "rotation": [
+          -0.12218326,
+          -0.0,
+          -0.0,
+          0.9925075
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "camera": {
+        "projection": {
+          "kind": "Perspective",
+          "fov_y": 50.0,
+          "near": 0.05,
+          "far": 500.0
+        },
+        "clear_color": [
+          0.063,
+          0.063,
+          0.09,
+          1.0
+        ],
+        "active": true
+      },
+      "script": {
+        "path": "scripts/FreeCamera.x"
       }
     }
   ]

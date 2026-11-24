@@ -151,7 +151,8 @@ impl View {
 /// The camera a view is drawn from, for post-processing. `ndc_y_up`: the
 /// clip matrix has been flipped for WebGPU.
 pub fn camera_info(view: &View, ndc_y_up: bool) -> kit_post::CameraInfo {
-    let view_proj = if ndc_y_up { Mat4::from_scale(Vec3::new(1.0, -1.0, 1.0)) * view.view_proj() } else { view.view_proj() };
+    let view_proj =
+        if ndc_y_up { Mat4::from_scale(Vec3::new(1.0, -1.0, 1.0)) * view.view_proj() } else { view.view_proj() };
     kit_post::CameraInfo {
         view_proj,
         position: view.camera_pos,

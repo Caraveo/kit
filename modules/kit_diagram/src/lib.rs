@@ -15,9 +15,9 @@
 pub mod catalog;
 pub mod exec;
 pub mod graph;
-pub mod validate;
 #[cfg(test)]
 mod tests;
+pub mod validate;
 
 pub use catalog::{NodeKind, PinDef, PinType, Signature, Space};
 pub use exec::{BUDGET, DebugInfo, DiagramRuntime, reset, run_diagrams};

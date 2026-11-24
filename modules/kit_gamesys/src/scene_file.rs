@@ -1,6 +1,8 @@
 //! `.kscene` files: a JSON list of entities with their components.
 
-use crate::{AudioSource, Camera, Diagram, PostVolume, Collider, Light, Model, PathFollow, RigidBody, Script, Sprite, Terrain};
+use crate::{
+    AudioSource, Camera, Collider, Diagram, Light, Model, PathFollow, PostVolume, RigidBody, Script, Sprite, Terrain,
+};
 use anyhow::{Context, Result, bail};
 use kit_ecs::{Entity, World};
 use kit_scene::{Name, RootOrder, Transform};

@@ -153,7 +153,8 @@ pub fn find_path(world: &World, path: &str) -> Option<Entity> {
     let mut current = kit_scene::roots(world).into_iter().find(|e| world.get::<Name>(*e).is_some_and(|n| n.0 == first));
     for part in parts {
         let parent = current?;
-        current = kit_scene::children(world, parent).into_iter().find(|e| world.get::<Name>(*e).is_some_and(|n| n.0 == part));
+        current =
+            kit_scene::children(world, parent).into_iter().find(|e| world.get::<Name>(*e).is_some_and(|n| n.0 == part));
     }
     current.or_else(|| if !path.contains('/') { kit_scene::find_by_name(world, path) } else { None })
 }
@@ -189,7 +190,8 @@ fn set_world_position(world: &World, e: Entity, p: Vec3) {
 }
 
 fn is_dynamic(world: &World, e: Entity) -> bool {
-    world.get::<RigidBody>(e).is_some_and(|b| b.kind == kit_gamesys::BodyKind::Dynamic) && world.has_resource::<Physics>()
+    world.get::<RigidBody>(e).is_some_and(|b| b.kind == kit_gamesys::BodyKind::Dynamic)
+        && world.has_resource::<Physics>()
 }
 
 pub fn to_bridge(v: &Value) -> Option<BridgeValue> {
@@ -325,7 +327,9 @@ impl DiagramRuntime {
         } else {
             match &n.target {
                 TargetRef::SelfObject => self.inst(idx).entity,
-                TargetRef::Picked(path) => find_path(cx.world, path).ok_or(format!("the picked object \"{path}\" isn't in the scene"))?,
+                TargetRef::Picked(path) => {
+                    find_path(cx.world, path).ok_or(format!("the picked object \"{path}\" isn't in the scene"))?
+                }
             }
         };
         if !cx.world.is_alive(e) {
@@ -371,7 +375,9 @@ impl DiagramRuntime {
                 let field = ds.field(out).ok_or("that field was deleted")?;
                 ds.value(&row_id, &field.id).ok_or(format!("row not found in {}", ds.name))?
             }
-            NodeKind::Constant { constant } => cx.gd.constant(constant).ok_or("its constant was deleted")?.value.clone(),
+            NodeKind::Constant { constant } => {
+                cx.gd.constant(constant).ok_or("its constant was deleted")?.value.clone()
+            }
             NodeKind::GetVariable { name } => self.var(idx, name).ok_or(format!("no variable \"{name}\""))?,
             NodeKind::GetScriptField { field, value_type } => {
                 let e = self.target(cx, idx, node, depth)?;
@@ -410,7 +416,8 @@ impl DiagramRuntime {
                 let b = self.input(cx, idx, node, "b", depth)?;
                 match number {
                     NumberType::Int => {
-                        let (a, b) = (if let Value::Int(i) = a { i } else { 0 }, if let Value::Int(i) = b { i } else { 0 });
+                        let (a, b) =
+                            (if let Value::Int(i) = a { i } else { 0 }, if let Value::Int(i) = b { i } else { 0 });
                         Value::Int(match op {
                             MathOp::Add => a.wrapping_add(b),
                             MathOp::Subtract => a.wrapping_sub(b),
@@ -527,7 +534,9 @@ impl DiagramRuntime {
             }
             NodeKind::SetTransform { space } => {
                 let e = self.target(cx, idx, node, 0)?;
-                let Value::Transform(tv) = self.input(cx, idx, node, "transform", 0)? else { return Err("needs a Transform".into()) };
+                let Value::Transform(tv) = self.input(cx, idx, node, "transform", 0)? else {
+                    return Err("needs a Transform".into());
+                };
                 {
                     let mut t = w.get_mut::<Transform>(e).ok_or_else(|| missing(e, "Transform"))?;
                     t.set_euler_degrees(Vec3::from_array(tv.rotation));
@@ -558,7 +567,9 @@ impl DiagramRuntime {
             }
             NodeKind::SetTint => {
                 let e = self.target(cx, idx, node, 0)?;
-                let Value::Color(c) = self.input(cx, idx, node, "color", 0)? else { return Err("needs a Color".into()) };
+                let Value::Color(c) = self.input(cx, idx, node, "color", 0)? else {
+                    return Err("needs a Color".into());
+                };
                 let c = Vec4::from_array(c);
                 if let Some(mut m) = w.get_mut::<Model>(e) {
                     m.color = c;
@@ -572,7 +583,8 @@ impl DiagramRuntime {
             NodeKind::SetGravityScale => {
                 let e = self.target(cx, idx, node, 0)?;
                 let v = f(&self.input(cx, idx, node, "value", 0)?) as f32;
-                w.get_mut::<RigidBody>(e).ok_or_else(|| missing(e, "Rigid Body (add Physics to it)"))?.gravity_scale = v;
+                w.get_mut::<RigidBody>(e).ok_or_else(|| missing(e, "Rigid Body (add Physics to it)"))?.gravity_scale =
+                    v;
                 then()
             }
             NodeKind::SetSceneGravity => {
@@ -585,7 +597,8 @@ impl DiagramRuntime {
                 if !is_dynamic(w, e) {
                     return Err(missing(e, "dynamic Rigid Body"));
                 }
-                let (pin, impulse) = if matches!(n.kind, NodeKind::ApplyImpulse) { ("impulse", true) } else { ("velocity", false) };
+                let (pin, impulse) =
+                    if matches!(n.kind, NodeKind::ApplyImpulse) { ("impulse", true) } else { ("velocity", false) };
                 let v = v3(&self.input(cx, idx, node, pin, 0)?);
                 let mut ph = w.try_resource_mut::<Physics>().ok_or("physics is off in this project")?;
                 if impulse {
@@ -622,9 +635,13 @@ impl DiagramRuntime {
                 let mut rt = w.try_resource_mut::<kit_script::ScriptRuntime>().ok_or("scripts are off")?;
                 let access = rt.fields(e).into_iter().find(|f| f.name == *field).map(|f| f.access);
                 match access {
-                    None => return Err(format!("\"{}\" has no running script with an EDIT field `{field}`", label(w, e))),
+                    None => {
+                        return Err(format!("\"{}\" has no running script with an EDIT field `{field}`", label(w, e)));
+                    }
                     Some(kit_script::Access::Public) => {
-                        return Err(format!("`{field}` is PUBLIC (read-only); write EDIT in front of it in the script to set it"));
+                        return Err(format!(
+                            "`{field}` is PUBLIC (read-only); write EDIT in front of it in the script to set it"
+                        ));
                     }
                     _ => {}
                 }
@@ -663,7 +680,10 @@ impl DiagramRuntime {
                     }
                     q.0.push(AudioCommand::Play(e));
                 } else {
-                    let at = w.get::<AudioSource>(e).filter(|s| s.spatial).map(|s| (world_position(w, e), s.min_distance, s.max_distance));
+                    let at = w
+                        .get::<AudioSource>(e)
+                        .filter(|s| s.spatial)
+                        .map(|s| (world_position(w, e), s.min_distance, s.max_distance));
                     q.0.push(AudioCommand::OneShot { clip, volume, pitch: 1.0, at });
                 }
                 then()
@@ -680,7 +700,11 @@ impl DiagramRuntime {
                     None => None,
                 };
                 let sender = Some(self.inst(idx).entity);
-                w.try_resource_mut::<GraphEvents>().ok_or("events are off")?.0.push(GraphEvent { name: event.clone(), payload, sender });
+                w.try_resource_mut::<GraphEvents>().ok_or("events are off")?.0.push(GraphEvent {
+                    name: event.clone(),
+                    payload,
+                    sender,
+                });
                 then()
             }
             NodeKind::RunScript { function, args } => {
@@ -695,10 +719,12 @@ impl DiagramRuntime {
                 }
                 self.next_call += 1;
                 let id = self.next_call;
-                w.try_resource_mut::<ScriptCalls>()
-                    .ok_or("scripts are off")?
-                    .pending
-                    .push(ScriptCall { id, target: e, function: function.clone(), args: values });
+                w.try_resource_mut::<ScriptCalls>().ok_or("scripts are off")?.pending.push(ScriptCall {
+                    id,
+                    target: e,
+                    function: function.clone(),
+                    args: values,
+                });
                 let inst = self.inst(idx).entity;
                 self.waits.push(Continuation { instance: inst, node, wait: Wait::Script(id) });
                 Ok(Vec::new())
@@ -763,8 +789,11 @@ impl DiagramRuntime {
 /// Keep one instance per object with a Diagram (in scene order).
 fn sync(rt: &mut DiagramRuntime, world: &World, gd: &GameData) {
     let order = scene_order(world);
-    let wanted: Vec<(Entity, String)> =
-        order.iter().filter_map(|e| world.get::<Diagram>(*e).map(|d| (*e, d.graph.clone()))).filter(|(_, p)| !p.trim().is_empty()).collect();
+    let wanted: Vec<(Entity, String)> = order
+        .iter()
+        .filter_map(|e| world.get::<Diagram>(*e).map(|d| (*e, d.graph.clone())))
+        .filter(|(_, p)| !p.trim().is_empty())
+        .collect();
     rt.instances.retain(|i| wanted.iter().any(|(e, p)| *e == i.entity && *p == i.path));
     rt.waits.retain(|c| wanted.iter().any(|(e, _)| *e == c.instance));
     for (e, path) in &wanted {
@@ -788,7 +817,12 @@ fn sync(rt: &mut DiagramRuntime, world: &World, gd: &GameData) {
                 Err(e) => {
                     rt.diagnostics.insert(
                         path.clone(),
-                        vec![Diagnostic { severity: crate::validate::Severity::Error, node: None, pin: None, message: e }],
+                        vec![Diagnostic {
+                            severity: crate::validate::Severity::Error,
+                            node: None,
+                            pin: None,
+                            message: e,
+                        }],
                     );
                     Loaded { graph: Arc::new(Graph::default()), ok: false }
                 }
@@ -796,7 +830,12 @@ fn sync(rt: &mut DiagramRuntime, world: &World, gd: &GameData) {
         });
         if !loaded.ok {
             if let Some(mut c) = world.try_resource_mut::<Console>() {
-                let first = rt.diagnostics.get(path).and_then(|d| d.iter().find(|d| d.severity == crate::validate::Severity::Error)).map(|d| d.message.clone()).unwrap_or_default();
+                let first = rt
+                    .diagnostics
+                    .get(path)
+                    .and_then(|d| d.iter().find(|d| d.severity == crate::validate::Severity::Error))
+                    .map(|d| d.message.clone())
+                    .unwrap_or_default();
                 c.error("diagram", format!("{path} has errors and won't run: {first}"));
             }
             // Still tracked (so the error isn't repeated), but with no nodes.
@@ -807,7 +846,12 @@ fn sync(rt: &mut DiagramRuntime, world: &World, gd: &GameData) {
                 rt.scene_vars.entry(v.name.clone()).or_insert_with(|| v.default.clone());
             }
         }
-        let vars = graph.variables.iter().filter(|v| v.scope == Scope::Object).map(|v| (v.name.clone(), v.default.clone())).collect();
+        let vars = graph
+            .variables
+            .iter()
+            .filter(|v| v.scope == Scope::Object)
+            .map(|v| (v.name.clone(), v.default.clone()))
+            .collect();
         rt.instances.push(Instance {
             entity: *e,
             path: path.clone(),
@@ -836,8 +880,12 @@ fn interact_target(rt: &DiagramRuntime, world: &World, gd: &GameData) -> Option<
     while let Some(p) = world.get::<Parent>(interactor).map(|p| p.0) {
         interactor = p;
     }
-    let listens = |e: Entity| rt.instance(e).is_some_and(|i| i.graph.nodes.iter().any(|n| matches!(n.kind, NodeKind::OnInteract)));
-    if let Some(hit) = world.try_resource::<Physics>().and_then(|p| p.0.raycast(origin, forward, INTERACT_RANGE, Some(interactor))) {
+    let listens = |e: Entity| {
+        rt.instance(e).is_some_and(|i| i.graph.nodes.iter().any(|n| matches!(n.kind, NodeKind::OnInteract)))
+    };
+    if let Some(hit) =
+        world.try_resource::<Physics>().and_then(|p| p.0.raycast(origin, forward, INTERACT_RANGE, Some(interactor)))
+    {
         let mut e = hit.entity;
         loop {
             if listens(e) {
@@ -891,7 +939,11 @@ pub fn run_diagrams(world: &mut World) {
                             // Dynamic bodies are steered by velocity (they still collide);
                             // gravity is suspended for the move.
                             let current = world_position(world, *target);
-                            let v = if t >= 1.0 || dt <= 0.0 { Vec3::ZERO } else { (from.lerp(*to, ((now + dt as f64 - start) / duration).min(1.0) as f32) - current) / dt };
+                            let v = if t >= 1.0 || dt <= 0.0 {
+                                Vec3::ZERO
+                            } else {
+                                (from.lerp(*to, ((now + dt as f64 - start) / duration).min(1.0) as f32) - current) / dt
+                            };
                             if let Some(mut ph) = world.try_resource_mut::<Physics>() {
                                 ph.0.set_linear_velocity(*target, v);
                                 if t >= 1.0 {
@@ -912,11 +964,17 @@ pub fn run_diagrams(world: &mut World) {
                     Some((_, result)) => {
                         if let Some(i) = rt.index_of(c.instance) {
                             let (result_text, error_text, pin) = match result {
-                                Ok(v) => (v.as_ref().map(|v| from_bridge(v).display()).unwrap_or_default(), String::new(), "then"),
+                                Ok(v) => (
+                                    v.as_ref().map(|v| from_bridge(v).display()).unwrap_or_default(),
+                                    String::new(),
+                                    "then",
+                                ),
                                 Err(e) => (String::new(), e.clone(), "failed"),
                             };
                             rt.instances[i].outputs.insert(PinRef::new(c.node, "result"), Value::Text(result_text));
-                            rt.instances[i].outputs.insert(PinRef::new(c.node, "error"), Value::Text(error_text.clone()));
+                            rt.instances[i]
+                                .outputs
+                                .insert(PinRef::new(c.node, "error"), Value::Text(error_text.clone()));
                             if let Err(e) = result {
                                 rt.fail(&cx, i, c.node, format!("the script failed: {e}"));
                             }
@@ -953,10 +1011,12 @@ pub fn run_diagrams(world: &mut World) {
         }
 
         // 3. Custom events (emitted last frame), in order.
-        let events: Vec<GraphEvent> = world.try_resource_mut::<GraphEvents>().map(|mut q| std::mem::take(&mut q.0)).unwrap_or_default();
+        let events: Vec<GraphEvent> =
+            world.try_resource_mut::<GraphEvents>().map(|mut q| std::mem::take(&mut q.0)).unwrap_or_default();
         for ev in &events {
             for i in 0..rt.instances.len() {
-                let nodes = rt.event_nodes(i, |k| matches!(k, NodeKind::OnCustomEvent { event, .. } if *event == ev.name));
+                let nodes =
+                    rt.event_nodes(i, |k| matches!(k, NodeKind::OnCustomEvent { event, .. } if *event == ev.name));
                 for node in nodes {
                     let sender = ev.sender.map_or(Value::Entity(None), entity_value);
                     rt.instances[i].outputs.insert(PinRef::new(node, "sender"), sender);
@@ -975,7 +1035,9 @@ pub fn run_diagrams(world: &mut World) {
             for (me, other) in [(ev.a, ev.b), (ev.b, ev.a)] {
                 let Some(i) = rt.index_of(me) else { continue };
                 let enter = ev.started;
-                let nodes = rt.event_nodes(i, |k| if enter { matches!(k, NodeKind::OnTriggerEnter) } else { matches!(k, NodeKind::OnTriggerExit) });
+                let nodes = rt.event_nodes(i, |k| {
+                    if enter { matches!(k, NodeKind::OnTriggerEnter) } else { matches!(k, NodeKind::OnTriggerExit) }
+                });
                 for node in nodes {
                     rt.instances[i].outputs.insert(PinRef::new(node, "other"), entity_value(other));
                     rt.fire(&cx, i, node);
@@ -1003,7 +1065,9 @@ pub fn run_diagrams(world: &mut World) {
                 let repeat = matches!(rt.input(&cx, i, node, "repeat", 0), Ok(Value::Bool(true)));
                 let next = *rt.instances[i].timers.entry(node).or_insert(now + interval);
                 if now >= next {
-                    rt.instances[i].timers.insert(node, if repeat { next.max(now - interval) + interval } else { f64::INFINITY });
+                    rt.instances[i]
+                        .timers
+                        .insert(node, if repeat { next.max(now - interval) + interval } else { f64::INFINITY });
                     rt.fire(&cx, i, node);
                 }
             }
@@ -1021,7 +1085,15 @@ mod value_tests {
 
     #[test]
     fn bridge_values_round_trip() {
-        for v in [Value::Bool(true), Value::Int(-3), Value::Float(0.25), Value::Text("hi".into()), Value::Vector3([1.0, 2.0, 3.0]), Value::Color([1.0, 0.0, 0.0, 1.0]), Value::Entity(Some(42))] {
+        for v in [
+            Value::Bool(true),
+            Value::Int(-3),
+            Value::Float(0.25),
+            Value::Text("hi".into()),
+            Value::Vector3([1.0, 2.0, 3.0]),
+            Value::Color([1.0, 0.0, 0.0, 1.0]),
+            Value::Entity(Some(42)),
+        ] {
             assert_eq!(from_bridge(&to_bridge(&v).unwrap()), v);
         }
         assert!(to_bridge(&Value::Vector2([0.0; 2])).is_none());

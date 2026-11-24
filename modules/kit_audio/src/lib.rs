@@ -325,7 +325,8 @@ mod tests {
         app.world.insert(cam, kit_gamesys::Camera::default());
         let near = kit_scene::spawn_node(&mut app.world, "Near", Transform::from_xyz(2.0, 0.0, 0.0));
         let far = kit_scene::spawn_node(&mut app.world, "Far", Transform::from_xyz(-50.0, 0.0, 0.0));
-        let spatial = AudioSource { clip: "sounds/beep.wav".into(), spatial: true, looping: true, ..Default::default() };
+        let spatial =
+            AudioSource { clip: "sounds/beep.wav".into(), spatial: true, looping: true, ..Default::default() };
         app.world.insert(near, spatial.clone());
         app.world.insert(far, spatial);
         app.update(1.0 / 60.0);

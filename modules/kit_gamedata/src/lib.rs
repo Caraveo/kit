@@ -114,7 +114,10 @@ pub enum Value {
     Transform(TransformValue),
     /// A live object at runtime (entity bits); `None` = nothing.
     Entity(Option<u64>),
-    Row { dataset: Id, row: Option<Id> },
+    Row {
+        dataset: Id,
+        row: Option<Id>,
+    },
 }
 
 impl Value {
@@ -141,11 +144,19 @@ impl Value {
             Value::Int(i) => i.to_string(),
             Value::Float(x) => format!("{x:.3}"),
             Value::Text(t) => format!("\"{t}\""),
-            Value::Color(c) => format!("#{:02x}{:02x}{:02x}", (c[0] * 255.0) as u8, (c[1] * 255.0) as u8, (c[2] * 255.0) as u8),
+            Value::Color(c) => {
+                format!("#{:02x}{:02x}{:02x}", (c[0] * 255.0) as u8, (c[1] * 255.0) as u8, (c[2] * 255.0) as u8)
+            }
             Value::Vector2(v) => format!("({}, {})", f(v[0]), f(v[1])),
             Value::Vector3(v) => format!("({}, {}, {})", f(v[0]), f(v[1]), f(v[2])),
             Value::Transform(t) => format!("at ({}, {}, {})", f(t.position[0]), f(t.position[1]), f(t.position[2])),
-            Value::Entity(e) => if e.is_some() { "object".into() } else { "none".into() },
+            Value::Entity(e) => {
+                if e.is_some() {
+                    "object".into()
+                } else {
+                    "none".into()
+                }
+            }
             Value::Row { row, .. } => row.clone().unwrap_or_else(|| "no row".into()),
         }
     }
@@ -197,7 +208,13 @@ impl Dataset {
     pub fn value(&self, row: &str, field: &str) -> Option<Value> {
         let f = self.field(field)?;
         let r = self.row(row)?;
-        Some(r.values.get(field).filter(|v| v.value_type() == f.value_type).cloned().unwrap_or_else(|| f.value_type.default_value()))
+        Some(
+            r.values
+                .get(field)
+                .filter(|v| v.value_type() == f.value_type)
+                .cloned()
+                .unwrap_or_else(|| f.value_type.default_value()),
+        )
     }
 }
 

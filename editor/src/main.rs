@@ -8,13 +8,17 @@
 mod camera;
 mod canvas;
 mod code;
+mod controls;
 mod diagram_view;
-mod gizmos;
+mod markdown;
+mod rex_panel;
 mod export;
-mod hooks;
 mod export_wizard;
+mod gizmos;
+mod hooks;
 mod model_import;
 mod move_gizmo;
+mod new_project;
 mod settings;
 mod state;
 mod templates;
@@ -208,6 +212,11 @@ struct Automation {
     canvas: bool,
     /// Open the Diagram view.
     diagram: bool,
+    /// Open Rex.
+    rex: bool,
+    /// Ask Rex this (in `rex_mode`) once connected.
+    rex_ask: Option<String>,
+    rex_mode: Option<String>,
     settings: bool,
     new_script: bool,
     terrain: bool,
@@ -328,15 +337,18 @@ fn app_icon() -> Option<winit::window::Icon> {
 
 impl EditorApp {
     fn init(&mut self, event_loop: &ActiveEventLoop) -> Result<()> {
-        let window = Arc::new(
-            event_loop.create_window(
-                Window::default_attributes()
-                    .with_title("Kit")
-                    .with_inner_size(LogicalSize::new(1480, 900))
-                    .with_min_inner_size(LogicalSize::new(900, 560))
-                    .with_window_icon(app_icon()),
-            )?,
+        let attributes = Window::default_attributes()
+            .with_title("Kit")
+            .with_inner_size(LogicalSize::new(1480, 900))
+            .with_min_inner_size(LogicalSize::new(900, 560))
+            .with_window_icon(app_icon());
+        #[cfg(target_os = "linux")]
+        let attributes = winit::platform::wayland::WindowAttributesExtWayland::with_name(
+            attributes,
+            "io.github.caraveo.Kit",
+            "kit-editor",
         );
+        let window = Arc::new(event_loop.create_window(attributes)?);
         let display = window.display_handle()?.as_raw();
         let gfx = Gfx::new(Some(display), "Kit Editor")?;
         let surface = gfx.create_surface(display, window.window_handle()?.as_raw())?;
@@ -406,6 +418,15 @@ impl EditorApp {
         }
         self.editor.settings.canvas |= self.auto.canvas;
         self.editor.settings.diagram |= self.auto.diagram;
+        self.editor.settings.rex |= self.auto.rex || self.auto.rex_ask.is_some();
+        if let Some(m) = self.auto.rex_mode.clone() {
+            self.ui.rex.mode = m;
+            self.editor.settings.rex = true;
+        }
+        if let Some(q) = self.auto.rex_ask.clone() {
+            self.ui.rex.ask(self.auto.rex_mode.as_deref().unwrap_or("buddy"), q);
+            self.ui.rex.auto_send = true;
+        }
         self.editor.request_settings |= self.auto.settings;
         if self.auto.wizard {
             self.ui.export.show(&mut self.editor);
@@ -432,34 +453,43 @@ impl EditorApp {
                         self.open(&dir);
                     }
                 }
-                Request::NewProject => {
-                    let start = user_projects_dir();
-                    let _ = std::fs::create_dir_all(&start);
-                    if let Some(dir) = rfd::FileDialog::new()
-                        .set_title("Choose an empty folder for the new project")
-                        .set_directory(&start)
-                        .pick_folder()
-                    {
-                        let empty = std::fs::read_dir(&dir).map(|mut d| d.next().is_none()).unwrap_or(true);
-                        let target = if empty {
-                            dir
-                        } else {
-                            let mut n = 1;
-                            loop {
-                                let candidate = dir.join(if n == 1 {
-                                    "New Kit Game".to_string()
-                                } else {
-                                    format!("New Kit Game {n}")
-                                });
-                                if !candidate.exists() {
-                                    break candidate;
-                                }
-                                n += 1;
+                Request::BrowseNewProject => {
+                    if let Some(wizard) = self.ui.new_project.as_mut() {
+                        if let Some(path) = rfd::FileDialog::new()
+                            .set_title("Choose a parent folder for the Kit project")
+                            .set_directory(&wizard.location)
+                            .pick_folder()
+                        {
+                            wizard.select_location(&path);
+                        }
+                    }
+                }
+                Request::CreateProject(path, options) => {
+                    let result = (|| -> Result<()> {
+                        self.editor.save_if_dirty()?;
+                        for index in 0..self.editor.scripts.len() {
+                            if self.editor.scripts[index].dirty() {
+                                self.editor.save_script(index);
+                                anyhow::ensure!(
+                                    !self.editor.scripts[index].dirty(),
+                                    "Could not save {}",
+                                    self.editor.scripts[index].path
+                                );
                             }
-                        };
-                        match self.editor.create_project(&target) {
-                            Ok(()) => remember(&mut self.ui.recent, &target),
-                            Err(e) => self.editor.report(Err(e)),
+                        }
+                        self.editor.create_project_from(&path, &options)
+                    })();
+                    match result {
+                        Ok(()) => {
+                            remember(&mut self.ui.recent, &path);
+                            self.ui.new_project = None;
+                            self.ui.ensure_visible(&mut self.editor);
+                        }
+                        Err(error) => {
+                            if let Some(wizard) = self.ui.new_project.as_mut() {
+                                wizard.error = Some(format!("{error:#}"));
+                            }
+                            self.editor.report(Err(error));
                         }
                     }
                 }
@@ -583,7 +613,7 @@ impl EditorApp {
 
         // GPU resources.
         let size = self.ui.viewport_px;
-        if gpu.viewport.ensure(&gpu.gfx, &mut gpu.egui_renderer, size)? {
+        if size[0] > 0 && size[1] > 0 && gpu.viewport.ensure(&gpu.gfx, &mut gpu.egui_renderer, size)? {
             gpu.viewport_fresh = true;
         }
         self.ui.viewport_tex = gpu.viewport.tex;
@@ -605,54 +635,57 @@ impl EditorApp {
             let cmd = frame.cmd;
             let gfx = &gpu.gfx;
             // 1. Scene into the viewport image.
-            let image = gpu.viewport.image.as_ref().unwrap();
-            let old_layout =
-                if gpu.viewport_fresh { vk::ImageLayout::UNDEFINED } else { vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL };
-            gfx.image_barrier(
-                cmd,
-                image.image,
-                vk::ImageAspectFlags::COLOR,
-                old_layout,
-                vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
-                (vk::PipelineStageFlags::FRAGMENT_SHADER, vk::AccessFlags::SHADER_READ),
-                (vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT, vk::AccessFlags::COLOR_ATTACHMENT_WRITE),
-            );
-            gpu.viewport_fresh = false;
-            let extent = image.extent;
-            let aspect = extent.width as f32 / extent.height.max(1) as f32;
             let ed = &self.editor;
-            let mut view = if ed.playing && ed.settings.game_camera {
-                View::from_camera(&ed.app.world, aspect).unwrap_or_else(|| ed.camera.view(aspect))
-            } else {
-                let mut v = ed.camera.view(aspect);
-                if !ed.settings.grid {
-                    v.grid = None;
-                }
-                if let Some(sel) = ed.selected.filter(|_| !ed.playing) {
-                    v.selected = kit::scene::descendants_and_self(&ed.app.world, sel);
-                }
-                if theme::is_light() {
-                    v.backdrop = false;
-                    v.clear = ed.light_background();
-                }
-                v.post = ed.settings.volumes;
-                v
-            };
-            view.lighting = ed.settings.lighting;
-            view.wireframe = ed.settings.wireframe;
-            view.time = ed.app.world.resource::<kit::core::Time>().elapsed as f32;
-            let target = Target { image: image.image, view: image.view, extent, format: VIEWPORT_FORMAT };
-            gpu.renderer.render(gfx, cmd, frame.frame_index, &target, &view, &ed.app.world)?;
-            gfx.image_barrier(
-                cmd,
-                image.image,
-                vk::ImageAspectFlags::COLOR,
-                vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
-                vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-                (vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT, vk::AccessFlags::COLOR_ATTACHMENT_WRITE),
-                (vk::PipelineStageFlags::FRAGMENT_SHADER, vk::AccessFlags::SHADER_READ),
-            );
-
+            if let Some(image) = gpu.viewport.image.as_ref().filter(|_| size[0] > 0 && size[1] > 0) {
+                let old_layout = if gpu.viewport_fresh {
+                    vk::ImageLayout::UNDEFINED
+                } else {
+                    vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL
+                };
+                gfx.image_barrier(
+                    cmd,
+                    image.image,
+                    vk::ImageAspectFlags::COLOR,
+                    old_layout,
+                    vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+                    (vk::PipelineStageFlags::FRAGMENT_SHADER, vk::AccessFlags::SHADER_READ),
+                    (vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT, vk::AccessFlags::COLOR_ATTACHMENT_WRITE),
+                );
+                gpu.viewport_fresh = false;
+                let extent = image.extent;
+                let aspect = extent.width as f32 / extent.height.max(1) as f32;
+                let mut view = if ed.playing && ed.settings.game_camera {
+                    View::from_camera(&ed.app.world, aspect).unwrap_or_else(|| ed.camera.view(aspect))
+                } else {
+                    let mut v = ed.camera.view(aspect);
+                    if !ed.settings.grid {
+                        v.grid = None;
+                    }
+                    if let Some(sel) = ed.selected.filter(|_| !ed.playing) {
+                        v.selected = kit::scene::descendants_and_self(&ed.app.world, sel);
+                    }
+                    if theme::is_light() {
+                        v.backdrop = false;
+                        v.clear = ed.light_background();
+                    }
+                    v.post = ed.settings.volumes;
+                    v
+                };
+                view.lighting = ed.settings.lighting;
+                view.wireframe = ed.settings.wireframe;
+                view.time = ed.app.world.resource::<kit::core::Time>().elapsed as f32;
+                let target = Target { image: image.image, view: image.view, extent, format: VIEWPORT_FORMAT };
+                gpu.renderer.render(gfx, cmd, frame.frame_index, &target, &view, &ed.app.world)?;
+                gfx.image_barrier(
+                    cmd,
+                    image.image,
+                    vk::ImageAspectFlags::COLOR,
+                    vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+                    vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                    (vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT, vk::AccessFlags::COLOR_ATTACHMENT_WRITE),
+                    (vk::PipelineStageFlags::FRAGMENT_SHADER, vk::AccessFlags::SHADER_READ),
+                );
+            }
             // 1b. Camera preview (picture-in-picture).
             if let (true, Some(cam), Some(img)) = (preview_on, self.ui.preview_camera, gpu.preview.image.as_ref()) {
                 let old_layout = if gpu.preview_fresh {
@@ -690,7 +723,12 @@ impl EditorApp {
 
             // 2. The UI into the swapchain.
             let [r, g, b, _] = theme::BG().to_array();
-            let bg = kit::render::srgb_to_linear(kit::math::Vec4::new(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0));
+            let bg = kit::render::srgb_to_linear(kit::math::Vec4::new(
+                r as f32 / 255.0,
+                g as f32 / 255.0,
+                b as f32 / 255.0,
+                1.0,
+            ));
             let color = [vk::RenderingAttachmentInfo::default()
                 .image_view(frame.view)
                 .image_layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
@@ -865,6 +903,9 @@ fn main() {
             "--play" => auto.play = true,
             "--canvas" => auto.canvas = true,
             "--diagram" => auto.diagram = true,
+            "--rex" => auto.rex = true,
+            "--rex-ask" => auto.rex_ask = args.next(),
+            "--rex-mode" => auto.rex_mode = args.next(),
             "--settings" => auto.settings = true,
             "--wizard" => auto.wizard = true,
             "--new-script" => auto.new_script = true,
@@ -946,9 +987,11 @@ fn run(project: Option<PathBuf>, auto: Automation) -> Result<()> {
     let saved = config_dir().and_then(|d| std::fs::read_to_string(d.join("theme.txt")).ok());
     let light = auto.light.unwrap_or(saved.as_deref().map(str::trim) == Some("light"));
     theme::set_light(&egui_ctx, light);
+    let mut editor = Editor::new();
+    editor.controls = controls::Controls::load();
     let mut app = EditorApp {
         auto,
-        editor: Editor::new(),
+        editor,
         ui: UiState::new(load_recent(), String::new()),
         egui_ctx,
         gpu: None,

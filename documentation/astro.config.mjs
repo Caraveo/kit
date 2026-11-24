@@ -36,6 +36,7 @@ export default defineConfig({
 						'editor/sound',
 						'editor/post-processing',
 						'editor/diagrams',
+						'editor/rex',
 						'editor/export',
 					],
 				},

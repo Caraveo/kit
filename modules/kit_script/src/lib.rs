@@ -30,8 +30,8 @@ use host::{Command, EntityHost};
 use kit_core::{App, Console, Module, Stage, Time};
 use kit_ecs::{Entity, World};
 use kit_gamesys::{FieldValue, Script};
-pub use kit_x::ast::Access;
 use kit_resource::Resources;
+pub use kit_x::ast::Access;
 use kit_x::{Interpreter, Value, XError};
 use std::collections::HashMap;
 use std::time::SystemTime;
@@ -114,7 +114,13 @@ pub fn declared_fields(res: &Resources, path: &str) -> Declared {
     let stem = std::path::Path::new(path).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
     let fields = kit_x::declared_fields(&program, &stem)
         .into_iter()
-        .map(|f| FieldView { text: f.default.to_string(), value: field_value(&f.default), name: f.name, ty: f.ty.name(), access: f.access })
+        .map(|f| FieldView {
+            text: f.default.to_string(),
+            value: field_value(&f.default),
+            name: f.name,
+            ty: f.ty.name(),
+            access: f.access,
+        })
         .collect();
     Declared { fields, error: None }
 }
@@ -127,7 +133,13 @@ impl ScriptRuntime {
             Some(Value::Instance(i)) => i
                 .snapshot()
                 .into_iter()
-                .map(|(name, ty, access, v)| FieldView { name, ty: ty.name(), access, value: field_value(&v), text: v.to_string() })
+                .map(|(name, ty, access, v)| FieldView {
+                    name,
+                    ty: ty.name(),
+                    access,
+                    value: field_value(&v),
+                    text: v.to_string(),
+                })
                 .collect(),
             _ => Vec::new(),
         }

@@ -45,7 +45,8 @@ impl ExportWizard {
     }
 
     pub fn refresh(&mut self) {
-        let bin_dir = std::env::current_exe().ok().and_then(|e| e.parent().map(|p| p.to_path_buf())).unwrap_or_default();
+        let bin_dir =
+            std::env::current_exe().ok().and_then(|e| e.parent().map(|p| p.to_path_buf())).unwrap_or_default();
         self.status = platforms().iter().map(|p| (p.id, crate::export::availability(p, &bin_dir))).collect();
     }
 
@@ -92,7 +93,13 @@ fn card(ui: &mut egui::Ui, platform: &Platform, a: Option<&Availability>, select
         CARD()
     };
     let border = if selected { ACCENT() } else { CARD_BORDER() };
-    painter.rect(rect, CornerRadius::same(12), fill, Stroke::new(if selected { 1.6 } else { 1.0 }, border), egui::StrokeKind::Inside);
+    painter.rect(
+        rect,
+        CornerRadius::same(12),
+        fill,
+        Stroke::new(if selected { 1.6 } else { 1.0 }, border),
+        egui::StrokeKind::Inside,
+    );
     let fade = if enabled { 1.0 } else { 0.55 };
     painter.text(
         rect.center_top() + Vec2::new(0.0, 23.0),
@@ -110,7 +117,8 @@ fn card(ui: &mut egui::Ui, platform: &Platform, a: Option<&Availability>, select
     );
     let (text, color) = pill(a);
     let galley = painter.layout_no_wrap(text.to_owned(), egui::FontId::proportional(10.0), color);
-    let pill_rect = egui::Rect::from_center_size(rect.center_top() + Vec2::new(0.0, 69.0), galley.size() + Vec2::new(12.0, 4.0));
+    let pill_rect =
+        egui::Rect::from_center_size(rect.center_top() + Vec2::new(0.0, 69.0), galley.size() + Vec2::new(12.0, 4.0));
     painter.rect_filled(pill_rect, CornerRadius::same(8), color.gamma_multiply(0.15));
     painter.galley(pill_rect.min + Vec2::new(6.0, 2.0), galley, color);
     resp.on_hover_cursor(egui::CursorIcon::PointingHand)
@@ -375,13 +383,19 @@ fn protection_module(
     ui.horizontal(|ui| {
         for mode in Protection::ALL {
             let supported = protection_supported(platform, mode);
-            let r = ui
-                .add_enabled(supported.is_ok() && !ed.exporting(), egui::Button::selectable(wiz.protection == mode, mode.label()));
-            crate::ui::mark_rect(ui, match mode {
-                Protection::Standard => "protect_standard",
-                Protection::Signed => "protect_signed",
-                Protection::Encrypted => "protect_encrypted",
-            }, r.rect);
+            let r = ui.add_enabled(
+                supported.is_ok() && !ed.exporting(),
+                egui::Button::selectable(wiz.protection == mode, mode.label()),
+            );
+            crate::ui::mark_rect(
+                ui,
+                match mode {
+                    Protection::Standard => "protect_standard",
+                    Protection::Signed => "protect_signed",
+                    Protection::Encrypted => "protect_encrypted",
+                },
+                r.rect,
+            );
             let r = match &supported {
                 Err(why) => r.on_disabled_hover_text(why.as_str()),
                 Ok(()) => r,
@@ -429,7 +443,9 @@ fn protection_module(
             if r.clicked() {
                 let result = crate::export::default_key_path()
                     .ok_or_else(|| anyhow::anyhow!("no settings folder for the publisher key"))
-                    .and_then(|path| kit_export_security::PublisherKey::generate().and_then(|k| k.save(&path).map(|()| (k, path))));
+                    .and_then(|path| {
+                        kit_export_security::PublisherKey::generate().and_then(|k| k.save(&path).map(|()| (k, path)))
+                    });
                 match result {
                     Ok((k, path)) => ed.notify(format!(
                         "Created your publisher key ({}). Back up {}: builds you publish only trust this key.",

@@ -46,14 +46,26 @@ pub fn validate(graph: &Graph, gd: &GameData) -> Vec<Diagnostic> {
     for n in &graph.nodes {
         match &n.kind {
             NodeKind::DatasetRow { dataset, row } => match gd.dataset(dataset) {
-                None => out.push(Diagnostic::error(n.id, None, "This dataset was deleted. Pick another or remove the node.")),
+                None => out.push(Diagnostic::error(
+                    n.id,
+                    None,
+                    "This dataset was deleted. Pick another or remove the node.",
+                )),
                 Some(ds) => {
                     if let Some(r) = row {
                         if ds.row(r).is_none() && graph.link_into(&crate::graph::PinRef::new(n.id, "row")).is_none() {
-                            out.push(Diagnostic::error(n.id, Some("row"), format!("The row picked here was deleted from {}.", ds.name)));
+                            out.push(Diagnostic::error(
+                                n.id,
+                                Some("row"),
+                                format!("The row picked here was deleted from {}.", ds.name),
+                            ));
                         }
                     } else if graph.link_into(&crate::graph::PinRef::new(n.id, "row")).is_none() {
-                        out.push(Diagnostic::error(n.id, Some("row"), format!("Pick a row of {} or connect a Row input.", ds.name)));
+                        out.push(Diagnostic::error(
+                            n.id,
+                            Some("row"),
+                            format!("Pick a row of {} or connect a Row input.", ds.name),
+                        ));
                     }
                 }
             },
@@ -61,7 +73,11 @@ pub fn validate(graph: &Graph, gd: &GameData) -> Vec<Diagnostic> {
                 out.push(Diagnostic::error(n.id, None, "This constant was deleted."));
             }
             NodeKind::GetVariable { name } | NodeKind::SetVariable { name } if graph.variable(name).is_none() => {
-                out.push(Diagnostic::error(n.id, None, format!("No variable named \"{name}\". Add it in the graph's Variables.")));
+                out.push(Diagnostic::error(
+                    n.id,
+                    None,
+                    format!("No variable named \"{name}\". Add it in the graph's Variables."),
+                ));
             }
             NodeKind::RunScript { function, .. } if function.trim().is_empty() => {
                 out.push(Diagnostic::error(n.id, None, "Name the script function to run."));
@@ -76,7 +92,16 @@ pub fn validate(graph: &Graph, gd: &GameData) -> Vec<Diagnostic> {
             for (pin, value) in &n.inputs {
                 if let Some(PinType::Data(t)) = sig.input(pin).map(|p| &p.ty) {
                     if value.value_type() != *t {
-                        out.push(Diagnostic::warning(n.id, Some(pin), format!("Value is {} but {} expects {}; using a default.", value.value_type().label(), pin, t.label())));
+                        out.push(Diagnostic::warning(
+                            n.id,
+                            Some(pin),
+                            format!(
+                                "Value is {} but {} expects {}; using a default.",
+                                value.value_type().label(),
+                                pin,
+                                t.label()
+                            ),
+                        ));
                     }
                 }
             }
@@ -87,7 +112,11 @@ pub fn validate(graph: &Graph, gd: &GameData) -> Vec<Diagnostic> {
     let mut inputs_seen: HashSet<(NodeId, String)> = HashSet::new();
     for l in &graph.links {
         let (Some(fs), Some(ts)) = (sigs.get(&l.from.node), sigs.get(&l.to.node)) else {
-            out.push(Diagnostic::error(l.from.node.min(l.to.node), None, "A wire points to a node that no longer exists."));
+            out.push(Diagnostic::error(
+                l.from.node.min(l.to.node),
+                None,
+                "A wire points to a node that no longer exists.",
+            ));
             continue;
         };
         let Some(from) = fs.output(&l.from.pin) else {
@@ -95,7 +124,11 @@ pub fn validate(graph: &Graph, gd: &GameData) -> Vec<Diagnostic> {
                 Some(NodeKind::DatasetRow { .. }) => "That field was deleted from the dataset",
                 _ => "This output no longer exists",
             };
-            out.push(Diagnostic::error(l.from.node, Some(&l.from.pin), format!("{what}; {} is no longer fed.", title(l.to.node))));
+            out.push(Diagnostic::error(
+                l.from.node,
+                Some(&l.from.pin),
+                format!("{what}; {} is no longer fed.", title(l.to.node)),
+            ));
             continue;
         };
         let Some(to) = ts.input(&l.to.pin) else {
@@ -108,9 +141,17 @@ pub fn validate(graph: &Graph, gd: &GameData) -> Vec<Diagnostic> {
             (PinType::Data(a), PinType::Data(b)) => out.push(Diagnostic::error(
                 l.to.node,
                 Some(&l.to.pin),
-                format!("{} gives {} but {} needs {}. Add a conversion node.", from.name, a.label(), to.name, b.label()),
+                format!(
+                    "{} gives {} but {} needs {}. Add a conversion node.",
+                    from.name,
+                    a.label(),
+                    to.name,
+                    b.label()
+                ),
             )),
-            _ => out.push(Diagnostic::error(l.to.node, Some(&l.to.pin), "Execution and value pins can't be connected.")),
+            _ => {
+                out.push(Diagnostic::error(l.to.node, Some(&l.to.pin), "Execution and value pins can't be connected."))
+            }
         }
         if matches!(to.ty, PinType::Data(_)) && !inputs_seen.insert((l.to.node, l.to.pin.clone())) {
             out.push(Diagnostic::error(l.to.node, Some(&l.to.pin), "An input can only take one wire."));
@@ -156,7 +197,11 @@ pub fn validate(graph: &Graph, gd: &GameData) -> Vec<Diagnostic> {
     for n in &graph.nodes {
         let sig = &sigs[&n.id];
         if sig.input("exec").is_some() && !graph.links.iter().any(|l| l.to.node == n.id && l.to.pin == "exec") {
-            out.push(Diagnostic::warning(n.id, Some("exec"), "Nothing triggers this node: connect an event's white wire."));
+            out.push(Diagnostic::warning(
+                n.id,
+                Some("exec"),
+                "Nothing triggers this node: connect an event's white wire.",
+            ));
         }
     }
     out

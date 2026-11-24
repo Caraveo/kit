@@ -44,10 +44,10 @@
         max-width: 420px;
       }
       .kit-logo {
+        display: block;
         width: 56px;
         height: 56px;
         margin: 0 auto 18px;
-        color: var(--accent);
       }
       .kit-track {
         width: 240px;
@@ -141,10 +141,7 @@
     <button id="kit-fullscreen" title="Fullscreen" onclick="document.documentElement.requestFullscreen?.()">⛶</button>
     <div id="kit-loading" class="kit-overlay">
       <div class="kit-card">
-        <svg class="kit-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
-          <path d="M12 2.5 20.5 7v10L12 21.5 3.5 17V7z" />
-          <path d="M3.5 7 12 11.5 20.5 7M12 11.5v10" />
-        </svg>
+        <img class="kit-logo" src="kit-logo.png" alt="Kit" />
         <div class="kit-track"><div id="kit-bar"></div></div>
         <div id="kit-status">Loading…</div>
       </div>

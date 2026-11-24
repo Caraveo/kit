@@ -151,10 +151,17 @@ pub fn draw(painter: &egui::Painter, ed: &Editor, rect: Rect, view: &View) {
                         );
                         frame.transform_point3(s * half)
                     };
-                    for (a, b) in [(0, 1), (2, 3), (4, 5), (6, 7), (0, 2), (1, 3), (4, 6), (5, 7), (0, 4), (1, 5), (2, 6), (3, 7)] {
+                    for (a, b) in
+                        [(0, 1), (2, 3), (4, 5), (6, 7), (0, 2), (1, 3), (4, 6), (5, 7), (0, 4), (1, 5), (2, 6), (3, 7)]
+                    {
                         if let (Some(p), Some(q)) = (to_screen(vp, rect, corner(a)), to_screen(vp, rect, corner(b))) {
                             if dashed {
-                                painter.extend(egui::Shape::dashed_line(&[p, q], Stroke::new(1.0, color.gamma_multiply(0.6)), 5.0, 5.0));
+                                painter.extend(egui::Shape::dashed_line(
+                                    &[p, q],
+                                    Stroke::new(1.0, color.gamma_multiply(0.6)),
+                                    5.0,
+                                    5.0,
+                                ));
                             } else {
                                 painter.line_segment([p, q], Stroke::new(width, color));
                             }
@@ -170,15 +177,15 @@ pub fn draw(painter: &egui::Painter, ed: &Editor, rect: Rect, view: &View) {
                 let radius = half.max_element();
                 let right = view.view.row(0).truncate().normalize_or_zero();
                 let Some(c) = to_screen(vp, rect, pos) else { continue };
-                let rings: &[(f32, bool)] = if selected && v.blend_distance > 0.0 {
-                    &[(0.0, false), (1.0, true)]
-                } else {
-                    &[(0.0, false)]
-                };
+                let rings: &[(f32, bool)] =
+                    if selected && v.blend_distance > 0.0 { &[(0.0, false), (1.0, true)] } else { &[(0.0, false)] };
                 for &(extra, dashed) in rings {
                     let r = radius + extra * v.blend_distance;
                     if let Some(edge) = to_screen(vp, rect, pos + right * r) {
-                        let stroke = Stroke::new(if dashed { 1.0 } else { width }, if dashed { color.gamma_multiply(0.6) } else { color });
+                        let stroke = Stroke::new(
+                            if dashed { 1.0 } else { width },
+                            if dashed { color.gamma_multiply(0.6) } else { color },
+                        );
                         painter.circle_stroke(c, (edge - c).length(), stroke);
                     }
                     let ring: Vec<Pos2> = (0..=64)
@@ -188,7 +195,12 @@ pub fn draw(painter: &egui::Painter, ed: &Editor, rect: Rect, view: &View) {
                         })
                         .collect();
                     if ring.len() > 2 {
-                        painter.add(egui::Shape::dashed_line(&ring, Stroke::new(1.0, color.gamma_multiply(0.5)), 6.0, 5.0));
+                        painter.add(egui::Shape::dashed_line(
+                            &ring,
+                            Stroke::new(1.0, color.gamma_multiply(0.5)),
+                            6.0,
+                            5.0,
+                        ));
                     }
                 }
             }
@@ -204,7 +216,11 @@ pub fn draw(painter: &egui::Painter, ed: &Editor, rect: Rect, view: &View) {
         let source = w.get::<AudioSource>(e).unwrap().clone();
         let pos = g.w_axis.truncate();
         let selected = ed.selected == Some(e);
-        let color = if selected { ACCENT_HOVER() } else { pick(Color32::from_rgb(0x4a, 0x40, 0x66), Color32::from_rgb(0xcf, 0xc6, 0xe8)) };
+        let color = if selected {
+            ACCENT_HOVER()
+        } else {
+            pick(Color32::from_rgb(0x4a, 0x40, 0x66), Color32::from_rgb(0xcf, 0xc6, 0xe8))
+        };
         let Some(c) = to_screen(vp, rect, pos) else { continue };
         if selected && source.spatial {
             // Screen-facing outlines of the min/max spheres plus their rings on the ground plane.
@@ -220,13 +236,24 @@ pub fn draw(painter: &egui::Painter, ed: &Editor, rect: Rect, view: &View) {
                     })
                     .collect();
                 if ring.len() > 2 {
-                    painter.add(egui::Shape::dashed_line(&ring, Stroke::new(1.0, color.gamma_multiply(alpha * 0.8)), 6.0, 5.0));
+                    painter.add(egui::Shape::dashed_line(
+                        &ring,
+                        Stroke::new(1.0, color.gamma_multiply(alpha * 0.8)),
+                        6.0,
+                        5.0,
+                    ));
                 }
             }
         }
         if w.has::<Model>(e) || w.has::<Sprite>(e) || w.has::<Camera>(e) || w.has::<Light>(e) {
             // Other objects with a sound: a small badge beside them.
-            painter.text(c + egui::vec2(14.0, -14.0), egui::Align2::CENTER_CENTER, "♪", egui::FontId::proportional(13.0), color);
+            painter.text(
+                c + egui::vec2(14.0, -14.0),
+                egui::Align2::CENTER_CENTER,
+                "♪",
+                egui::FontId::proportional(13.0),
+                color,
+            );
             continue;
         }
         painter.circle_filled(c, 11.0, color.gamma_multiply(0.18));

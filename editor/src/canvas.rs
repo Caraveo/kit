@@ -143,7 +143,7 @@ pub fn handle_input(
     let ground_mode = ed.settings.canvas_ground && !ed.camera.two_d;
     let forward = view_forward(view);
 
-    if resp.drag_started_by(egui::PointerButton::Primary) {
+    if resp.drag_started_by(ed.controls.gestures.canvas_draw.egui()) {
         let Some(start) = entity_position(ed, sel) else { return false };
         let press = ui.input(|i| i.pointer.press_origin()).or_else(|| resp.interact_pointer_pos());
         // Grab an existing point?
@@ -152,7 +152,7 @@ pub fn handle_input(
             *sketch = Sketch { entity: Some(sel), dragging: Some(i), plane: (p, forward), ..Default::default() };
             return true;
         }
-        let start_over = ui.input(|i| i.modifiers.shift);
+        let start_over = ui.input(|i| ed.controls.gestures.canvas_restart.held(i.modifiers));
         let mut base = if start_over {
             Vec::new()
         } else {
@@ -174,7 +174,7 @@ pub fn handle_input(
     if sketch.entity != Some(sel) {
         return false;
     }
-    if resp.dragged_by(egui::PointerButton::Primary) {
+    if resp.dragged_by(ed.controls.gestures.canvas_draw.egui()) {
         let Some(pos) = resp.interact_pointer_pos() else { return true };
         let ray = screen_ray(view, rect, pos);
         if let Some(i) = sketch.dragging {
@@ -215,9 +215,10 @@ pub fn handle_input(
             path.points = points;
             path.playing = true;
             let n = path.points.len();
+            let play = ed.controls.label(crate::controls::Shortcut::Play);
             w.insert(sel, path);
             ed.notify(format!(
-                "Path for {}: {n} points. Rotate the view and drag again to keep drawing. F5 to play.",
+                "Path for {}: {n} points. Rotate the view and drag again to keep drawing. {play} to play.",
                 ed.entity_label(sel)
             ));
         }
@@ -316,12 +317,11 @@ pub fn draw_overlays(painter: &egui::Painter, ed: &Editor, sketch: &Sketch, rect
                 continue;
             }
             let Some(g) = w.get::<GlobalTransform>(e).map(|g| g.0) else { continue };
-            let color =
-                if c.trigger {
-                    pick(Color32::from_rgb(0xc0, 0x80, 0x00), Color32::from_rgb(0xff, 0xd0, 0x8a))
-                } else {
-                    pick(Color32::from_rgb(0x12, 0x9a, 0x62), Color32::from_rgb(0x8a, 0xf0, 0xc0))
-                };
+            let color = if c.trigger {
+                pick(Color32::from_rgb(0xc0, 0x80, 0x00), Color32::from_rgb(0xff, 0xd0, 0x8a))
+            } else {
+                pick(Color32::from_rgb(0x12, 0x9a, 0x62), Color32::from_rgb(0x8a, 0xf0, 0xc0))
+            };
             let color = if is_sel { color } else { color.gamma_multiply(0.4) };
             collider_outline(painter, vp, rect, g, c, Stroke::new(if is_sel { 1.5 } else { 1.0 }, color));
         }

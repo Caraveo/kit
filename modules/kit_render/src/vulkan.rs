@@ -85,7 +85,6 @@ struct Attachments {
     depth: Image,
 }
 
-
 pub struct Renderer {
     /// Post-processing resources (created the first time a volume is active).
     post: Option<post::PostGpu>,
@@ -706,16 +705,14 @@ impl Renderer {
             .color_attachments(&colors)
             .depth_attachment(&depth_att);
 
-        let push = |p: &DrawUniforms| {
-            unsafe {
-                device.cmd_push_constants(
-                    cmd,
-                    self.layout,
-                    vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT,
-                    0,
-                    bytemuck::bytes_of(p),
-                );
-            }
+        let push = |p: &DrawUniforms| unsafe {
+            device.cmd_push_constants(
+                cmd,
+                self.layout,
+                vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT,
+                0,
+                bytemuck::bytes_of(p),
+            );
         };
 
         unsafe {

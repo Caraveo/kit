@@ -114,16 +114,27 @@ pub enum NodeKind {
     OnTriggerEnter,
     OnTriggerExit,
     OnTimer,
-    OnCustomEvent { event: String, payload: Option<ValueType> },
+    OnCustomEvent {
+        event: String,
+        payload: Option<ValueType>,
+    },
 
     // OBJECTS
     GetSelf,
-    GetPosition { space: Space },
-    SetPosition { space: Space },
+    GetPosition {
+        space: Space,
+    },
+    SetPosition {
+        space: Space,
+    },
     MoveOverTime,
-    SetRotation { space: Space },
+    SetRotation {
+        space: Space,
+    },
     SetScale,
-    SetTransform { space: Space },
+    SetTransform {
+        space: Space,
+    },
     SetVisible,
 
     // APPEARANCE AND PHYSICS
@@ -135,29 +146,62 @@ pub enum NodeKind {
     GetVelocity,
 
     // GAME DATA, VARIABLES, DECISIONS
-    DatasetRow { dataset: Id, row: Option<Id> },
-    Constant { constant: Id },
-    GetVariable { name: String },
-    SetVariable { name: String },
-    Compare { op: CompareOp, number: NumberType },
+    DatasetRow {
+        dataset: Id,
+        row: Option<Id>,
+    },
+    Constant {
+        constant: Id,
+    },
+    GetVariable {
+        name: String,
+    },
+    SetVariable {
+        name: String,
+    },
+    Compare {
+        op: CompareOp,
+        number: NumberType,
+    },
     Branch,
-    Sequence { outputs: u8 },
+    Sequence {
+        outputs: u8,
+    },
     Delay,
-    Math { op: MathOp, number: NumberType },
-    Logic { op: BoolOp },
-    Convert { conversion: Conversion },
+    Math {
+        op: MathOp,
+        number: NumberType,
+    },
+    Logic {
+        op: BoolOp,
+    },
+    Convert {
+        conversion: Conversion,
+    },
     MakeVector3,
     BreakVector3,
 
     // SCRIPT FIELDS (PUBLIC: read; EDIT: read and write)
-    GetScriptField { field: String, value_type: ValueType },
-    SetScriptField { field: String, value_type: ValueType },
+    GetScriptField {
+        field: String,
+        value_type: ValueType,
+    },
+    SetScriptField {
+        field: String,
+        value_type: ValueType,
+    },
 
     // INTEGRATION
     PlaySound,
     StopSound,
-    EmitEvent { event: String, payload: Option<ValueType> },
-    RunScript { function: String, args: Vec<ValueType> },
+    EmitEvent {
+        event: String,
+        payload: Option<ValueType>,
+    },
+    RunScript {
+        function: String,
+        args: Vec<ValueType>,
+    },
 }
 
 /// What flows through a pin.
@@ -218,16 +262,29 @@ impl NodeKind {
         use NodeKind::*;
         match self {
             OnStart | OnInteract | OnTriggerEnter | OnTriggerExit | OnTimer | OnCustomEvent { .. } => "EVENTS",
-            GetSelf | GetPosition { .. } | SetPosition { .. } | MoveOverTime | SetRotation { .. } | SetScale
-            | SetTransform { .. } | SetVisible => "OBJECTS",
+            GetSelf
+            | GetPosition { .. }
+            | SetPosition { .. }
+            | MoveOverTime
+            | SetRotation { .. }
+            | SetScale
+            | SetTransform { .. }
+            | SetVisible => "OBJECTS",
             SetTint | SetGravityScale | SetSceneGravity | ApplyImpulse | SetVelocity | GetVelocity => {
                 "APPEARANCE & PHYSICS"
             }
             DatasetRow { .. } | Constant { .. } => "DATASETS",
             GetScriptField { .. } | SetScriptField { .. } => "SCRIPT FIELDS",
             GetVariable { .. } | SetVariable { .. } => "VARIABLES",
-            Compare { .. } | Branch | Sequence { .. } | Delay | Math { .. } | Logic { .. } | Convert { .. }
-            | MakeVector3 | BreakVector3 => "DECISIONS & MATH",
+            Compare { .. }
+            | Branch
+            | Sequence { .. }
+            | Delay
+            | Math { .. }
+            | Logic { .. }
+            | Convert { .. }
+            | MakeVector3
+            | BreakVector3 => "DECISIONS & MATH",
             PlaySound | StopSound | EmitEvent { .. } | RunScript { .. } => "INTEGRATION",
         }
     }
@@ -305,11 +362,16 @@ impl NodeKind {
         let (inputs, outputs) = match self {
             OnStart => (vec![], vec![ex_out()]),
             OnTimer => (
-                vec![data_default("interval", "Interval (s)", Value::Float(1.0)), data_default("repeat", "Repeat", Value::Bool(true))],
+                vec![
+                    data_default("interval", "Interval (s)", Value::Float(1.0)),
+                    data_default("repeat", "Repeat", Value::Bool(true)),
+                ],
                 vec![ex_out()],
             ),
             OnInteract => (vec![], vec![ex_out(), data("interactor", "Interactor", ValueType::Entity)]),
-            OnTriggerEnter | OnTriggerExit => (vec![], vec![ex_out(), data("other", "Other Entity", ValueType::Entity)]),
+            OnTriggerEnter | OnTriggerExit => {
+                (vec![], vec![ex_out(), data("other", "Other Entity", ValueType::Entity)])
+            }
             OnCustomEvent { payload, .. } => {
                 let mut outs = vec![ex_out(), data("sender", "Sender", ValueType::Entity)];
                 if let Some(t) = payload {
@@ -321,16 +383,33 @@ impl NodeKind {
             GetPosition { .. } => (vec![target()], vec![v3("position", "Position")]),
             SetPosition { .. } => (vec![ex_in(), target(), v3("position", "Position")], vec![ex_out()]),
             MoveOverTime => (
-                vec![ex_in(), target(), v3("destination", "Destination"), data_default("duration", "Duration (s)", Value::Float(1.0))],
+                vec![
+                    ex_in(),
+                    target(),
+                    v3("destination", "Destination"),
+                    data_default("duration", "Duration (s)", Value::Float(1.0)),
+                ],
                 vec![ex_out(), exec("completed", "Completed")],
             ),
             SetRotation { .. } => (vec![ex_in(), target(), v3("rotation", "Rotation (°)")], vec![ex_out()]),
-            SetScale => (vec![ex_in(), target(), data_default("scale", "Scale", Value::Vector3([1.0; 3]))], vec![ex_out()]),
-            SetTransform { .. } => (vec![ex_in(), target(), data("transform", "Transform", ValueType::Transform)], vec![ex_out()]),
-            SetVisible => (vec![ex_in(), target(), data_default("visible", "Visible", Value::Bool(true))], vec![ex_out()]),
-            SetTint => (vec![ex_in(), target(), data_default("color", "Color", Value::Color([1.0; 4]))], vec![ex_out()]),
-            SetGravityScale => (vec![ex_in(), target(), data_default("value", "Gravity Scale", Value::Float(1.0))], vec![ex_out()]),
-            SetSceneGravity => (vec![ex_in(), data_default("gravity", "Gravity", Value::Vector3([0.0, -9.81, 0.0]))], vec![ex_out()]),
+            SetScale => {
+                (vec![ex_in(), target(), data_default("scale", "Scale", Value::Vector3([1.0; 3]))], vec![ex_out()])
+            }
+            SetTransform { .. } => {
+                (vec![ex_in(), target(), data("transform", "Transform", ValueType::Transform)], vec![ex_out()])
+            }
+            SetVisible => {
+                (vec![ex_in(), target(), data_default("visible", "Visible", Value::Bool(true))], vec![ex_out()])
+            }
+            SetTint => {
+                (vec![ex_in(), target(), data_default("color", "Color", Value::Color([1.0; 4]))], vec![ex_out()])
+            }
+            SetGravityScale => {
+                (vec![ex_in(), target(), data_default("value", "Gravity Scale", Value::Float(1.0))], vec![ex_out()])
+            }
+            SetSceneGravity => {
+                (vec![ex_in(), data_default("gravity", "Gravity", Value::Vector3([0.0, -9.81, 0.0]))], vec![ex_out()])
+            }
             ApplyImpulse => (vec![ex_in(), target(), v3("impulse", "Impulse")], vec![ex_out()]),
             SetVelocity => (vec![ex_in(), target(), v3("velocity", "Velocity")], vec![ex_out()]),
             GetVelocity => (vec![target()], vec![v3("velocity", "Velocity")]),
@@ -346,17 +425,39 @@ impl NodeKind {
                 let ty = gd.constant(constant).map_or(ValueType::Float, |c| c.value.value_type());
                 (vec![], vec![data("value", "Value", ty)])
             }
-            GetVariable { .. } => (vec![], vec![PinDef { id: "value".into(), name: "Value".into(), ty: PinType::Data(ValueType::Float), default: None }]),
+            GetVariable { .. } => (
+                vec![],
+                vec![PinDef {
+                    id: "value".into(),
+                    name: "Value".into(),
+                    ty: PinType::Data(ValueType::Float),
+                    default: None,
+                }],
+            ),
             SetVariable { .. } => (
-                vec![ex_in(), PinDef { id: "value".into(), name: "Value".into(), ty: PinType::Data(ValueType::Float), default: None }],
+                vec![
+                    ex_in(),
+                    PinDef {
+                        id: "value".into(),
+                        name: "Value".into(),
+                        ty: PinType::Data(ValueType::Float),
+                        default: None,
+                    },
+                ],
                 vec![ex_out()],
             ),
             Compare { number, .. } => {
                 let t = number.value_type();
                 (vec![data("a", "A", t.clone()), data("b", "B", t)], vec![data("result", "Result", ValueType::Bool)])
             }
-            Branch => (vec![ex_in(), data("condition", "Condition", ValueType::Bool)], vec![exec("true", "True"), exec("false", "False")]),
-            Sequence { outputs } => (vec![ex_in()], (0..(*outputs).max(2)).map(|i| exec(&format!("then{i}"), &format!("Then {i}"))).collect()),
+            Branch => (
+                vec![ex_in(), data("condition", "Condition", ValueType::Bool)],
+                vec![exec("true", "True"), exec("false", "False")],
+            ),
+            Sequence { outputs } => (
+                vec![ex_in()],
+                (0..(*outputs).max(2)).map(|i| exec(&format!("then{i}"), &format!("Then {i}"))).collect(),
+            ),
             Delay => (vec![ex_in(), data_default("seconds", "Seconds", Value::Float(1.0))], vec![ex_out()]),
             Math { number, .. } => {
                 let t = number.value_type();
@@ -379,17 +480,32 @@ impl NodeKind {
                 (vec![data("value", "Value", from)], vec![data("result", "Result", to)])
             }
             MakeVector3 => (
-                vec![data("x", "X", ValueType::Float), data("y", "Y", ValueType::Float), data("z", "Z", ValueType::Float)],
+                vec![
+                    data("x", "X", ValueType::Float),
+                    data("y", "Y", ValueType::Float),
+                    data("z", "Z", ValueType::Float),
+                ],
                 vec![v3("vector", "Vector")],
             ),
             BreakVector3 => (
                 vec![v3("vector", "Vector")],
-                vec![data("x", "X", ValueType::Float), data("y", "Y", ValueType::Float), data("z", "Z", ValueType::Float)],
+                vec![
+                    data("x", "X", ValueType::Float),
+                    data("y", "Y", ValueType::Float),
+                    data("z", "Z", ValueType::Float),
+                ],
             ),
             GetScriptField { value_type, .. } => (vec![target()], vec![data("value", "Value", value_type.clone())]),
-            SetScriptField { value_type, .. } => (vec![ex_in(), target(), data("value", "Value", value_type.clone())], vec![ex_out()]),
+            SetScriptField { value_type, .. } => {
+                (vec![ex_in(), target(), data("value", "Value", value_type.clone())], vec![ex_out()])
+            }
             PlaySound => (
-                vec![ex_in(), target(), data("clip", "Sound (empty = its Audio Source)", ValueType::Text), data_default("volume", "Volume", Value::Float(1.0))],
+                vec![
+                    ex_in(),
+                    target(),
+                    data("clip", "Sound (empty = its Audio Source)", ValueType::Text),
+                    data_default("volume", "Volume", Value::Float(1.0)),
+                ],
                 vec![ex_out()],
             ),
             StopSound => (vec![ex_in(), target()], vec![ex_out()]),
@@ -405,7 +521,15 @@ impl NodeKind {
                 for (i, t) in args.iter().enumerate() {
                     ins.push(data(&format!("arg{i}"), &format!("Arg {i}"), t.clone()));
                 }
-                (ins, vec![ex_out(), exec("failed", "Failed"), data("result", "Result", ValueType::Text), data("error", "Error", ValueType::Text)])
+                (
+                    ins,
+                    vec![
+                        ex_out(),
+                        exec("failed", "Failed"),
+                        data("result", "Result", ValueType::Text),
+                        data("error", "Error", ValueType::Text),
+                    ],
+                )
             }
         };
         Signature { inputs, outputs }
@@ -466,7 +590,9 @@ impl NodeKind {
             SetVelocity,
             GetVelocity,
         ];
-        out.extend(gd.datasets.iter().map(|d| DatasetRow { dataset: d.id.clone(), row: d.rows.first().map(|r| r.id.clone()) }));
+        out.extend(
+            gd.datasets.iter().map(|d| DatasetRow { dataset: d.id.clone(), row: d.rows.first().map(|r| r.id.clone()) }),
+        );
         out.extend(gd.constants.iter().map(|c| Constant { constant: c.id.clone() }));
         for v in &graph.variables {
             out.push(GetVariable { name: v.name.clone() });

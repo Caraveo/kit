@@ -141,15 +141,16 @@ pub fn handle_at(ed: &Editor, view: &View, rect: Rect, pos: Pos2) -> Option<Hand
         return Some(Handle::Center);
     }
     let arrows = segs.iter().map(|&(i, a, b)| (Handle::Axis(i), distance_to_segment(pos, a, b)));
-    let rings = ring_axes(ed)
-        .iter()
-        .map(|&i| (Handle::Ring(i), distance_to_ring(pos, &ring_points(view, rect, origin, i))));
+    let rings =
+        ring_axes(ed).iter().map(|&i| (Handle::Ring(i), distance_to_ring(pos, &ring_points(view, rect, origin, i))));
     arrows
         .chain(rings)
         .filter(|&(_, d)| d <= GRAB_PX)
         // Arrows win ties where they cross a ring.
-        .min_by(|x, y| (x.1 - matches!(x.0, Handle::Axis(_)) as u8 as f32 * 2.0)
-            .total_cmp(&(y.1 - matches!(y.0, Handle::Axis(_)) as u8 as f32 * 2.0)))
+        .min_by(|x, y| {
+            (x.1 - matches!(x.0, Handle::Axis(_)) as u8 as f32 * 2.0)
+                .total_cmp(&(y.1 - matches!(y.0, Handle::Axis(_)) as u8 as f32 * 2.0))
+        })
         .map(|(h, _)| h)
 }
 
@@ -172,9 +173,7 @@ fn grab_point(handle: Handle, start: Vec3, view: &View, ray: &Ray) -> Option<Vec
         Handle::Axis(i) => closest_on_axis(start, AXES[i], ray).map(|t| Vec3::new(t, 0.0, 0.0)),
         Handle::Center => hit_plane(ray, (start, view_forward(view))),
         // Edge-on rings fall back to horizontal mouse motion (grab = ZERO).
-        Handle::Ring(i) => Some(
-            ring_plane_dir(start, AXES[i], view, ray).unwrap_or(Vec3::ZERO),
-        ),
+        Handle::Ring(i) => Some(ring_plane_dir(start, AXES[i], view, ray).unwrap_or(Vec3::ZERO)),
     }
 }
 
@@ -201,7 +200,8 @@ pub fn handle_input(
     let hover = resp.hover_pos().and_then(|p| handle_at(ed, view, rect, p));
     gizmo.hovered = gizmo.drag.map(|d| d.handle).or(hover);
 
-    if resp.drag_started_by(egui::PointerButton::Primary) {
+    let button = ed.controls.gestures.gizmo.egui();
+    if resp.drag_started_by(button) {
         let origin = ui.input(|i| i.pointer.press_origin()).or(resp.interact_pointer_pos());
         if let (Some(pos), Some((entity, start))) = (origin, target(ed)) {
             if let Some(handle) = handle_at(ed, view, rect, pos) {
@@ -216,9 +216,9 @@ pub fn handle_input(
 
     let Some(drag) = gizmo.drag else {
         // A click on a handle keeps the selection.
-        return hover.is_some() && resp.clicked();
+        return hover.is_some() && resp.clicked_by(button);
     };
-    if !resp.dragged() || !ed.world().is_alive(drag.entity) {
+    if !resp.dragged_by(button) || !ed.world().is_alive(drag.entity) {
         gizmo.drag = None;
         return resp.drag_stopped();
     }
@@ -239,7 +239,7 @@ pub fn handle_input(
         };
         gizmo.drag.as_mut().unwrap().angle = angle;
         let mut shown = angle.to_degrees();
-        if ui.input(|i| i.modifiers.command) {
+        if ui.input(|i| ed.controls.gestures.snap_gizmo.held(i.modifiers)) {
             shown = (shown / ANGLE_SNAP_DEG).round() * ANGLE_SNAP_DEG;
         }
         let world = Quat::from_axis_angle(axis, shown.to_radians()) * drag.start_rotation;
@@ -257,7 +257,7 @@ pub fn handle_input(
                 delta.z = 0.0;
             }
             let mut world = drag.start + delta;
-            if ui.input(|i| i.modifiers.command) {
+            if ui.input(|i| ed.controls.gestures.snap_gizmo.held(i.modifiers)) {
                 world = (world / SNAP).round() * SNAP;
                 // Only snap the axis being dragged.
                 if let Handle::Axis(i) = drag.handle {

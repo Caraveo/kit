@@ -157,9 +157,9 @@ pub fn availability(platform: &Platform, bin_dir: &Path) -> Availability {
                 format!("Kit's web player (kit_web.wasm) is missing from {}. Reinstall Kit.", folder.display())
             })
         }
-        "android" | "ios" => Availability::Unavailable(
-            "Coming later: mobile builds need touch input and an app package step.".into(),
-        ),
+        "android" | "ios" => {
+            Availability::Unavailable("Coming later: mobile builds need touch input and an app package step.".into())
+        }
         _ => Availability::Unavailable(format!(
             "{} builds need the platform holder's licensed SDK and developer program, which Kit can't include.",
             platform.name
@@ -275,12 +275,11 @@ pub fn config_dir() -> Option<PathBuf> {
 /// Where exports go by default: `~/KitBuilds/<project name>` (each platform
 /// in its own folder inside it).
 pub fn default_builds_dir(project_title: &str) -> PathBuf {
-    let home = std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" }).map(PathBuf::from).unwrap_or_default();
+    let home =
+        std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" }).map(PathBuf::from).unwrap_or_default();
     // Keep the title readable, minus characters file systems reject.
-    let name: String = project_title
-        .chars()
-        .map(|c| if c.is_control() || r#"/\:*?"<>|"#.contains(c) { '_' } else { c })
-        .collect();
+    let name: String =
+        project_title.chars().map(|c| if c.is_control() || r#"/\:*?"<>|"#.contains(c) { '_' } else { c }).collect();
     let name = name.trim().trim_matches('.');
     home.join("KitBuilds").join(if name.is_empty() { "Game" } else { name })
 }
@@ -308,7 +307,8 @@ pub fn protection_supported(platform: &Platform, mode: Protection) -> std::resul
 
 /// Load the publisher key for a protected export.
 pub fn load_key(path: Option<&Path>) -> Result<kit_export_security::PublisherKey> {
-    let path = path.map(Path::to_path_buf).or_else(default_key_path).context("no settings folder for the publisher key")?;
+    let path =
+        path.map(Path::to_path_buf).or_else(default_key_path).context("no settings folder for the publisher key")?;
     anyhow::ensure!(
         path.is_file(),
         "No publisher key yet. Create one in Export → Protection (Generate key), or pass --key <file>. Expected it at {}",
@@ -348,7 +348,10 @@ impl ExportJob {
             Availability::Ready { player } => player.clone(),
             Availability::Rebuild { player } => {
                 rebuild_player(&self.bin_dir, self.platform.id == "web")?;
-                anyhow::ensure!(player_matches(player), "the player still doesn't match the editor after rebuilding it");
+                anyhow::ensure!(
+                    player_matches(player),
+                    "the player still doesn't match the editor after rebuilding it"
+                );
                 player.clone()
             }
             Availability::Hook(external) => return self.run_hook(external),
@@ -404,7 +407,11 @@ impl ExportJob {
     }
 
     /// The project's game pack, sealed for a protected export.
-    fn sealed_pack(&self, skip: &[PathBuf], key: &kit_export_security::PublisherKey) -> Result<(Vec<u8>, Option<[u8; 32]>)> {
+    fn sealed_pack(
+        &self,
+        skip: &[PathBuf],
+        key: &kit_export_security::PublisherKey,
+    ) -> Result<(Vec<u8>, Option<[u8; 32]>)> {
         let pack = kit_web::pack::write_dir_skipping(&self.root, skip)?;
         let content_key =
             if self.protection == Protection::Encrypted { Some(kit_export_security::new_content_key()?) } else { None };
@@ -420,7 +427,12 @@ impl ExportJob {
     }
 
     /// The launcher: the player with this export's trust pinned in it.
-    fn launcher(&self, player: &Path, key: Option<&kit_export_security::PublisherKey>, content_key: Option<[u8; 32]>) -> Result<Vec<u8>> {
+    fn launcher(
+        &self,
+        player: &Path,
+        key: Option<&kit_export_security::PublisherKey>,
+        content_key: Option<[u8; 32]>,
+    ) -> Result<Vec<u8>> {
         let mut bytes = std::fs::read(player).with_context(|| format!("reading {}", player.display()))?;
         if let Some(key) = key {
             let trust = kit_export_security::Trust { mode: self.protection, publisher: key.public(), content_key };
@@ -456,9 +468,11 @@ impl ExportJob {
             .current_dir(&hook.dir)
             .output()
             .with_context(|| format!("starting the {} hook ({})", self.platform.name, program.display()))?;
-        let last = |b: &[u8]| String::from_utf8_lossy(b).lines().filter(|l| !l.trim().is_empty()).last().map(str::to_owned);
+        let last =
+            |b: &[u8]| String::from_utf8_lossy(b).lines().filter(|l| !l.trim().is_empty()).last().map(str::to_owned);
         if !output.status.success() {
-            let why = last(&output.stderr).or_else(|| last(&output.stdout)).unwrap_or_else(|| output.status.to_string());
+            let why =
+                last(&output.stderr).or_else(|| last(&output.stdout)).unwrap_or_else(|| output.status.to_string());
             bail!("The {} hook failed: {why}", self.platform.name);
         }
         if let Some(line) = last(&output.stdout) {
@@ -478,6 +492,7 @@ impl ExportJob {
     ) -> Result<()> {
         let html = WEB_INDEX.replace("<title>Kit game</title>", &format!("<title>{}</title>", xml_escape(&self.title)));
         std::fs::write(out.join("index.html"), html)?;
+        std::fs::write(out.join("kit-logo.png"), include_bytes!("../../packaging/icons/kit-128.png"))?;
         std::fs::write(out.join("KIT-LICENSE.txt"), KIT_LICENSE)?;
         std::fs::copy(wasm, out.join("kit_web.wasm")).with_context(|| format!("copying {}", wasm.display()))?;
         match key {
@@ -718,6 +733,7 @@ fn serve_one(mut stream: std::net::TcpStream, root: &Path) -> Result<()> {
         Some("html") => "text/html; charset=utf-8",
         Some("js") => "text/javascript; charset=utf-8",
         Some("wasm") => "application/wasm",
+        Some("png") => "image/png",
         Some("txt") => "text/plain; charset=utf-8",
         _ => "application/octet-stream",
     };
@@ -799,7 +815,9 @@ mod tests {
         let other = platform(other).unwrap();
         assert!(matches!(availability(&other, &bin), Availability::NeedsPlayer(_)));
         fake_player(&bin, other.id, false);
-        assert!(matches!(availability(&other, &bin), Availability::NeedsPlayer(ref s) if s.contains("different Kit version")));
+        assert!(
+            matches!(availability(&other, &bin), Availability::NeedsPlayer(ref s) if s.contains("different Kit version"))
+        );
         fake_player(&bin, other.id, true);
         assert!(matches!(availability(&other, &bin), Availability::Ready { .. }));
         for id in ["android", "ios", "xbox", "ps5", "ps4", "switch", "steam"] {
@@ -861,12 +879,13 @@ mod tests {
             key_file: None,
         };
         let out = job.run().unwrap();
-        for f in ["index.html", "kit.js", "kit_web.wasm", "game.pack", "README.txt"] {
+        for f in ["index.html", "kit-logo.png", "kit.js", "kit_web.wasm", "game.pack", "README.txt"] {
             assert!(out.join(f).is_file(), "{f}");
         }
         assert_eq!(std::fs::read_to_string(out.join("KIT-LICENSE.txt")).unwrap(), KIT_LICENSE);
         let html = std::fs::read_to_string(out.join("index.html")).unwrap();
         assert!(html.contains("<title>My &lt;Game&gt;</title>"));
+        assert!(html.contains("src=\"kit-logo.png\""));
         let files = kit_web::pack::read(&std::fs::read(out.join("game.pack")).unwrap()).unwrap();
         assert!(files.contains_key("kit.project") && files.contains_key("models/thing/a.mesh"));
         assert!(!files.keys().any(|k| k.starts_with("out_web") || k.starts_with("bin_web")), "{:?}", files.keys());
@@ -877,10 +896,11 @@ mod tests {
             use std::io::{Read, Write};
             let mut s = std::net::TcpStream::connect(url.trim_start_matches("http://").trim_end_matches('/')).unwrap();
             write!(s, "GET {path} HTTP/1.1\r\nHost: x\r\n\r\n").unwrap();
-            let mut r = String::new();
-            let _ = s.read_to_string(&mut r);
-            r
+            let mut response = Vec::new();
+            s.read_to_end(&mut response).unwrap();
+            String::from_utf8_lossy(&response).into_owned()
         };
+        assert!(get("/kit-logo.png").contains("image/png"));
         assert!(get("/").contains("200 OK") && get("/kit_web.wasm").contains("application/wasm"));
         assert!(get("/../kit.project").starts_with("HTTP/1.1 404"));
     }

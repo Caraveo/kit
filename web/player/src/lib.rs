@@ -251,7 +251,8 @@ impl WebPlayer {
 
     fn item(&mut self, item: &DrawItem) {
         let Some(geometry) = self.geometry_id(&item.geometry) else { return };
-        let texture = if item.texture.is_empty() { 0 } else { self.textures.get(&item.texture).copied().flatten().unwrap_or(0) };
+        let texture =
+            if item.texture.is_empty() { 0 } else { self.textures.get(&item.texture).copied().flatten().unwrap_or(0) };
         // u32::MAX = the whole mesh (the page knows each mesh's index count).
         let count = item.count.unwrap_or(u32::MAX);
         self.draw_cmd(pass_id(item.pass), geometry, item.first, count, texture, &item.uniforms);
@@ -300,9 +301,8 @@ impl WebPlayer {
         // Kit's projections target Vulkan (y down); WebGPU's clip space is y up.
         uniforms.view_proj = (Mat4::from_scale(Vec3::new(1.0, -1.0, 1.0)) * view.view_proj()).to_cols_array_2d();
         let clear = kit_render::srgb_to_linear(view.clear);
-        let list = draw::draw_list(world, &view, |asset| {
-            self.imported.get(asset).and_then(|m| m.as_ref()).map(|(_, g)| g)
-        });
+        let list =
+            draw::draw_list(world, &view, |asset| self.imported.get(asset).and_then(|m| m.as_ref()).map(|(_, g)| g));
 
         let post = view.post.then(|| {
             kit_post::frame(world, &kit_render::camera_info(&view, true), width.max(1.0) as u32, height.max(1.0) as u32)
@@ -378,13 +378,19 @@ mod exports {
         SOUND.with(|buf| {
             let mut buf = buf.borrow_mut();
             buf.resize(frames as usize * 2, 0.0);
-            PLAYER.with(|cell| match cell.borrow().as_ref().and_then(|p| p.app.world.try_resource::<kit_audio::Audio>().map(|a| a.mixer.clone())) {
-                Some(mixer) => {
-                    let mut m = mixer.lock().unwrap();
-                    m.rate = rate;
-                    m.mix(&mut buf);
+            PLAYER.with(|cell| {
+                match cell
+                    .borrow()
+                    .as_ref()
+                    .and_then(|p| p.app.world.try_resource::<kit_audio::Audio>().map(|a| a.mixer.clone()))
+                {
+                    Some(mixer) => {
+                        let mut m = mixer.lock().unwrap();
+                        m.rate = rate;
+                        m.mix(&mut buf);
+                    }
+                    None => buf.fill(0.0),
                 }
-                None => buf.fill(0.0),
             });
             buf.as_ptr()
         })
@@ -494,7 +500,13 @@ mod exports {
     /// against the publisher key the page pinned (`key_ptr`, 32 bytes) before
     /// reading any of it. Returns 1, or 0 with the reason in the text result.
     #[unsafe(no_mangle)]
-    pub unsafe extern "C" fn kit_start_sealed(ptr: *const u8, len: usize, key_ptr: *const u8, key_len: usize, seed: f64) -> u32 {
+    pub unsafe extern "C" fn kit_start_sealed(
+        ptr: *const u8,
+        len: usize,
+        key_ptr: *const u8,
+        key_len: usize,
+        seed: f64,
+    ) -> u32 {
         let sealed = unsafe { std::slice::from_raw_parts(ptr, len) };
         let key = unsafe { std::slice::from_raw_parts(key_ptr, key_len) };
         let Ok(key) = <[u8; 32]>::try_from(key) else {

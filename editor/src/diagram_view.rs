@@ -91,7 +91,13 @@ fn type_color(ty: &PinType) -> Color32 {
     match ty {
         // Execution wires: black in dark mode (with a light edge so they
         // read on the dark canvas), near-black in light mode.
-        PinType::Exec => if crate::theme::is_light() { Color32::from_rgb(40, 40, 52) } else { Color32::BLACK },
+        PinType::Exec => {
+            if crate::theme::is_light() {
+                Color32::from_rgb(40, 40, 52)
+            } else {
+                Color32::BLACK
+            }
+        }
         PinType::Data(t) => match t {
             ValueType::Bool => Color32::from_rgb(230, 90, 90),
             ValueType::Int => Color32::from_rgb(90, 210, 170),
@@ -121,7 +127,10 @@ fn category_color(cat: &str) -> Color32 {
 
 /// Where a pin sits (scene coordinates).
 fn pin_pos(node_pos: [f32; 2], row: usize, output: bool) -> Pos2 {
-    pos2(node_pos[0] + if output { NODE_W } else { 0.0 }, node_pos[1] + HEADER_H + ROW_H * row as f32 + ROW_H / 2.0 + 2.0)
+    pos2(
+        node_pos[0] + if output { NODE_W } else { 0.0 },
+        node_pos[1] + HEADER_H + ROW_H * row as f32 + ROW_H / 2.0 + 2.0,
+    )
 }
 
 fn compatible(a: &PinType, b: &PinType) -> bool {
@@ -186,7 +195,12 @@ impl DiagramView {
                 new.insert(copy);
             }
             // Keep wires between duplicated nodes.
-            let links: Vec<_> = g.links.iter().filter(|l| map.contains_key(&l.from.node) && map.contains_key(&l.to.node)).cloned().collect();
+            let links: Vec<_> = g
+                .links
+                .iter()
+                .filter(|l| map.contains_key(&l.from.node) && map.contains_key(&l.to.node))
+                .cloned()
+                .collect();
             for l in links {
                 g.links.push(kit::diagram::Link {
                     from: PinRef { node: map[&l.from.node], pin: l.from.pin },
@@ -223,7 +237,9 @@ impl DiagramView {
     pub fn pin_screen_pos(&self, gd: &GameData, pin: &PinRef, output: bool) -> Option<Pos2> {
         let n = self.graph.node(pin.node)?;
         let rows = rows(&n.kind.signature_in(gd, &self.graph));
-        let i = rows.iter().position(|r| (if output { &r.output } else { &r.input }).as_ref().is_some_and(|p| p.id == pin.pin))?;
+        let i = rows
+            .iter()
+            .position(|r| (if output { &r.output } else { &r.input }).as_ref().is_some_and(|p| p.id == pin.pin))?;
         Some(self.to_global? * pin_pos(n.pos, i, output))
     }
 
@@ -254,7 +270,8 @@ impl DiagramView {
 /// Create `diagrams/<name>.kdiagram` with an On Start node and attach it.
 pub fn add_diagram(ed: &mut Editor, e: Entity) -> Option<String> {
     let project = ed.project.as_ref()?;
-    let base: String = ed.entity_label(e).chars().map(|c| if c.is_alphanumeric() { c.to_ascii_lowercase() } else { '_' }).collect();
+    let base: String =
+        ed.entity_label(e).chars().map(|c| if c.is_alphanumeric() { c.to_ascii_lowercase() } else { '_' }).collect();
     let base = if base.trim_matches('_').is_empty() { "logic".to_owned() } else { base };
     let mut path = format!("diagrams/{base}.kdiagram");
     for n in 2.. {
@@ -281,8 +298,12 @@ fn value_editor(ui: &mut Ui, v: &mut Value) -> bool {
         Value::Float(f) => ui.add(egui::DragValue::new(f).speed(0.05).max_decimals(3)).changed(),
         Value::Text(t) => ui.add(egui::TextEdit::singleline(t).desired_width(90.0)).changed(),
         Value::Color(c) => ui.color_edit_button_rgba_unmultiplied(c).changed(),
-        Value::Vector2(a) => a.iter_mut().fold(false, |ch, x| ui.add(egui::DragValue::new(x).speed(0.05).max_decimals(2)).changed() | ch),
-        Value::Vector3(a) => a.iter_mut().fold(false, |ch, x| ui.add(egui::DragValue::new(x).speed(0.05).max_decimals(2)).changed() | ch),
+        Value::Vector2(a) => {
+            a.iter_mut().fold(false, |ch, x| ui.add(egui::DragValue::new(x).speed(0.05).max_decimals(2)).changed() | ch)
+        }
+        Value::Vector3(a) => {
+            a.iter_mut().fold(false, |ch, x| ui.add(egui::DragValue::new(x).speed(0.05).max_decimals(2)).changed() | ch)
+        }
         _ => false,
     }
 }
@@ -319,22 +340,45 @@ pub fn show(ui: &mut Ui, ed: &mut Editor, view: &mut DiagramView) {
             if ui.button("Frame all").clicked() {
                 view.scene_rect = None; // re-fit on the next draw
             }
-            if ui.button("+ Node").on_hover_text("Or right-click the canvas, or drag a wire into empty space").clicked() {
+            if ui.button("+ Node").on_hover_text("Or right-click the canvas, or drag a wire into empty space").clicked()
+            {
                 let c = view.scene_rect.map_or(Pos2::ZERO, |r| r.center());
-                view.picker = Some(Picker { at: c, screen: ui.ctx().content_rect().center(), search: String::new(), wire: None, focus: true });
+                view.picker = Some(Picker {
+                    at: c,
+                    screen: ui.ctx().content_rect().center(),
+                    search: String::new(),
+                    wire: None,
+                    focus: true,
+                });
             }
             let errors = diagnostics.iter().filter(|d| d.severity == Severity::Error).count();
             let warnings = diagnostics.len() - errors;
             if errors > 0 {
-                ui.label(RichText::new(format!("● {errors} error{}", if errors == 1 { "" } else { "s" })).color(ERROR()))
-                    .on_hover_text(diagnostics.iter().filter(|d| d.severity == Severity::Error).map(|d| d.message.clone()).collect::<Vec<_>>().join("\n"));
+                ui.label(
+                    RichText::new(format!("● {errors} error{}", if errors == 1 { "" } else { "s" })).color(ERROR()),
+                )
+                .on_hover_text(
+                    diagnostics
+                        .iter()
+                        .filter(|d| d.severity == Severity::Error)
+                        .map(|d| d.message.clone())
+                        .collect::<Vec<_>>()
+                        .join("\n"),
+                );
             }
             if warnings > 0 {
-                ui.label(RichText::new(format!("⚠ {warnings}")).color(WARN()))
-                    .on_hover_text(diagnostics.iter().filter(|d| d.severity == Severity::Warning).map(|d| d.message.clone()).collect::<Vec<_>>().join("\n"));
+                ui.label(RichText::new(format!("⚠ {warnings}")).color(WARN())).on_hover_text(
+                    diagnostics
+                        .iter()
+                        .filter(|d| d.severity == Severity::Warning)
+                        .map(|d| d.message.clone())
+                        .collect::<Vec<_>>()
+                        .join("\n"),
+                );
             }
             if ed.playing {
-                ui.label(RichText::new("● live").color(ACCENT())).on_hover_text("Lit nodes just ran. Edits apply the next time you press Play.");
+                ui.label(RichText::new("● live").color(ACCENT()))
+                    .on_hover_text("Lit nodes just ran. Edits apply the next time you press Play.");
             }
         });
     });
@@ -369,13 +413,24 @@ fn empty(ui: &mut Ui, text: &str, button: Option<&str>) -> bool {
                 clicked = ui.button(b).clicked();
             }
             ui.add_space(6.0);
-            ui.label(RichText::new("Diagrams are visual logic: events → actions, no code. (7 toggles this view)").size(11.0).color(MUTED()));
+            ui.label(
+                RichText::new("Diagrams are visual logic: events → actions, no code. (7 toggles this view)")
+                    .size(11.0)
+                    .color(MUTED()),
+            );
         });
     });
     clicked
 }
 
-fn canvas(ui: &mut Ui, ed: &mut Editor, view: &mut DiagramView, gd: &GameData, e: Entity, diags: &[kit::diagram::Diagnostic]) {
+fn canvas(
+    ui: &mut Ui,
+    ed: &mut Editor,
+    view: &mut DiagramView,
+    gd: &GameData,
+    e: Entity,
+    diags: &[kit::diagram::Diagnostic],
+) {
     let painter_rect = ui.available_rect_before_wrap();
     ui.painter().rect_filled(painter_rect, 8.0, STAGE_BG());
     let live = ed.playing.then(|| {
@@ -395,13 +450,10 @@ fn canvas(ui: &mut Ui, ed: &mut Editor, view: &mut DiagramView, gd: &GameData, e
         }
         let r = r.expand(30.0);
         let size = painter_rect.size();
-        if r.width() <= size.x && r.height() <= size.y {
-            Rect::from_min_size(r.min, size)
-        } else {
-            r
-        }
+        if r.width() <= size.x && r.height() <= size.y { Rect::from_min_size(r.min, size) } else { r }
     });
-    let sigs: HashMap<NodeId, Vec<Row>> = view.graph.nodes.iter().map(|n| (n.id, rows(&n.kind.signature_in(gd, &view.graph)))).collect();
+    let sigs: HashMap<NodeId, Vec<Row>> =
+        view.graph.nodes.iter().map(|n| (n.id, rows(&n.kind.signature_in(gd, &view.graph)))).collect();
     let pin_at = |pin: &PinRef, output: bool, graph: &Graph| -> Option<Pos2> {
         let n = graph.node(pin.node)?;
         let rows = sigs.get(&pin.node)?;
@@ -423,7 +475,13 @@ fn canvas(ui: &mut Ui, ed: &mut Editor, view: &mut DiagramView, gd: &GameData, e
     let mut disconnect: Option<PinRef> = None;
     let mut clear_selection = false;
 
-    let resp = egui::Scene::new().zoom_range(0.2..=1.6).show(ui, &mut scene_rect, |ui| {
+    let g = &ed.controls.gestures;
+    let mut pan = egui::DragPanButtons::empty();
+    pan.set(egui::DragPanButtons::PRIMARY, g.diagram_pan_left);
+    pan.set(egui::DragPanButtons::MIDDLE, g.diagram_pan_middle);
+    pan.set(egui::DragPanButtons::SECONDARY, g.diagram_pan_right);
+    let picker_button = g.diagram_picker.egui();
+    let resp = egui::Scene::new().zoom_range(0.2..=1.6).drag_pan_buttons(pan).show(ui, &mut scene_rect, |ui| {
         let to_scene = ui.ctx().layer_transform_from_global(ui.layer_id()).unwrap_or_default();
         view.to_global = ui.ctx().layer_transform_to_global(ui.layer_id());
         let pointer = ui.ctx().pointer_latest_pos().map(|p| to_scene * p);
@@ -446,7 +504,9 @@ fn canvas(ui: &mut Ui, ed: &mut Editor, view: &mut DiagramView, gd: &GameData, e
         let mut hovered_wire: Option<(f32, kit::diagram::Link)> = None;
         if let Some(ptr) = pointer {
             for l in &view.graph.links {
-                let (Some(a), Some(b)) = (pin_at(&l.from, true, &view.graph), pin_at(&l.to, false, &view.graph)) else { continue };
+                let (Some(a), Some(b)) = (pin_at(&l.from, true, &view.graph), pin_at(&l.to, false, &view.graph)) else {
+                    continue;
+                };
                 let d = bezier_distance(a, b, ptr);
                 if d < 7.0 && hovered_wire.as_ref().is_none_or(|(bd, _)| d < *bd) {
                     hovered_wire = Some((d, l.clone()));
@@ -455,8 +515,14 @@ fn canvas(ui: &mut Ui, ed: &mut Editor, view: &mut DiagramView, gd: &GameData, e
         }
         let hovered_wire = hovered_wire.map(|(_, l)| l);
         for l in &view.graph.links {
-            let (Some(a), Some(b)) = (pin_at(&l.from, true, &view.graph), pin_at(&l.to, false, &view.graph)) else { continue };
-            let ty = sigs[&l.from.node].iter().find_map(|r| r.output.as_ref().filter(|p| p.id == l.from.pin)).map(|p| p.ty.clone()).unwrap_or(PinType::Exec);
+            let (Some(a), Some(b)) = (pin_at(&l.from, true, &view.graph), pin_at(&l.to, false, &view.graph)) else {
+                continue;
+            };
+            let ty = sigs[&l.from.node]
+                .iter()
+                .find_map(|r| r.output.as_ref().filter(|p| p.id == l.from.pin))
+                .map(|p| p.ty.clone())
+                .unwrap_or(PinType::Exec);
             let mut color = type_color(&ty);
             let mut width = if ty == PinType::Exec { 3.0 } else { 2.2 };
             if let Some((now, Some(dbg))) = &live {
@@ -484,8 +550,14 @@ fn canvas(ui: &mut Ui, ed: &mut Editor, view: &mut DiagramView, gd: &GameData, e
             let selected = view.selected.contains(&node.id);
             let node_diags: Vec<&kit::diagram::Diagnostic> = diags.iter().filter(|d| d.node == Some(node.id)).collect();
             let has_error = node_diags.iter().any(|d| d.severity == Severity::Error);
-            let runtime_error = live.as_ref().and_then(|(_, d)| d.as_ref()).and_then(|d| d.error.clone()).filter(|(n, _)| *n == node.id);
-            let lit = live.as_ref().is_some_and(|(now, d)| d.as_ref().is_some_and(|d| d.node_time.get(&node.id).is_some_and(|t| now - t < 0.35)));
+            let runtime_error = live
+                .as_ref()
+                .and_then(|(_, d)| d.as_ref())
+                .and_then(|d| d.error.clone())
+                .filter(|(n, _)| *n == node.id);
+            let lit = live.as_ref().is_some_and(|(now, d)| {
+                d.as_ref().is_some_and(|d| d.node_time.get(&node.id).is_some_and(|t| now - t < 0.35))
+            });
             if lit {
                 painter.rect_filled(rect.expand(5.0), 10.0, ACCENT().gamma_multiply(0.35));
             }
@@ -499,16 +571,33 @@ fn canvas(ui: &mut Ui, ed: &mut Editor, view: &mut DiagramView, gd: &GameData, e
             };
             painter.rect_stroke(rect, 7.0, border, egui::StrokeKind::Outside);
             let header = Rect::from_min_size(rect.min, vec2(NODE_W, HEADER_H));
-            painter.rect_filled(header, egui::CornerRadius { nw: 7, ne: 7, sw: 0, se: 0 }, category_color(node.kind.category()));
-            painter.text(header.left_center() + vec2(10.0, 0.0), Align2::LEFT_CENTER, node.kind.title(gd), FontId::proportional(13.0), Color32::WHITE);
+            painter.rect_filled(
+                header,
+                egui::CornerRadius { nw: 7, ne: 7, sw: 0, se: 0 },
+                category_color(node.kind.category()),
+            );
+            painter.text(
+                header.left_center() + vec2(10.0, 0.0),
+                Align2::LEFT_CENTER,
+                node.kind.title(gd),
+                FontId::proportional(13.0),
+                Color32::WHITE,
+            );
             if let TargetRef::Picked(p) = &node.target {
                 if rows.iter().any(|r| r.input.as_ref().is_some_and(|i| i.id == "target")) {
-                    painter.text(header.right_center() - vec2(8.0, 0.0), Align2::RIGHT_CENTER, format!("→ {}", p.rsplit('/').next().unwrap_or(p)), FontId::proportional(10.0), Color32::from_white_alpha(200));
+                    painter.text(
+                        header.right_center() - vec2(8.0, 0.0),
+                        Align2::RIGHT_CENTER,
+                        format!("→ {}", p.rsplit('/').next().unwrap_or(p)),
+                        FontId::proportional(10.0),
+                        Color32::from_white_alpha(200),
+                    );
                 }
             }
             let hr = ui.interact(header, ui.id().with(("node", node.id)), Sense::click_and_drag());
             if hr.clicked() || hr.drag_started() {
-                select_click = Some((node.id, ui.input(|i| i.modifiers.shift)));
+                select_click =
+                    Some((node.id, ui.input(|i| ed.controls.gestures.diagram_multiselect.held(i.modifiers))));
             }
             if hr.drag_started() {
                 drag_started = true;
@@ -519,7 +608,11 @@ fn canvas(ui: &mut Ui, ed: &mut Editor, view: &mut DiagramView, gd: &GameData, e
             if hr.drag_stopped() {
                 drag_stopped = true;
             }
-            let tip: Vec<String> = node_diags.iter().map(|d| d.message.clone()).chain(runtime_error.iter().map(|(_, m)| format!("While playing: {m}"))).collect();
+            let tip: Vec<String> = node_diags
+                .iter()
+                .map(|d| d.message.clone())
+                .chain(runtime_error.iter().map(|(_, m)| format!("While playing: {m}")))
+                .collect();
             if !tip.is_empty() {
                 hr.on_hover_text(tip.join("\n"));
             }
@@ -530,10 +623,20 @@ fn canvas(ui: &mut Ui, ed: &mut Editor, view: &mut DiagramView, gd: &GameData, e
                     let Some(pin) = pin else { continue };
                     let p = pin_pos(node.pos, i, output);
                     let pref = PinRef::new(node.id, &pin.id);
-                    let connected = if output { view.graph.links_from(&pref).next().is_some() } else { view.graph.link_into(&pref).is_some() };
+                    let connected = if output {
+                        view.graph.links_from(&pref).next().is_some()
+                    } else {
+                        view.graph.link_into(&pref).is_some()
+                    };
                     let c = type_color(&pin.ty);
                     if pin.ty == PinType::Exec {
-                        let pts = vec![p + vec2(-5.0, -6.0), p + vec2(3.0, -6.0), p + vec2(8.0, 0.0), p + vec2(3.0, 6.0), p + vec2(-5.0, 6.0)];
+                        let pts = vec![
+                            p + vec2(-5.0, -6.0),
+                            p + vec2(3.0, -6.0),
+                            p + vec2(8.0, 0.0),
+                            p + vec2(3.0, 6.0),
+                            p + vec2(-5.0, 6.0),
+                        ];
                         let fill = if connected { c } else { Color32::TRANSPARENT };
                         let edge = if c == Color32::BLACK { EDGE } else { c };
                         painter.add(egui::Shape::convex_polygon(pts, fill, Stroke::new(1.5, edge)));
@@ -542,17 +645,25 @@ fn canvas(ui: &mut Ui, ed: &mut Editor, view: &mut DiagramView, gd: &GameData, e
                     } else {
                         painter.circle_stroke(p, PIN_R, Stroke::new(1.6, c));
                     }
-                    let pr = ui.interact(Rect::from_center_size(p, Vec2::splat(18.0)), ui.id().with(("pin", node.id, &pin.id, output)), Sense::click_and_drag());
+                    let pr = ui.interact(
+                        Rect::from_center_size(p, Vec2::splat(18.0)),
+                        ui.id().with(("pin", node.id, &pin.id, output)),
+                        Sense::click_and_drag(),
+                    );
                     if pr.drag_started() {
                         start_wire = Some(Wire { pin: pref.clone(), from_output: output, ty: pin.ty.clone() });
                     }
                     if pr.secondary_clicked() {
                         disconnect = Some(pref.clone());
                     }
-                    let mut tip = format!("{} ({})", if pin.name.is_empty() { if output { "Then" } else { "Run" } } else { &pin.name }, match &pin.ty {
-                        PinType::Exec => "execution".to_owned(),
-                        PinType::Data(t) => t.label(),
-                    });
+                    let mut tip = format!(
+                        "{} ({})",
+                        if pin.name.is_empty() { if output { "Then" } else { "Run" } } else { &pin.name },
+                        match &pin.ty {
+                            PinType::Exec => "execution".to_owned(),
+                            PinType::Data(t) => t.label(),
+                        }
+                    );
                     if let Some((_, Some(dbg))) = &live {
                         if let Some(v) = dbg.values.get(&pref) {
                             tip += &format!("\nLast value: {}", v.display());
@@ -561,7 +672,11 @@ fn canvas(ui: &mut Ui, ed: &mut Editor, view: &mut DiagramView, gd: &GameData, e
                     pr.on_hover_text(format!("{tip}\nDrag to connect · right-click to disconnect"));
                     // Label.
                     if !pin.name.is_empty() {
-                        let (anchor, at) = if output { (Align2::RIGHT_CENTER, p - vec2(12.0, 0.0)) } else { (Align2::LEFT_CENTER, p + vec2(12.0, 0.0)) };
+                        let (anchor, at) = if output {
+                            (Align2::RIGHT_CENTER, p - vec2(12.0, 0.0))
+                        } else {
+                            (Align2::LEFT_CENTER, p + vec2(12.0, 0.0))
+                        };
                         painter.text(at, anchor, &pin.name, FontId::proportional(11.5), LABEL());
                     }
                     // Inline value for unconnected data inputs.
@@ -569,11 +684,24 @@ fn canvas(ui: &mut Ui, ed: &mut Editor, view: &mut DiagramView, gd: &GameData, e
                         if let PinType::Data(t) = &pin.ty {
                             let editable = !matches!(t, ValueType::Entity | ValueType::Row(_) | ValueType::Transform);
                             if editable {
-                                let mut v = node.inputs.get(&pin.id).filter(|v| v.value_type() == *t).cloned().or_else(|| pin.default.clone()).unwrap_or_else(|| t.default_value());
-                                let label_w = ui.fonts_mut(|f| f.layout_no_wrap(pin.name.clone(), FontId::proportional(11.5), LABEL()).size().x);
+                                let mut v = node
+                                    .inputs
+                                    .get(&pin.id)
+                                    .filter(|v| v.value_type() == *t)
+                                    .cloned()
+                                    .or_else(|| pin.default.clone())
+                                    .unwrap_or_else(|| t.default_value());
+                                let label_w = ui.fonts_mut(|f| {
+                                    f.layout_no_wrap(pin.name.clone(), FontId::proportional(11.5), LABEL()).size().x
+                                });
                                 let left = p.x + 18.0 + label_w;
-                                let r = Rect::from_min_max(pos2(left, y + 1.0), pos2(rect.max.x - 8.0, y + ROW_H - 1.0));
-                                let mut child = ui.new_child(egui::UiBuilder::new().max_rect(r).layout(egui::Layout::left_to_right(egui::Align::Center)));
+                                let r =
+                                    Rect::from_min_max(pos2(left, y + 1.0), pos2(rect.max.x - 8.0, y + ROW_H - 1.0));
+                                let mut child = ui.new_child(
+                                    egui::UiBuilder::new()
+                                        .max_rect(r)
+                                        .layout(egui::Layout::left_to_right(egui::Align::Center)),
+                                );
                                 child.spacing_mut().item_spacing.x = 3.0;
                                 child.style_mut().spacing.interact_size.y = ROW_H - 6.0;
                                 if value_editor(&mut child, &mut v) {
@@ -584,7 +712,13 @@ fn canvas(ui: &mut Ui, ed: &mut Editor, view: &mut DiagramView, gd: &GameData, e
                                     TargetRef::SelfObject => "Self".to_owned(),
                                     TargetRef::Picked(p) => p.clone(),
                                 };
-                                painter.text(pos2(rect.max.x - 10.0, p.y), Align2::RIGHT_CENTER, what, FontId::proportional(10.5), MUTED());
+                                painter.text(
+                                    pos2(rect.max.x - 10.0, p.y),
+                                    Align2::RIGHT_CENTER,
+                                    what,
+                                    FontId::proportional(10.5),
+                                    MUTED(),
+                                );
                             }
                         }
                     }
@@ -604,7 +738,11 @@ fn canvas(ui: &mut Ui, ed: &mut Editor, view: &mut DiagramView, gd: &GameData, e
             }
         }
         let over_node = pointer.is_some_and(|p| {
-            view.graph.nodes.iter().any(|n| Rect::from_min_size(pos2(n.pos[0], n.pos[1]), vec2(NODE_W, node_height(sigs[&n.id].len()))).expand(8.0).contains(p))
+            view.graph.nodes.iter().any(|n| {
+                Rect::from_min_size(pos2(n.pos[0], n.pos[1]), vec2(NODE_W, node_height(sigs[&n.id].len())))
+                    .expand(8.0)
+                    .contains(p)
+            })
         });
         (pointer, over_node, hovered_wire)
     });
@@ -612,19 +750,25 @@ fn canvas(ui: &mut Ui, ed: &mut Editor, view: &mut DiagramView, gd: &GameData, e
     let (pointer_scene, over_node, hovered_wire) = resp.inner;
     if hovered_wire.is_some() && !over_node && view.wire.is_none() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-        egui::Tooltip::always_open(ui.ctx().clone(), ui.layer_id(), egui::Id::new("wire_tip"), egui::PopupAnchor::Pointer)
-            .gap(14.0)
-            .show(|ui| ui.label(RichText::new("Click to select · Del removes the wire").size(11.0)));
+        egui::Tooltip::always_open(
+            ui.ctx().clone(),
+            ui.layer_id(),
+            egui::Id::new("wire_tip"),
+            egui::PopupAnchor::Pointer,
+        )
+        .gap(14.0)
+        .show(|ui| ui.label(RichText::new("Click to select · Del removes the wire").size(11.0)));
     }
 
     // Background: click clears selection; right-click opens the picker.
     let on_canvas = ui.ctx().pointer_latest_pos().is_some_and(|p| painter_rect.contains(p)) && view.picker.is_none();
-    let (left, right) = ui.input(|i| (i.pointer.button_clicked(egui::PointerButton::Primary), i.pointer.button_clicked(egui::PointerButton::Secondary)));
+    let (left, picker_clicked) =
+        ui.input(|i| (i.pointer.button_clicked(egui::PointerButton::Primary), i.pointer.button_clicked(picker_button)));
     if on_canvas && !over_node && left {
         clear_selection = true;
         view.selected_wire = hovered_wire.clone();
     }
-    if on_canvas && !over_node && right {
+    if on_canvas && !over_node && picker_clicked {
         if let (Some(ps), Some(screen)) = (pointer_scene, ui.ctx().pointer_latest_pos()) {
             open_picker = Some((ps, screen));
         }
@@ -651,7 +795,8 @@ fn canvas(ui: &mut Ui, ed: &mut Editor, view: &mut DiagramView, gd: &GameData, e
         view.redo.clear();
     }
     for (id, d) in drag_moves {
-        let ids: Vec<NodeId> = if view.selected.contains(&id) { view.selected.iter().copied().collect() } else { vec![id] };
+        let ids: Vec<NodeId> =
+            if view.selected.contains(&id) { view.selected.iter().copied().collect() } else { vec![id] };
         for n in ids {
             if let Some(n) = view.graph.node_mut(n) {
                 n.pos[0] += d.x;
@@ -713,7 +858,8 @@ fn canvas(ui: &mut Ui, ed: &mut Editor, view: &mut DiagramView, gd: &GameData, e
                 view.change(ed, |g| g.connect(from, to, exec));
             }
             None => {
-                let over_pin = pointer_scene.is_some_and(|p| pin_at(&w.pin, w.from_output, &view.graph).is_some_and(|a| a.distance(p) < 12.0));
+                let over_pin = pointer_scene
+                    .is_some_and(|p| pin_at(&w.pin, w.from_output, &view.graph).is_some_and(|a| a.distance(p) < 12.0));
                 if let (false, Some(ps), Some(screen)) = (over_pin, pointer_scene, ui.ctx().pointer_latest_pos()) {
                     view.picker = Some(Picker { at: ps, screen, search: String::new(), wire: Some(w), focus: true });
                 }
@@ -732,7 +878,8 @@ fn wire_points(a: Pos2, b: Pos2) -> [Pos2; 4] {
 }
 
 fn bezier(painter: &egui::Painter, a: Pos2, b: Pos2, stroke: Stroke) {
-    let shape = egui::epaint::CubicBezierShape::from_points_stroke(wire_points(a, b), false, Color32::TRANSPARENT, stroke);
+    let shape =
+        egui::epaint::CubicBezierShape::from_points_stroke(wire_points(a, b), false, Color32::TRANSPARENT, stroke);
     painter.add(shape);
 }
 
@@ -741,7 +888,11 @@ fn bezier_distance(a: Pos2, b: Pos2, p: Pos2) -> f32 {
     let [p0, p1, p2, p3] = wire_points(a, b);
     let at = |t: f32| {
         let u = 1.0 - t;
-        (p0.to_vec2() * (u * u * u) + p1.to_vec2() * (3.0 * u * u * t) + p2.to_vec2() * (3.0 * u * t * t) + p3.to_vec2() * (t * t * t)).to_pos2()
+        (p0.to_vec2() * (u * u * u)
+            + p1.to_vec2() * (3.0 * u * u * t)
+            + p2.to_vec2() * (3.0 * u * t * t)
+            + p3.to_vec2() * (t * t * t))
+            .to_pos2()
     };
     let mut best = f32::INFINITY;
     let mut prev = p0;
@@ -774,42 +925,53 @@ fn picker(ui: &mut Ui, ed: &mut Editor, view: &mut DiagramView, gd: &GameData, e
     let kinds = offered(ed, view, gd, e);
     let mut chosen: Option<NodeKind> = None;
     let mut close = false;
-    let area = egui::Area::new(egui::Id::new("diagram_picker")).order(egui::Order::Foreground).fixed_pos(p.screen).show(ui.ctx(), |ui| {
-        egui::Frame::popup(ui.style()).show(ui, |ui| {
-            ui.set_width(260.0);
-            let r = ui.add(egui::TextEdit::singleline(&mut p.search).hint_text("Search nodes…"));
-            if std::mem::take(&mut p.focus) {
-                r.request_focus();
-            }
-            let q = p.search.to_lowercase();
-            let fits = |k: &NodeKind| {
-                let Some(w) = &p.wire else { return true };
-                let sig = k.signature_in(gd, &view.graph);
-                let pins = if w.from_output { &sig.inputs } else { &sig.outputs };
-                pins.iter().any(|pin| compatible(&pin.ty, &w.ty))
-            };
-            let matches: Vec<&NodeKind> = kinds.iter().filter(|k| fits(k) && (q.is_empty() || k.title(gd).to_lowercase().contains(&q) || k.category().to_lowercase().contains(&q))).collect();
-            if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                chosen = matches.first().map(|k| (*k).clone());
-            }
-            egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
-                let mut last = "";
-                for k in &matches {
-                    if k.category() != last {
-                        last = k.category();
-                        ui.add_space(4.0);
-                        ui.label(RichText::new(last).size(10.0).color(MUTED()));
-                    }
-                    if ui.selectable_label(false, k.title(gd)).clicked() {
-                        chosen = Some((*k).clone());
-                    }
+    let area = egui::Area::new(egui::Id::new("diagram_picker"))
+        .order(egui::Order::Foreground)
+        .fixed_pos(p.screen)
+        .show(ui.ctx(), |ui| {
+            egui::Frame::popup(ui.style()).show(ui, |ui| {
+                ui.set_width(260.0);
+                let r = ui.add(egui::TextEdit::singleline(&mut p.search).hint_text("Search nodes…"));
+                if std::mem::take(&mut p.focus) {
+                    r.request_focus();
                 }
-                if matches.is_empty() {
-                    ui.label(RichText::new("No matching nodes").color(MUTED()));
+                let q = p.search.to_lowercase();
+                let fits = |k: &NodeKind| {
+                    let Some(w) = &p.wire else { return true };
+                    let sig = k.signature_in(gd, &view.graph);
+                    let pins = if w.from_output { &sig.inputs } else { &sig.outputs };
+                    pins.iter().any(|pin| compatible(&pin.ty, &w.ty))
+                };
+                let matches: Vec<&NodeKind> = kinds
+                    .iter()
+                    .filter(|k| {
+                        fits(k)
+                            && (q.is_empty()
+                                || k.title(gd).to_lowercase().contains(&q)
+                                || k.category().to_lowercase().contains(&q))
+                    })
+                    .collect();
+                if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                    chosen = matches.first().map(|k| (*k).clone());
                 }
+                egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
+                    let mut last = "";
+                    for k in &matches {
+                        if k.category() != last {
+                            last = k.category();
+                            ui.add_space(4.0);
+                            ui.label(RichText::new(last).size(10.0).color(MUTED()));
+                        }
+                        if ui.selectable_label(false, k.title(gd)).clicked() {
+                            chosen = Some((*k).clone());
+                        }
+                    }
+                    if matches.is_empty() {
+                        ui.label(RichText::new("No matching nodes").color(MUTED()));
+                    }
+                });
             });
         });
-    });
     if ui.input(|i| i.key_pressed(egui::Key::Escape)) || (area.response.clicked_elsewhere() && !just_opened) {
         close = true;
     }
@@ -856,8 +1018,18 @@ fn combo<T: PartialEq + Clone>(ui: &mut Ui, id: &str, value: &mut T, options: &[
 }
 
 fn type_options(gd: &GameData) -> Vec<(ValueType, String)> {
-    let mut v: Vec<(ValueType, String)> =
-        [ValueType::Bool, ValueType::Int, ValueType::Float, ValueType::Text, ValueType::Color, ValueType::Vector3, ValueType::Entity].into_iter().map(|t| (t.clone(), t.label())).collect();
+    let mut v: Vec<(ValueType, String)> = [
+        ValueType::Bool,
+        ValueType::Int,
+        ValueType::Float,
+        ValueType::Text,
+        ValueType::Color,
+        ValueType::Vector3,
+        ValueType::Entity,
+    ]
+    .into_iter()
+    .map(|t| (t.clone(), t.label()))
+    .collect();
     v.extend(gd.datasets.iter().map(|d| (ValueType::Row(d.id.clone()), format!("Row of {}", d.name))));
     v
 }
@@ -882,7 +1054,12 @@ fn details(ui: &mut Ui, ed: &mut Editor, view: &mut DiagramView, gd: &GameData, 
                 ui.add(egui::TextEdit::singleline(event).desired_width(120.0));
                 ui.label("Payload");
                 let mut opts = vec![(None, "None".to_owned())];
-                opts.extend(type_options(gd).into_iter().filter(|(t, _)| !matches!(t, ValueType::Row(_))).map(|(t, l)| (Some(t), l)));
+                opts.extend(
+                    type_options(gd)
+                        .into_iter()
+                        .filter(|(t, _)| !matches!(t, ValueType::Row(_)))
+                        .map(|(t, l)| (Some(t), l)),
+                );
                 combo(ui, "payload", payload, &opts);
             }
             DatasetRow { dataset, row } => {
@@ -905,34 +1082,68 @@ fn details(ui: &mut Ui, ed: &mut Editor, view: &mut DiagramView, gd: &GameData, 
             }
             GetVariable { name } | SetVariable { name } => {
                 ui.label("Variable");
-                let opts: Vec<(String, String)> = view.graph.variables.iter().map(|v| (v.name.clone(), v.name.clone())).collect();
+                let opts: Vec<(String, String)> =
+                    view.graph.variables.iter().map(|v| (v.name.clone(), v.name.clone())).collect();
                 combo(ui, "variable", name, &opts);
             }
             Compare { op, number } => {
                 combo(ui, "op", op, &CompareOp::ALL.map(|o| (o, o.symbol().to_owned())));
-                combo(ui, "num", number, &[(NumberType::Int, "Int".into()), (NumberType::Float, "Float".into()), (NumberType::Vector3, "Vector3".into())]);
+                combo(
+                    ui,
+                    "num",
+                    number,
+                    &[
+                        (NumberType::Int, "Int".into()),
+                        (NumberType::Float, "Float".into()),
+                        (NumberType::Vector3, "Vector3".into()),
+                    ],
+                );
             }
             Math { op, number } => {
                 combo(ui, "op", op, &MathOp::ALL.map(|o| (o, o.symbol().to_owned())));
-                combo(ui, "num", number, &[(NumberType::Int, "Int".into()), (NumberType::Float, "Float".into()), (NumberType::Vector3, "Vector3".into())]);
+                combo(
+                    ui,
+                    "num",
+                    number,
+                    &[
+                        (NumberType::Int, "Int".into()),
+                        (NumberType::Float, "Float".into()),
+                        (NumberType::Vector3, "Vector3".into()),
+                    ],
+                );
             }
             Logic { op } => {
-                combo(ui, "op", op, &[(BoolOp::And, "And".into()), (BoolOp::Or, "Or".into()), (BoolOp::Not, "Not".into())]);
+                combo(
+                    ui,
+                    "op",
+                    op,
+                    &[(BoolOp::And, "And".into()), (BoolOp::Or, "Or".into()), (BoolOp::Not, "Not".into())],
+                );
             }
             Convert { conversion } => {
-                combo(ui, "conv", conversion, &[
-                    (Conversion::IntToFloat, "Int → Float".into()),
-                    (Conversion::FloatToInt, "Float → Int".into()),
-                    (Conversion::FloatToText, "Float → Text".into()),
-                    (Conversion::IntToText, "Int → Text".into()),
-                ]);
+                combo(
+                    ui,
+                    "conv",
+                    conversion,
+                    &[
+                        (Conversion::IntToFloat, "Int → Float".into()),
+                        (Conversion::FloatToInt, "Float → Int".into()),
+                        (Conversion::FloatToText, "Float → Text".into()),
+                        (Conversion::IntToText, "Int → Text".into()),
+                    ],
+                );
             }
             Sequence { outputs } => {
                 ui.label("Outputs");
                 ui.add(egui::DragValue::new(outputs).range(2..=8));
             }
             GetPosition { space } | SetPosition { space } | SetRotation { space } | SetTransform { space } => {
-                combo(ui, "space", space, &[(Space::World, "World".into()), (Space::Local, "Local (to parent)".into())]);
+                combo(
+                    ui,
+                    "space",
+                    space,
+                    &[(Space::World, "World".into()), (Space::Local, "Local (to parent)".into())],
+                );
             }
             RunScript { function, args } => {
                 ui.label("Function");
@@ -945,7 +1156,15 @@ fn details(ui: &mut Ui, ed: &mut Editor, view: &mut DiagramView, gd: &GameData, 
                     args.pop();
                 }
                 for (i, a) in args.iter_mut().enumerate() {
-                    combo(ui, &format!("arg{i}"), a, &type_options(gd).into_iter().filter(|(t, _)| !matches!(t, ValueType::Row(_) | ValueType::Entity)).collect::<Vec<_>>());
+                    combo(
+                        ui,
+                        &format!("arg{i}"),
+                        a,
+                        &type_options(gd)
+                            .into_iter()
+                            .filter(|(t, _)| !matches!(t, ValueType::Row(_) | ValueType::Entity))
+                            .collect::<Vec<_>>(),
+                    );
                 }
             }
             _ => {}
@@ -988,11 +1207,18 @@ fn variables(ui: &mut Ui, ed: &mut Editor, view: &mut DiagramView, gd: &GameData
         ui.label(RichText::new("VARIABLES").size(11.0).color(MUTED()));
         ui.add(egui::TextEdit::singleline(&mut view.new_var).hint_text("New variable name").desired_width(140.0));
         let name = view.new_var.trim().to_owned();
-        if ui.add_enabled(!name.is_empty() && view.graph.variable(&name).is_none(), egui::Button::new("+ Add")).clicked() {
+        if ui
+            .add_enabled(!name.is_empty() && view.graph.variable(&name).is_none(), egui::Button::new("+ Add"))
+            .clicked()
+        {
             view.new_var.clear();
             view.change(ed, |g| g.variables.push(Variable { name, scope: Scope::Object, default: Value::Float(0.0) }));
         }
-        ui.label(RichText::new("Select a node to edit its settings · right-click the canvas to add nodes").size(11.0).color(MUTED()));
+        ui.label(
+            RichText::new("Select a node to edit its settings · right-click the canvas to add nodes")
+                .size(11.0)
+                .color(MUTED()),
+        );
     });
     let mut vars = view.graph.variables.clone();
     let mut remove = None;
@@ -1000,10 +1226,20 @@ fn variables(ui: &mut Ui, ed: &mut Editor, view: &mut DiagramView, gd: &GameData
         for (i, v) in vars.iter_mut().enumerate() {
             ui.label(&v.name);
             let mut ty = v.value_type();
-            if combo(ui, &format!("vt{i}"), &mut ty, &type_options(gd).into_iter().filter(|(t, _)| !matches!(t, ValueType::Row(_))).collect::<Vec<_>>()) {
+            if combo(
+                ui,
+                &format!("vt{i}"),
+                &mut ty,
+                &type_options(gd).into_iter().filter(|(t, _)| !matches!(t, ValueType::Row(_))).collect::<Vec<_>>(),
+            ) {
                 v.default = ty.default_value();
             }
-            combo(ui, &format!("vs{i}"), &mut v.scope, &[(Scope::Object, "Per object".into()), (Scope::Scene, "Shared in scene".into())]);
+            combo(
+                ui,
+                &format!("vs{i}"),
+                &mut v.scope,
+                &[(Scope::Object, "Per object".into()), (Scope::Scene, "Shared in scene".into())],
+            );
             ui.horizontal(|ui| value_editor(ui, &mut v.default));
             if ui.small_button("🗑").on_hover_text("Remove (nodes using it will be flagged)").clicked() {
                 remove = Some(i);

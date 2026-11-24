@@ -28,9 +28,9 @@
 //! the exporter writes into the copy it ships, or the web bootstrap (`kit.js`).
 //! Replacing the launcher or bootstrap is outside this guarantee.
 
-use anyhow::{Result, ensure};
 #[cfg(feature = "publish")]
 use anyhow::Context;
+use anyhow::{Result, ensure};
 
 pub const SEAL_MAGIC: &[u8; 8] = b"KITSEAL1";
 pub const SEAL_VERSION: u16 = 1;
@@ -115,7 +115,9 @@ impl std::fmt::Display for Rejected {
         match self {
             Rejected::Missing => write!(f, "the game data ({SEALED_PACK}) is missing"),
             Rejected::NotSealed => write!(f, "the game data isn't a signed Kit pack"),
-            Rejected::UnsupportedVersion(v) => write!(f, "the game data uses protection version {v}, which this player doesn't know"),
+            Rejected::UnsupportedVersion(v) => {
+                write!(f, "the game data uses protection version {v}, which this player doesn't know")
+            }
             Rejected::WrongMode { expected, found } => {
                 write!(f, "the game data is {} but this game requires {}", found.label(), expected.label())
             }
@@ -195,7 +197,14 @@ pub fn key_id(public_key: &[u8; 32]) -> [u8; 8] {
 /// Short, readable fingerprint of a publisher key (for the editor and logs).
 #[cfg(feature = "verify")]
 pub fn fingerprint(public_key: &[u8; 32]) -> String {
-    key_id(public_key).iter().map(|b| format!("{b:02x}")).collect::<Vec<_>>().chunks(2).map(|c| c.concat()).collect::<Vec<_>>().join("-")
+    key_id(public_key)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect::<Vec<_>>()
+        .chunks(2)
+        .map(|c| c.concat())
+        .collect::<Vec<_>>()
+        .join("-")
 }
 
 /// Verify a sealed pack against the pinned publisher key and required mode,
@@ -382,7 +391,8 @@ impl PublisherKey {
 
     /// Load from a key file. Refuses files other users can read (Unix).
     pub fn load(path: &std::path::Path) -> Result<Self> {
-        let text = std::fs::read_to_string(path).with_context(|| format!("reading the publisher key {}", path.display()))?;
+        let text =
+            std::fs::read_to_string(path).with_context(|| format!("reading the publisher key {}", path.display()))?;
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -432,7 +442,13 @@ pub fn new_content_key() -> Result<[u8; 32]> {
 /// Seal a game pack. Encrypted mode needs a content key and uses a fresh
 /// random nonce on every call.
 #[cfg(feature = "publish")]
-pub fn seal(pack: &[u8], key: &PublisherKey, mode: Mode, content_key: Option<&[u8; 32]>, metadata: &str) -> Result<Vec<u8>> {
+pub fn seal(
+    pack: &[u8],
+    key: &PublisherKey,
+    mode: Mode,
+    content_key: Option<&[u8; 32]>,
+    metadata: &str,
+) -> Result<Vec<u8>> {
     ensure!(mode != Mode::Standard, "Standard exports aren't sealed");
     let mut nonce = [0u8; 24];
     if mode == Mode::Encrypted {

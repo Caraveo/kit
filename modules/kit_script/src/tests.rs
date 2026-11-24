@@ -255,7 +255,8 @@ CREATE Radio[
     let mut app = app(root);
     let e = kit_scene::spawn_node(&mut app.world, "Radio", Transform::IDENTITY);
     app.world.insert(e, Script::new("scripts/radio.x"));
-    app.world.insert(e, kit_gamesys::AudioSource { clip: "sounds/song.ogg".into(), spatial: true, ..Default::default() });
+    app.world
+        .insert(e, kit_gamesys::AudioSource { clip: "sounds/song.ogg".into(), spatial: true, ..Default::default() });
     app.update(0.1);
     app.world.resource_mut::<Input>().press("P");
     app.update(0.1);
@@ -307,12 +308,22 @@ CREATE Mover[
     app.world.insert(e, s);
     app.update(0.5);
     let p = app.world.get::<Transform>(e).unwrap().translation;
-    assert!((p.y - 5.0).abs() < 1e-4 && p.x > 2.0, "Init saw Start, Update used Speed 10 (the default 1 would move < 0.5): {p:?}");
+    assert!(
+        (p.y - 5.0).abs() < 1e-4 && p.x > 2.0,
+        "Init saw Start, Update used Speed 10 (the default 1 would move < 0.5): {p:?}"
+    );
     assert!(console_text(&app).iter().any(|l| l.contains("`Moves`") && l.contains("isn't an EDIT field")));
 
     let mut rt = app.world.resource_mut::<crate::ScriptRuntime>();
     let names: Vec<(String, crate::Access)> = rt.fields(e).into_iter().map(|f| (f.name, f.access)).collect();
-    assert_eq!(names, [("Speed".into(), crate::Access::Edit), ("Start".into(), crate::Access::Edit), ("Moves".into(), crate::Access::Public)]);
+    assert_eq!(
+        names,
+        [
+            ("Speed".into(), crate::Access::Edit),
+            ("Start".into(), crate::Access::Edit),
+            ("Moves".into(), crate::Access::Public)
+        ]
+    );
     assert!(rt.set_field(e, "Speed", &kit_gamesys::FieldValue::Float(2.0)));
     assert!(!rt.set_field(e, "Moves", &kit_gamesys::FieldValue::Int(1)), "PUBLIC is read-only");
     assert!(!rt.set_field(e, "Hidden", &kit_gamesys::FieldValue::Float(1.0)), "private");
