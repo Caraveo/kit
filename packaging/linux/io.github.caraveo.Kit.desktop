@@ -8,4 +8,4 @@ Icon=io.github.caraveo.Kit
 Terminal=false
 Categories=Development;IDE;Game;
 Keywords=game;engine;vulkan;editor;3d;2d;
-StartupWMClass=kit-editor
+StartupWMClass=io.github.caraveo.Kit

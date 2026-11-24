@@ -478,6 +478,7 @@ impl ExportJob {
     ) -> Result<()> {
         let html = WEB_INDEX.replace("<title>Kit game</title>", &format!("<title>{}</title>", xml_escape(&self.title)));
         std::fs::write(out.join("index.html"), html)?;
+        std::fs::write(out.join("kit-logo.png"), include_bytes!("../../packaging/icons/kit-128.png"))?;
         std::fs::write(out.join("KIT-LICENSE.txt"), KIT_LICENSE)?;
         std::fs::copy(wasm, out.join("kit_web.wasm")).with_context(|| format!("copying {}", wasm.display()))?;
         match key {
@@ -718,6 +719,7 @@ fn serve_one(mut stream: std::net::TcpStream, root: &Path) -> Result<()> {
         Some("html") => "text/html; charset=utf-8",
         Some("js") => "text/javascript; charset=utf-8",
         Some("wasm") => "application/wasm",
+        Some("png") => "image/png",
         Some("txt") => "text/plain; charset=utf-8",
         _ => "application/octet-stream",
     };
@@ -861,7 +863,7 @@ mod tests {
             key_file: None,
         };
         let out = job.run().unwrap();
-        for f in ["index.html", "kit.js", "kit_web.wasm", "game.pack", "README.txt"] {
+        for f in ["index.html", "kit-logo.png", "kit.js", "kit_web.wasm", "game.pack", "README.txt"] {
             assert!(out.join(f).is_file(), "{f}");
         }
         assert_eq!(std::fs::read_to_string(out.join("KIT-LICENSE.txt")).unwrap(), KIT_LICENSE);
@@ -877,10 +879,11 @@ mod tests {
             use std::io::{Read, Write};
             let mut s = std::net::TcpStream::connect(url.trim_start_matches("http://").trim_end_matches('/')).unwrap();
             write!(s, "GET {path} HTTP/1.1\r\nHost: x\r\n\r\n").unwrap();
-            let mut r = String::new();
-            let _ = s.read_to_string(&mut r);
-            r
+            let mut response = Vec::new();
+            s.read_to_end(&mut response).unwrap();
+            String::from_utf8_lossy(&response).into_owned()
         };
+        assert!(get("/kit-logo.png").contains("image/png"));
         assert!(get("/").contains("200 OK") && get("/kit_web.wasm").contains("application/wasm"));
         assert!(get("/../kit.project").starts_with("HTTP/1.1 404"));
     }

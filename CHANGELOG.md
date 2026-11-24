@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.0.3 — Kit logo and editor polish
+
+- Updated the Kit app icon on Ubuntu, macOS, and Windows. The new artwork also appears in the editor header and dock, the welcome screen, and web export loading screens.
+- Editor views have clean headers without close buttons.
+- Website download buttons open the latest Kit release.
+
+![Kit v0.0.3 editor showing the updated logo and view headers](https://raw.githubusercontent.com/caraveo/kit/v0.0.3/docs/releases/v0.0.3.png)
+
 ## v0.0.2: Diagrams and Effects
 
 ### Major features

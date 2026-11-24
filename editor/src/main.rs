@@ -328,15 +328,18 @@ fn app_icon() -> Option<winit::window::Icon> {
 
 impl EditorApp {
     fn init(&mut self, event_loop: &ActiveEventLoop) -> Result<()> {
-        let window = Arc::new(
-            event_loop.create_window(
-                Window::default_attributes()
-                    .with_title("Kit")
-                    .with_inner_size(LogicalSize::new(1480, 900))
-                    .with_min_inner_size(LogicalSize::new(900, 560))
-                    .with_window_icon(app_icon()),
-            )?,
+        let attributes = Window::default_attributes()
+            .with_title("Kit")
+            .with_inner_size(LogicalSize::new(1480, 900))
+            .with_min_inner_size(LogicalSize::new(900, 560))
+            .with_window_icon(app_icon());
+        #[cfg(target_os = "linux")]
+        let attributes = winit::platform::wayland::WindowAttributesExtWayland::with_name(
+            attributes,
+            "io.github.caraveo.Kit",
+            "kit-editor",
         );
+        let window = Arc::new(event_loop.create_window(attributes)?);
         let display = window.display_handle()?.as_raw();
         let gfx = Gfx::new(Some(display), "Kit Editor")?;
         let surface = gfx.create_surface(display, window.window_handle()?.as_raw())?;

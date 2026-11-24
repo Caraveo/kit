@@ -2719,6 +2719,7 @@ fn viewport(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 4.0;
+                        widgets::logo(ui, 26.0).on_hover_text("Kit");
                         let s = &mut ed.settings;
                         if dock_toggle(ui, "◇", "Wireframe", s.wireframe).on_hover_text("Wireframe (1)").clicked() {
                             s.wireframe = !s.wireframe;
