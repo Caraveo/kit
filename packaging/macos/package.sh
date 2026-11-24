@@ -21,8 +21,11 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/examples" "$APP/Contents
 install -m755 "$BIN_DIR/kit-editor" "$BIN_DIR/kit-player" "$APP/Contents/MacOS/"
 cp "$MOLTENVK" "$APP/Contents/Frameworks/libMoltenVK.dylib"
 cp -r examples/hello "$APP/Contents/Resources/examples/"
+rm -rf "$APP"/Contents/Resources/examples/*/export   # games exported from the example
 mkdir -p "$APP/Contents/Resources/players/web"
 cp target/wasm32-unknown-unknown/release/kit_web.wasm "$APP/Contents/Resources/players/web/"
+# Players for other systems built alongside (dist/players/<os>/).
+[ -d "$DIST/players" ] && cp -R "$DIST/players/." "$APP/Contents/Resources/players/"
 cp packaging/icons/kit.icns "$APP/Contents/Resources/"
 sed "s/__VERSION__/$VERSION/g" packaging/macos/Info.plist > "$APP/Contents/Info.plist"
 # Ad-hoc signature so the bundle runs on Apple Silicon (not notarized).
