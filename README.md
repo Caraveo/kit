@@ -1,50 +1,40 @@
+[![Kit — 2D / 3D game engine. A violet path winds across a floating game level.](docs/kit-banner.webp)](https://github.com/caraveo/kit)
+
 # Kit
 
-**A modular 2D/3D game engine.** Kit is written in Rust, renders with Vulkan,
-and stores scenes in an ECS with a scene graph. Gameplay is scripted in
-[**x**](https://github.com/Caraveo/x). It comes with a native editor whose look
-follows [Dimension](https://github.com/Caraveo/dimension).
+**Draw a path. Press play. See where it goes.**
 
-![The Kit editor](docs/editor.png)
+Kit is a 2D and 3D game engine for making playable prototypes and building on them. Sketch movement directly in the viewport, bring your own sprites and 3D models, and press **F5** to try the result in the same window. When you're ready to share, export a desktop build or a browser build.
 
-**Documentation:** the [`documentation/`](documentation) folder is a Starlight site with guides for the editor, x scripting, physics and Canvas mode (`cd documentation && npm install && npm run dev`).
+[Download Kit](https://github.com/caraveo/kit/releases) · [Make your first game](documentation/src/content/docs/getting-started/first-game.mdx) · [Browse the source](https://github.com/caraveo/kit)
 
-## Install
+![Kit’s native editor with a scene hierarchy, 3D viewport, and inspector](docs/editor.png)
 
-Download the latest build from [Releases](https://github.com/Caraveo/kit/releases):
+## What you can build with Kit
 
-| Platform | Package |
-|---|---|
-| Linux x86_64 / aarch64 | `.deb` (`sudo apt install ./kit_*.deb`) or portable `.tar.gz` |
-| Windows x86_64 / arm64 | `.zip`; run `kit-editor.exe` |
-| macOS Apple Silicon / Intel | `.dmg`; drag **Kit** to Applications. The build is unsigned, so on first launch right-click the app and choose **Open**. |
+- **Make movement by drawing it.** Use [Canvas mode](documentation/src/content/docs/editor/canvas-mode.mdx) to sketch a patrol, moving platform, or obstacle course in the viewport. Hit play to see how the path interacts with colliders and rigid bodies.
+- **Build scenes with your own art.** Work with sprites, lighting, cameras, and sculptable terrain. Import [GLB, glTF, FBX, OBJ, USDZ, and STL](documentation/src/content/docs/editor/scenes-and-assets.md#using-3d-models), with material colors, base-color textures, and baked animation clips when available. Imports other than plain OBJ use Blender 4.5+.
+- **Give objects behavior.** Write gameplay in Kit's [x scripting language](docs/x.md) and edit scripts in the built-in code editor. Add Rapier-powered physics, triggers, and [positional sound](documentation/src/content/docs/editor/sound.md) from the inspector.
+- **Share a playable build.** [Export your game](documentation/src/content/docs/editor/export.md) for Linux, Windows, or macOS with the matching player, or export an HTML5 build for browsers with WebGPU.
 
-Kit needs a GPU with **Vulkan 1.3**. On macOS, Vulkan runs through MoltenVK, which
-is bundled in the app.
+## Try it in a minute
 
-## Quick start
+1. Get the package for your platform from [GitHub Releases](https://github.com/caraveo/kit/releases), then open **Kit** and choose **Open example**.
+2. Select an object in the scene and press **D** to enter Canvas mode. Drag in the viewport to sketch a path.
+3. Press **F5** to play. Click the viewport to pass keyboard input to the game.
+4. To bring in your own model, choose **Assets → + → Import 3D models…**, then double-click the imported asset under **Models**.
 
-1. Open **Kit** (`kit-editor`) and choose **Open example**, or **New project…**.
-2. Select objects in the viewport or the scene list and edit them in the inspector.
-3. Press **F5** to play. Click the viewport to send keyboard input to the game.
-4. Attach scripts in the inspector (**Script → New script**) and edit them in the built-in x editor.
-5. **Physics:** add a **Collider** (and a **Rigid Body** to make it fall, bounce and get pushed) from **Add component**.
-6. **Canvas mode** (**D**, or ✏ Canvas in the dock): select an object and drag in the viewport to sketch a path. In play mode the object follows it as well as it can: colliders block it, it slides around obstacles, and physics bodies are steered by velocity. Shift + drag extends a path.
-7. **Export** writes a folder with a runnable copy of your game.
+| Platform | Packages built by the release workflow |
+| --- | --- |
+| Linux x86_64 and ARM64 | `.deb` or portable `.tar.gz` |
+| Windows x86_64 and ARM64 | `.zip`. Run `kit-editor.exe`. |
+| macOS Apple Silicon and Intel | `.dmg`. Drag **Kit** into Applications. |
 
-A Kit project is a folder:
+The desktop editor requires Vulkan 1.3. The macOS package bundles MoltenVK. See the [installation guide](documentation/src/content/docs/getting-started/install.mdx) for platform-specific steps.
 
-```
-my-game/
-├─ kit.project        # title, main scene, window settings (TOML)
-├─ main.kscene        # scenes (JSON)
-├─ scripts/player.x   # x scripts
-└─ sprites/hero.png   # textures
-```
+## Script a player in x
 
-Run a project without the editor: `kit-player my-game/`.
-
-## Scripting with x
+Attach a script to an object, then use engine modules such as `Transform` and `Input` to make it respond to the player.
 
 ```x
 TAKE Transform, Input
@@ -59,57 +49,22 @@ CREATE Player[
 ]
 ```
 
-See [docs/x.md](docs/x.md) for the language and the engine modules scripts can `TAKE`.
+[Learn x](docs/x.md) · [Browse scripting recipes](documentation/src/content/docs/scripting/recipes.md)
 
-## Architecture
+## Build from source
 
-Kit's layout follows [Defold](https://github.com/defold/defold): each subsystem is a
-**module** (its own crate) that registers its components, resources and systems
-with the `App`.
-
-| Module | Role |
-|---|---|
-| `kit_ecs` | entities, sparse-set components, resources, queries |
-| `kit_core` | `App`, `Module` trait, stages, play/edit modes, time, console |
-| `kit_scene` | transforms, parent/child hierarchy, propagation |
-| `kit_input` | keyboard and mouse |
-| `kit_resource` | project files and assets |
-| `kit_gamesys` | Camera, Model, Sprite, Light and Script components; `.kscene` files |
-| `kit_graphics` | Vulkan device, swapchain, memory, pipelines, WGSL to SPIR-V |
-| `kit_render` | draws 3D models and 2D sprites, grid, picking |
-| `kit_collider` | collision shapes, contact/trigger events, ray casts |
-| `kit_physics` | rigid bodies: gravity, forces, bounces (Rapier) |
-| `kit_path` | follows paths sketched in Canvas mode, around colliders |
-| `kit_x` | the x language: lexer, parser, interpreter |
-| `kit_script` | runs x scripts on entities |
-| `kit_engine` | the windowed runtime |
-| `kit` | one crate that re-exports every module |
-
-Apps written in Rust can use the engine directly:
-
-```rust
-use kit::prelude::*;
-
-fn main() -> anyhow::Result<()> {
-    let mut app = App::new();
-    kit::engine::add_default_modules(&mut app, ".".into(), &Default::default());
-    let cam = spawn_node(&mut app.world, "Camera", Transform::from_xyz(0.0, 1.0, 5.0));
-    app.world.insert(cam, Camera::perspective());
-    let cube = spawn_node(&mut app.world, "Cube", Transform::IDENTITY);
-    app.world.insert(cube, Model::default());
-    run(app, EngineConfig::default())
-}
-```
-
-## Building from source
+Kit is written in Rust. The desktop renderer uses Vulkan, browser builds use WebGPU, and the engine organizes scenes with an ECS and scene graph. The native editor and standalone player share the engine. Rust applications can also use Kit through the [Rust API](documentation/src/content/docs/engine/rust-api.md).
 
 ```sh
-# Linux: sudo apt install libvulkan-dev libxkbcommon-dev libwayland-dev
-cargo run -p kit-editor --release            # the editor
-cargo run -p kit-player -- examples/hello    # the player
-cargo test --workspace
+git clone https://github.com/caraveo/kit
+cd kit
+# On Debian or Ubuntu, install libvulkan-dev, libxkbcommon-dev and libwayland-dev.
+cargo build --workspace --locked
+cargo run --locked -p kit-editor -- examples/hello
+cargo run --locked -p kit-player -- examples/hello
+cargo test --workspace --locked
 ```
 
-Set `KIT_VALIDATION=1` to enable the Vulkan validation layers. Packaging scripts
-are in `packaging/`. Pushing a `v*` tag builds installers for every platform
-through GitHub Actions.
+[Architecture](documentation/src/content/docs/engine/architecture.md) · [Build and packaging guide](documentation/src/content/docs/engine/build-from-source.md) · [Changelog](CHANGELOG.md)
+
+Building something with Kit? [Open an issue](https://github.com/caraveo/kit/issues) to share what you're making, report a rough edge, or tell us what would help you finish it.

@@ -15,17 +15,29 @@ Vulkan renderer, an editor, and the **x** scripting language.
 - **kit_graphics**: Vulkan 1.3 (dynamic rendering), swapchain, GPU memory, and WGSL shaders compiled at runtime.
 - **kit_render**: lit 3D models, alpha-blended 2D sprites, 4× MSAA, textures with hot reload, the editor grid and gradient backdrop, and picking.
 - **kit_x**: the x language, with a lexer, parser and interpreter. It supports classes, `RIDE` inheritance, methods, strict types, `GRAB`/`LOOP`/`IF`, multiple returns, `TAKE` for modules and other files, and a built-in `Math` module.
-- **kit_script**: x scripts on entities with `Init`/`Update`/`Final`, script hot reload, and the `Transform`, `Input`, `Time`, `Entity`, `Scene`, `Sprite`, `Model` and `Log` modules.
+- **kit_script**: x scripts on entities with `Init`/`Update`/`Final` and collision hooks, script hot reload, and the `Transform`, `Input`, `Time`, `Entity`, `Scene`, `Sprite`, `Model`, `Physics`, `Path`, `Terrain`, `Audio` and `Log` modules.
+- **kit_audio**: Audio Source components and script sounds (WAV, MP3, Ogg Vorbis, FLAC, AAC). 3D sounds fade with distance (Natural, Linear or Smooth falloff) and pan left/right. On Linux it uses the system's sound with no extra packages.
 - **kit_collider**: collision shapes (box, sphere, capsule, cylinder), contact and trigger events, ray casts. Built on Rapier.
 - **kit_physics**: rigid bodies (dynamic, kinematic, static), gravity, mass, damping, forces and impulses, 2D plane lock, CCD.
 - **kit_path**: follows paths sketched in Canvas mode, best effort, respecting colliders and physics.
 - **Terrain** (in kit_gamesys/kit_render/kit_collider): height grids with generation, sculpting, slope/height coloring and heightfield colliders.
 - **kit_engine**: the windowed runtime.
+- **Imported 3D models**: OBJ, glTF/GLB, FBX, USDZ and STL (converted with Blender), with materials, textures and animation clips.
 
 ### Tools
 - **kit-editor**: terrain sculpting, camera/light gizmos with a live camera preview, glide-to-frame on hierarchy select, Canvas mode for sketching movement paths, collider outlines, Collider/Rigid Body/Path inspectors, hierarchy with drag-and-drop reparenting, inspector, Vulkan viewport (orbit, pan, zoom, 2D/3D, wireframe, lighting, grid), click to select, undo/redo, play mode with live script fields, console, x code editor with syntax highlighting, asset list, new/open project, and an export command that writes a runnable game folder.
-- **kit-player**: runs a project or an exported game.
+- **kit-editor**, newer features: move arrows and rotation rings, sound drag-and-drop (Assets → Sounds), 3D model import, light and dark themes, and the **Export wizard**.
+- **Export wizard and Hooks**: each platform is a hook (`hooks/<platform>`). Kit exports Linux, Windows, Mac and **Web** builds. The web build runs in the browser on WebGPU, with the same engine, shaders and mixer as desktop. Licensed platforms (Switch, PlayStation, Xbox, Steam) show **Request access**, and installed hooks can add exporters.
+- **kit-player**: runs a project or an exported game. Every Kit package includes the Linux, Windows, Mac and web players, so any editor can export for any of them.
 - An example project, **Hello Kit**.
 
-### Platforms
-Linux (x86_64, aarch64: `.tar.gz`, `.deb`), Windows (x86_64, arm64: `.zip`), macOS (Apple Silicon, Intel: `.dmg` with MoltenVK bundled).
+### Downloads
+| System | File |
+|---|---|
+| Mac (Apple Silicon) | `kit-0.0.1-macos-arm64.dmg` |
+| Mac (Intel) | `kit-0.0.1-macos-x86_64.dmg` |
+| Windows 10/11 (x64) | `kit-0.0.1-windows-x86_64.zip` |
+| Ubuntu / Debian (x64) | `kit_0.0.1_amd64.deb` (`sudo apt install ./kit_0.0.1_amd64.deb`) |
+| Linux (x64, any distribution) | `kit-0.0.1-linux-x86_64.tar.gz` |
+
+Kit needs a GPU with Vulkan 1.3 (on Macs, MoltenVK is included). The Mac apps aren't notarized, so open them the first time with right-click → **Open**.

@@ -65,6 +65,8 @@ Darwin)
   # One player that runs on both Intel and Apple Silicon Macs.
   mkdir -p dist/players/mac
   lipo -create $(for T in "${BUILT[@]}"; do echo "target/$T/release/kit-player"; done) -output dist/players/mac/kit-player
+  # Mac games exported from Linux or Windows need MoltenVK next to the player.
+  cp "$MOLTENVK" dist/players/mac/libMoltenVK.dylib
   step "Packages"
   for T in "${BUILT[@]}"; do packaging/macos/package.sh "$T"; done
   ;;
