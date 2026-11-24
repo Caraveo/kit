@@ -1,0 +1,20 @@
+# Kit export hook: Xbox. See hooks/README.md.
+id = "xbox"
+name = "Xbox"
+icon = "🎮"
+group = "console"  # desktop | web | mobile | console
+access = "request"  # open (Kit exports it) | request (needs the platform holder's approval) | planned
+summary = "Xbox builds need Microsoft's licensed GDK and an approved developer account."
+request_url = "https://www.xbox.com/en-US/developers/id"
+request_label = "Apply to ID@Xbox"
+requirements = [
+  "Approval from Microsoft (ID@Xbox or a publisher)",
+  "The Microsoft GDK and dev kit hardware",
+  "The Kit Xbox hook, installed into hooks/xbox",
+]
+
+# A licensed hook adds its exporter here (installed next to the editor in
+# hooks/xbox/, not in this repository):
+# [export]
+# command = "export"   # program in this folder
+# args = ["--project", "{project}", "--out", "{out}", "--title", "{title}", "--build-id", "{build_id}"]

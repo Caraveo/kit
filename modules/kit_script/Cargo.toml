@@ -1,0 +1,16 @@
+[package]
+name = "kit_script"
+description = "Kit module: runs x scripts attached to entities and exposes engine modules to them."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+kit_ecs.workspace = true
+kit_core.workspace = true
+kit_scene.workspace = true
+kit_input.workspace = true
+kit_resource.workspace = true
+kit_gamesys.workspace = true
+kit_x.workspace = true
+glam.workspace = true

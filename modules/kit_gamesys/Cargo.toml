@@ -1,0 +1,15 @@
+[package]
+name = "kit_gamesys"
+description = "Kit module: game components (camera, model, sprite, light, script) and scene files."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+kit_ecs.workspace = true
+kit_core.workspace = true
+kit_scene.workspace = true
+glam.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true

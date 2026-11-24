@@ -1,0 +1,26 @@
+[package]
+name = "kit_engine"
+description = "Kit module: windowed runtime — event loop, presentation, and the default module set."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+kit_ecs.workspace = true
+kit_core.workspace = true
+kit_scene.workspace = true
+kit_input.workspace = true
+kit_resource.workspace = true
+kit_gamesys.workspace = true
+kit_graphics.workspace = true
+kit_render.workspace = true
+kit_script.workspace = true
+kit_collider.workspace = true
+kit_physics.workspace = true
+kit_path.workspace = true
+kit_audio.workspace = true
+winit.workspace = true
+raw-window-handle.workspace = true
+glam.workspace = true
+anyhow.workspace = true
+log.workspace = true

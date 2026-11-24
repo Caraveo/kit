@@ -1,0 +1,12 @@
+/target
+/dist
+*.swp
+.DS_Store
+node_modules/
+# Local tool and assistant folders (not part of Kit)
+/.aws/
+/.codex/
+/.agents/
+/.copilotkit/
+# Game exports made inside projects
+/examples/*/export/

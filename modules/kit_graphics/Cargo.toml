@@ -1,0 +1,16 @@
+[package]
+name = "kit_graphics"
+description = "Kit module: Vulkan device, swapchain, buffers, images, pipelines and shader compilation."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+ash.workspace = true
+ash-window.workspace = true
+raw-window-handle.workspace = true
+gpu-allocator.workspace = true
+naga.workspace = true
+log.workspace = true
+anyhow.workspace = true
+bytemuck.workspace = true

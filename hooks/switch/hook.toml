@@ -1,0 +1,20 @@
+# Kit export hook: Nintendo Switch. See hooks/README.md.
+id = "switch"
+name = "Nintendo Switch"
+icon = "🎮"
+group = "console"  # desktop | web | mobile | console
+access = "request"  # open (Kit exports it) | request (needs the platform holder's approval) | planned
+summary = "Switch builds need Nintendo's licensed SDK and an approved Nintendo Developer Portal account."
+request_url = "https://developer.nintendo.com/"
+request_label = "Apply on the Nintendo Developer Portal"
+requirements = [
+  "Approval from Nintendo",
+  "The Nintendo SDK and development hardware",
+  "The Kit Switch hook, installed into hooks/switch",
+]
+
+# A licensed hook adds its exporter here (installed next to the editor in
+# hooks/switch/, not in this repository):
+# [export]
+# command = "export"   # program in this folder
+# args = ["--project", "{project}", "--out", "{out}", "--title", "{title}", "--build-id", "{build_id}"]

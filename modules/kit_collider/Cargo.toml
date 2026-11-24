@@ -1,0 +1,15 @@
+[package]
+name = "kit_collider"
+description = "Kit module: collision shapes, contact and trigger events, ray casts (Rapier)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+kit_ecs.workspace = true
+kit_core.workspace = true
+kit_scene.workspace = true
+kit_gamesys.workspace = true
+glam.workspace = true
+log.workspace = true
+rapier3d = "0.36"

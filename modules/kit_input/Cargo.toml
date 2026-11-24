@@ -1,0 +1,10 @@
+[package]
+name = "kit_input"
+description = "Kit module: keyboard and mouse state with per-frame pressed/released edges."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+kit_core.workspace = true
+glam.workspace = true

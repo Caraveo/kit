@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "entities": [
+    {
+      "id": 0,
+      "name": "Sun",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          -0.41553843,
+          0.26610032,
+          0.12854111,
+          0.86023
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "light": {
+        "color": [
+          1.0,
+          0.97,
+          0.94
+        ],
+        "intensity": 1.0
+      }
+    },
+    {
+      "id": 1,
+      "name": "Sprite",
+      "transform": {
+        "translation": [
+          1.0,
+          0.5,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "sprite": {
+        "size": [
+          1.0,
+          1.0
+        ],
+        "color": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "texture": "",
+        "flip_x": false,
+        "flip_y": false,
+        "visible": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+[package]
+name = "kit_core"
+description = "Kit module: App, Module trait, schedule/stages, time and console log."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+kit_ecs.workspace = true
+log.workspace = true

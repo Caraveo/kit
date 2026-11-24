@@ -1,0 +1,16 @@
+[package]
+name = "kit_physics"
+description = "Kit module: rigid-body dynamics — gravity, forces, velocities, bounces (Rapier)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+kit_core.workspace = true
+kit_gamesys.workspace = true
+kit_collider.workspace = true
+glam.workspace = true
+
+[dev-dependencies]
+kit_ecs.workspace = true
+kit_scene.workspace = true

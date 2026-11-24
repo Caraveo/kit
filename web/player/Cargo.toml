@@ -1,0 +1,28 @@
+[package]
+name = "kit_web"
+description = "Kit's web player: runs a game in the browser (WebAssembly) and hands frames to a WebGPU renderer."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+kit_ecs.workspace = true
+kit_core.workspace = true
+kit_scene.workspace = true
+kit_input.workspace = true
+kit_resource.workspace = true
+kit_gamesys.workspace = true
+kit_render = { workspace = true, default-features = false }
+kit_x.workspace = true
+kit_script.workspace = true
+kit_collider.workspace = true
+kit_physics.workspace = true
+kit_path.workspace = true
+kit_audio = { workspace = true, default-features = false }
+glam.workspace = true
+anyhow.workspace = true
+log.workspace = true
+bytemuck.workspace = true

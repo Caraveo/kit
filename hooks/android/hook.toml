@@ -1,0 +1,14 @@
+# Kit export hook: Android. See hooks/README.md.
+id = "android"
+name = "Android"
+icon = "◈"
+group = "mobile"  # desktop | web | mobile | console
+access = "planned"  # open (Kit exports it) | request (needs the platform holder's approval) | planned
+summary = "Coming later: needs touch input and an Android app package step."
+request_url = "https://play.google.com/console/"
+request_label = "Google Play Console"
+requirements = [
+  "Touch input in Kit (planned)",
+  "Android NDK and an APK/AAB packaging step (planned)",
+  "A Google Play developer account to publish",
+]

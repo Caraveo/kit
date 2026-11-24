@@ -1,0 +1,7 @@
+# Kit export hook: Windows. See hooks/README.md.
+id = "windows"
+name = "Windows"
+icon = "⊞"
+group = "desktop"  # desktop | web | mobile | console
+access = "open"  # open (Kit exports it) | request (needs the platform holder's approval) | planned
+summary = "A folder with Game.exe and the game files. Runs on Windows 10 and 11 with Vulkan."

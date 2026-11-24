@@ -1,0 +1,7 @@
+# Kit export hook: Mac. See hooks/README.md.
+id = "mac"
+name = "Mac"
+icon = "⌘"
+group = "desktop"  # desktop | web | mobile | console
+access = "open"  # open (Kit exports it) | request (needs the platform holder's approval) | planned
+summary = "A .app bundle (Vulkan through MoltenVK, included). Runs on macOS 12 or newer."

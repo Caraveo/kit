@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Kit
+GenericName=Game Engine
+Comment=Modular 2D/3D game engine and editor
+Exec=kit-editor %f
+Icon=io.github.caraveo.Kit
+Terminal=false
+Categories=Development;IDE;Game;
+Keywords=game;engine;vulkan;editor;3d;2d;
+StartupWMClass=kit-editor

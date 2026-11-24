@@ -1,0 +1,57 @@
+---
+title: Install Kit
+description: Download Kit for Linux, Windows or macOS.
+---
+
+import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+Kit ships two programs:
+
+- **kit-editor**: the editor where you build your game.
+- **kit-player**: runs a game without the editor.
+
+Download the latest build from the [Releases page](https://github.com/Caraveo/kit/releases).
+
+<Tabs syncKey="os">
+<TabItem label="Linux">
+
+**Ubuntu / Debian:** download `kit_<version>_amd64.deb` (or `arm64`) and install it:
+
+```sh
+sudo apt install ./kit_0.0.1_amd64.deb
+```
+
+Kit then appears in your applications as **Kit**. You can also run `kit-editor` from a terminal.
+
+**Other distributions:** download `kit-<version>-linux-x86_64.tar.gz`, extract it and run `./kit-editor`.
+
+</TabItem>
+<TabItem label="Windows">
+
+Download `kit-<version>-windows-x86_64.zip` (or `arm64`), extract it anywhere and run **kit-editor.exe**.
+
+</TabItem>
+<TabItem label="macOS">
+
+Download `kit-<version>-macos-arm64.dmg` (Apple Silicon) or `-x86_64.dmg` (Intel). Open it and drag **Kit** into Applications.
+
+The app is not notarized yet, so the first time you open it, right-click **Kit** and choose **Open**.
+
+</TabItem>
+</Tabs>
+
+## Requirements
+
+- A GPU with **Vulkan 1.3**. Most GPUs from 2016 onward qualify with current drivers.
+  - **Linux:** Mesa (AMD/Intel) or the NVIDIA driver.
+  - **Windows:** your GPU vendor's driver.
+  - **macOS:** Vulkan runs through MoltenVK, which is bundled in the app.
+- 64-bit Linux, Windows 10/11, or macOS 11+.
+
+<Aside type="tip">
+Run `vulkaninfo --summary` (Linux) to check that your GPU supports Vulkan 1.3.
+</Aside>
+
+## Next
+
+[Make your first game →](/getting-started/first-game/)

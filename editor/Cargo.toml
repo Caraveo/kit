@@ -1,0 +1,33 @@
+[package]
+name = "kit-editor"
+description = "Kit editor: scene editor, inspector, script editor and play mode."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "kit-editor"
+path = "src/main.rs"
+
+[dependencies]
+kit.workspace = true
+serde.workspace = true
+toml.workspace = true
+kit_web = { path = "../web/player" }
+egui.workspace = true
+egui-winit.workspace = true
+egui-ash-renderer.workspace = true
+winit.workspace = true
+raw-window-handle.workspace = true
+anyhow.workspace = true
+env_logger.workspace = true
+log.workspace = true
+rfd.workspace = true
+image.workspace = true
+tempfile = "3"
+
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+x11rb = "0.13"

@@ -1,0 +1,63 @@
+---
+title: Your first game
+description: Create a project, add objects, write a script, add physics and press play.
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+In this guide you make a small game: a cube you steer with the keyboard, which pushes boxes around a floor.
+
+<Steps>
+
+1. **Create a project.** Start Kit and choose **New project…**. Pick an empty folder.
+
+   Kit creates a starter scene: a camera, a light (the sun) and a spinning cube.
+
+2. **Look around.** Drag in the viewport to orbit, **Shift + drag** to pan, and scroll to zoom. Press <kbd>F</kbd> to frame the selected object.
+
+3. **Add a floor.** Click **＋ New → Object → Plane**. Kit sizes the plane as a 10 × 10 floor.
+
+4. **Give the floor a collider.** With the plane selected, click **＋ Add component → ⬚ Collider only** in the inspector. Kit fits the collider to the mesh.
+
+5. **Add some boxes.** Add a few **Cube** objects and raise them (Position **Y** = 2, 3, 4…). On each one, click **＋ Add component → ⚛ Physics**. That adds physics plus a matching collider, so the box falls and can be pushed.
+
+6. **Write a script for the player.** Select the starter **Cube** and look at its **Script** section. Click **New script** (or use **＋ New → Script…**), name it `player`, and replace its contents with:
+
+   ```x
+   TAKE Transform, Input
+
+   CREATE Player[
+       FLOAT Speed: 4.0
+
+       VOID CREATE Update(FLOAT dt)[
+           FLOAT X: Input.Axis("A", "D")
+           FLOAT Z: Input.Axis("W", "S")
+           Transform.Move(X * Speed * dt, 0, Z * Speed * dt)
+       ]
+
+       VOID CREATE OnCollision(ANY other)[
+           DISPLAY["Bumped into", Scene.Name(other)]
+       ]
+   ]
+   ```
+
+   Add `Scene` to the `TAKE` line (`TAKE Transform, Input, Scene`) so `OnCollision` can look up names. Press <kbd>Ctrl</kbd> + <kbd>S</kbd> to save the script. Then pick `scripts/player.x` in the cube's **Script → File** box.
+
+7. **Give the player a collider** (**Add component → ⬚ Collider only**) so it pushes the boxes.
+
+8. **Press <kbd>F5</kbd> to play.** Click the viewport to give the game the keyboard, then drive with **WASD**. The boxes fall, you push them around, and the console prints what you bump into. Press <kbd>F5</kbd> again to stop; the scene goes back to how it was.
+
+9. **Save** with <kbd>Ctrl</kbd> + <kbd>S</kbd>.
+
+</Steps>
+
+<Aside type="tip">
+Want the boxes to patrol on their own? Select one, press <kbd>D</kbd> for [Canvas mode](/editor/canvas-mode/), and drag a line. Press play and the box follows it.
+</Aside>
+
+## What next
+
+- [Editor tour](/editor/tour/): everything on screen.
+- [x basics](/scripting/basics/): the language.
+- [Physics](/physics/colliders/): colliders, bodies and triggers.
+- [Export your game](/editor/export/).

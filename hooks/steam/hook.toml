@@ -1,0 +1,20 @@
+# Kit export hook: Steam. See hooks/README.md.
+id = "steam"
+name = "Steam"
+icon = "♨"
+group = "desktop"  # desktop | web | mobile | console
+access = "request"  # open (Kit exports it) | request (needs the platform holder's approval) | planned
+summary = "Steam games are Kit's Windows, Mac and Linux builds, uploaded with Steamworks (SteamPipe)."
+request_url = "https://partner.steamgames.com/"
+request_label = "Join Steamworks"
+requirements = [
+  "A Steamworks partner account (one-time app fee per game)",
+  "Your Windows, Mac or Linux export from Kit",
+  "SteamPipe (Steamworks SDK) to upload builds",
+]
+
+# A licensed hook adds its exporter here (installed next to the editor in
+# hooks/steam/, not in this repository):
+# [export]
+# command = "export"   # program in this folder
+# args = ["--project", "{project}", "--out", "{out}", "--title", "{title}", "--build-id", "{build_id}"]

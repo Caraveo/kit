@@ -1,0 +1,16 @@
+{
+  "name": "x",
+  "scopeName": "source.x",
+  "aliases": ["xpp"],
+  "patterns": [
+    { "name": "comment.line.number-sign.x", "match": "#.*$" },
+    { "name": "string.quoted.double.x", "begin": "\"", "end": "\"", "patterns": [{ "name": "constant.character.escape.x", "match": "\\\\." }] },
+    { "name": "string.quoted.single.x", "begin": "'", "end": "'", "patterns": [{ "name": "constant.character.escape.x", "match": "\\\\." }] },
+    { "name": "constant.numeric.x", "match": "\\b\\d+(\\.\\d+)?([eE][+-]?\\d+)?\\b" },
+    { "name": "storage.type.x", "match": "\\b(STRING|INTEGER|FLOAT|BOOL|INDEX|OBJECT|VECTOR|VOID|ANY)\\b" },
+    { "name": "keyword.control.x", "match": "\\b(CREATE|NEW|RIDE|TAKE|BRING|CALL|GIVE|IF|ELSE|LOOP|GRAB|IN|EXIT|SKIP|DISPLAY|AND|OR|NOT|EXIST)\\b" },
+    { "name": "constant.language.x", "match": "\\b(TRUE|FALSE|NULL|THIS)\\b" },
+    { "name": "support.class.x", "match": "\\b(Transform|Input|Time|Entity|Scene|Sprite|Model|Log|Physics|Path|Terrain|Math)\\b" },
+    { "name": "entity.name.function.x", "match": "\\b[A-Za-z_][A-Za-z0-9_]*(?=\\()" }
+  ]
+}

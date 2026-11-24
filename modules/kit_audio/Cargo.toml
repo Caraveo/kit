@@ -1,0 +1,33 @@
+[package]
+name = "kit_audio"
+description = "Kit module: plays sounds (WAV, MP3, Ogg Vorbis, FLAC, AAC) with proximity, from AudioSource components and scripts."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[features]
+default = ["device"]
+# Open the computer's audio output. The web player builds without it and
+# pulls mixed audio for Web Audio instead.
+device = ["dep:libloading", "dep:cpal"]
+
+[dependencies]
+kit_ecs.workspace = true
+kit_core.workspace = true
+kit_scene.workspace = true
+kit_gamesys.workspace = true
+kit_resource.workspace = true
+glam.workspace = true
+anyhow.workspace = true
+log.workspace = true
+symphonia = { version = "0.5", default-features = false, features = ["mp3", "aac", "isomp4", "wav", "pcm", "adpcm", "ogg", "vorbis", "flac"] }
+
+[dev-dependencies]
+env_logger.workspace = true
+
+# Linux: ALSA loaded at runtime (no build-time dev packages needed).
+[target.'cfg(target_os = "linux")'.dependencies]
+libloading = { version = "0.8", optional = true }
+
+[target.'cfg(any(windows, target_os = "macos"))'.dependencies]
+cpal = { version = "0.15", optional = true }

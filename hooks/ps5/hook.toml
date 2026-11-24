@@ -1,0 +1,20 @@
+# Kit export hook: PlayStation 5. See hooks/README.md.
+id = "ps5"
+name = "PlayStation 5"
+icon = "🎮"
+group = "console"  # desktop | web | mobile | console
+access = "request"  # open (Kit exports it) | request (needs the platform holder's approval) | planned
+summary = "PlayStation builds need Sony's licensed SDK and an approved PlayStation Partners account."
+request_url = "https://partners.playstation.net/"
+request_label = "Apply to PlayStation Partners"
+requirements = [
+  "Approval from Sony Interactive Entertainment",
+  "The PS5 SDK and development kit",
+  "The Kit PS5 hook, installed into hooks/ps5",
+]
+
+# A licensed hook adds its exporter here (installed next to the editor in
+# hooks/ps5/, not in this repository):
+# [export]
+# command = "export"   # program in this folder
+# args = ["--project", "{project}", "--out", "{out}", "--title", "{title}", "--build-id", "{build_id}"]

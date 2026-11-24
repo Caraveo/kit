@@ -1,0 +1,228 @@
+//! # kit_engine
+//!
+//! The windowed runtime (Defold's `engine`): opens a window, runs the [`App`]
+//! every frame, feeds input, and renders the active camera with `kit_render`.
+//!
+//! ```no_run
+//! let project = kit_resource::Project::open(std::path::Path::new("my_game"))?;
+//! kit_engine::run_project(project)?;
+//! # Ok::<(), anyhow::Error>(())
+//! ```
+
+pub mod winit_input;
+
+use anyhow::{Context, Result};
+use kit_core::{App, Stage};
+use kit_gamesys::SceneFile;
+use kit_graphics::{Gfx, Presenter};
+use kit_render::{Renderer, Target, View};
+use kit_resource::{Project, Resources};
+use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
+use std::sync::Arc;
+use std::time::Instant;
+use winit::application::ApplicationHandler;
+use winit::dpi::LogicalSize;
+use winit::event::WindowEvent;
+use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
+use winit::window::{Fullscreen, Window, WindowId};
+
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Window settings for [`run`].
+#[derive(Clone, Debug)]
+pub struct EngineConfig {
+    pub title: String,
+    pub width: u32,
+    pub height: u32,
+    pub vsync: bool,
+    pub fullscreen: bool,
+}
+
+impl Default for EngineConfig {
+    fn default() -> Self {
+        Self { title: "Kit".into(), width: 1280, height: 720, vsync: true, fullscreen: false }
+    }
+}
+
+/// Add every standard Kit module to `app`.
+pub fn add_default_modules(app: &mut App, project_root: std::path::PathBuf, config: &kit_resource::ProjectConfig) {
+    let physics = &config.physics;
+    app.add_module(kit_resource::ResourceModule { root: project_root })
+        .add_module(kit_scene::SceneModule)
+        .add_module(kit_input::InputModule)
+        .add_module(kit_gamesys::GameSysModule)
+        .add_module(kit_script::ScriptModule)
+        .add_module(kit_path::PathModule)
+        // After scripts and paths, so physics sees this frame's changes.
+        .add_module(kit_collider::ColliderModule)
+        .add_module(kit_physics::PhysicsModule {
+            gravity: glam::Vec3::from_array(physics.gravity),
+            rate: physics.rate,
+            enabled: physics.enabled,
+        })
+        .add_module(kit_audio::AudioModule { device: true });
+}
+
+/// Build an app for a project and load its main scene.
+pub fn project_app(project: &Project) -> Result<App> {
+    let mut app = App::new();
+    add_default_modules(&mut app, project.root().to_path_buf(), &project.config);
+    let main = &project.config.project.main_scene;
+    let text = project.resources.read_text(main).with_context(|| format!("loading main scene `{main}`"))?;
+    let scene = SceneFile::from_json(&text).with_context(|| format!("in {main}"))?;
+    kit_gamesys::load_scene(&mut app.world, &scene)?;
+    Ok(app)
+}
+
+/// Open a project and run it in a window until closed.
+pub fn run_project(project: Project) -> Result<()> {
+    let app = project_app(&project)?;
+    let d = &project.config.display;
+    run(
+        app,
+        EngineConfig {
+            title: project.config.project.title.clone(),
+            width: d.width,
+            height: d.height,
+            vsync: d.vsync,
+            fullscreen: d.fullscreen,
+        },
+    )
+}
+
+struct Gpu {
+    window: Arc<Window>,
+    renderer: Renderer,
+    presenter: Presenter,
+    gfx: Gfx,
+}
+
+struct Runner {
+    app: App,
+    config: EngineConfig,
+    gpu: Option<Gpu>,
+    last: Instant,
+    error: Option<anyhow::Error>,
+}
+
+impl Runner {
+    fn init(&mut self, event_loop: &ActiveEventLoop) -> Result<()> {
+        let mut attrs = Window::default_attributes()
+            .with_title(&self.config.title)
+            .with_inner_size(LogicalSize::new(self.config.width, self.config.height));
+        if self.config.fullscreen {
+            attrs = attrs.with_fullscreen(Some(Fullscreen::Borderless(None)));
+        }
+        let window = Arc::new(event_loop.create_window(attrs)?);
+        let display = window.display_handle()?.as_raw();
+        let gfx = Gfx::new(Some(display), &self.config.title)?;
+        let surface = gfx.create_surface(display, window.window_handle()?.as_raw())?;
+        let size = window.inner_size();
+        let presenter = Presenter::new(&gfx, surface, size.width, size.height, self.config.vsync)?;
+        let renderer = Renderer::new(&gfx)?;
+        self.gpu = Some(Gpu { window, renderer, presenter, gfx });
+        self.last = Instant::now();
+        Ok(())
+    }
+
+    fn frame(&mut self) -> Result<()> {
+        let now = Instant::now();
+        let dt = (now - self.last).as_secs_f32();
+        self.last = now;
+        self.app.update(dt);
+
+        let Some(gpu) = self.gpu.as_mut() else { return Ok(()) };
+        gpu.renderer.prepare(&gpu.gfx, &self.app.world);
+        let Some(frame) = gpu.presenter.begin_frame(&gpu.gfx)? else { return Ok(()) };
+        let aspect = frame.extent.width as f32 / frame.extent.height.max(1) as f32;
+        let mut view = View::from_camera(&self.app.world, aspect).unwrap_or_else(|| View::fallback(aspect));
+        view.time = self.app.world.resource::<kit_core::Time>().elapsed as f32;
+        let target = Target { image: frame.image, view: frame.view, extent: frame.extent, format: frame.format };
+        gpu.renderer.render(&gpu.gfx, frame.cmd, frame.frame_index, &target, &view, &self.app.world)?;
+        gpu.presenter.end_frame(&gpu.gfx, frame)?;
+        Ok(())
+    }
+
+    fn shutdown(&mut self) {
+        kit_script::stop_scripts(&mut self.app.world);
+        kit_collider::reset(&mut self.app.world);
+        kit_path::reset(&mut self.app.world);
+        kit_audio::reset(&mut self.app.world);
+        if let Some(mut gpu) = self.gpu.take() {
+            gpu.gfx.wait_idle();
+            gpu.renderer.destroy(&gpu.gfx);
+            gpu.presenter.destroy(&gpu.gfx);
+            drop(gpu.gfx);
+        }
+    }
+}
+
+impl ApplicationHandler for Runner {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        if self.gpu.is_none() {
+            if let Err(e) = self.init(event_loop) {
+                self.error = Some(e);
+                event_loop.exit();
+            }
+        }
+    }
+
+    fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+        winit_input::handle_event(&self.app.world, &event);
+        match event {
+            WindowEvent::CloseRequested => {
+                self.shutdown();
+                event_loop.exit();
+            }
+            WindowEvent::Resized(size) => {
+                if let Some(gpu) = self.gpu.as_mut() {
+                    gpu.presenter.resize(size.width, size.height);
+                }
+            }
+            WindowEvent::KeyboardInput { event: ref k, .. }
+                if k.state.is_pressed()
+                    && k.physical_key == winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::F11) =>
+            {
+                if let Some(gpu) = &self.gpu {
+                    let fs = gpu.window.fullscreen().is_some();
+                    gpu.window.set_fullscreen(if fs { None } else { Some(Fullscreen::Borderless(None)) });
+                }
+            }
+            WindowEvent::RedrawRequested => {
+                if let Err(e) = self.frame() {
+                    self.error = Some(e);
+                    self.shutdown();
+                    event_loop.exit();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+        if let Some(gpu) = &self.gpu {
+            gpu.window.request_redraw();
+        }
+    }
+
+    fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
+        self.shutdown();
+    }
+}
+
+/// Run `app` in a window until it is closed.
+pub fn run(mut app: App, config: EngineConfig) -> Result<()> {
+    // Make sure transforms are current before the first frame.
+    app.add_system(Stage::Startup, "initial_transforms", kit_scene::propagate_transforms);
+    if !app.world.has_resource::<Resources>() {
+        app.world.insert_resource(Resources::new(std::env::current_dir()?));
+    }
+    let event_loop = EventLoop::new().context("creating event loop")?;
+    event_loop.set_control_flow(ControlFlow::Poll);
+    let mut runner = Runner { app, config, gpu: None, last: Instant::now(), error: None };
+    event_loop.run_app(&mut runner)?;
+    match runner.error {
+        Some(e) => Err(e),
+        None => Ok(()),
+    }
+}

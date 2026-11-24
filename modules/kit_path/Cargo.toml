@@ -1,0 +1,17 @@
+[package]
+name = "kit_path"
+description = "Kit module: follows paths sketched in the editor's Canvas mode, respecting colliders and physics."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+kit_ecs.workspace = true
+kit_core.workspace = true
+kit_scene.workspace = true
+kit_gamesys.workspace = true
+glam.workspace = true
+
+[dev-dependencies]
+kit_collider.workspace = true
+kit_physics.workspace = true

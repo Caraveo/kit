@@ -1,0 +1,20 @@
+# Kit export hook: PlayStation 4. See hooks/README.md.
+id = "ps4"
+name = "PlayStation 4"
+icon = "🎮"
+group = "console"  # desktop | web | mobile | console
+access = "request"  # open (Kit exports it) | request (needs the platform holder's approval) | planned
+summary = "PlayStation builds need Sony's licensed SDK and an approved PlayStation Partners account."
+request_url = "https://partners.playstation.net/"
+request_label = "Apply to PlayStation Partners"
+requirements = [
+  "Approval from Sony Interactive Entertainment",
+  "The PS4 SDK and development kit",
+  "The Kit PS4 hook, installed into hooks/ps4",
+]
+
+# A licensed hook adds its exporter here (installed next to the editor in
+# hooks/ps4/, not in this repository):
+# [export]
+# command = "export"   # program in this folder
+# args = ["--project", "{project}", "--out", "{out}", "--title", "{title}", "--build-id", "{build_id}"]

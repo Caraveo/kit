@@ -1,0 +1,12 @@
+[package]
+name = "kit_scene"
+description = "Kit module: scene graph (names, transforms, parent/child hierarchy)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+kit_ecs.workspace = true
+kit_core.workspace = true
+glam.workspace = true
+serde.workspace = true

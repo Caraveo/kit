@@ -1,0 +1,8 @@
+[package]
+name = "kit_x"
+description = "Kit module: the x (X++) scripting language — lexer, parser and interpreter."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]

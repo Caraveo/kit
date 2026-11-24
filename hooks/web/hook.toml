@@ -1,0 +1,7 @@
+# Kit export hook: Web. See hooks/README.md.
+id = "web"
+name = "Web"
+icon = "🌐"
+group = "web"  # desktop | web | mobile | console
+access = "open"  # open (Kit exports it) | request (needs the platform holder's approval) | planned
+summary = "A web page (WebGPU) for any web host or itch.io."

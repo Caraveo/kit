@@ -1,0 +1,14 @@
+# Kit export hook: iOS. See hooks/README.md.
+id = "ios"
+name = "iOS"
+icon = "📱"
+group = "mobile"  # desktop | web | mobile | console
+access = "planned"  # open (Kit exports it) | request (needs the platform holder's approval) | planned
+summary = "Coming later: needs touch input and an Xcode app package step."
+request_url = "https://developer.apple.com/programs/"
+request_label = "Apple Developer Program"
+requirements = [
+  "Touch input in Kit (planned)",
+  "A Mac with Xcode to sign and package the app",
+  "Apple Developer Program membership to publish",
+]

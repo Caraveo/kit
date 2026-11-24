@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kit game</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #101017;
+        --text: #eeebfb;
+        --muted: #a19ab2;
+        --accent: #c1a9ff;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+        overflow: hidden;
+      }
+      #kit-canvas {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+        outline: none;
+        touch-action: none;
+      }
+      .kit-overlay {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background: var(--bg);
+        padding: 16px;
+        text-align: center;
+      }
+      .kit-overlay[hidden] {
+        display: none;
+      }
+      .kit-card {
+        max-width: 420px;
+      }
+      .kit-logo {
+        width: 56px;
+        height: 56px;
+        margin: 0 auto 18px;
+        color: var(--accent);
+      }
+      .kit-track {
+        width: 240px;
+        height: 4px;
+        margin: 16px auto 8px;
+        border-radius: 2px;
+        background: #2a2538;
+        overflow: hidden;
+      }
+      #kit-bar {
+        width: 0;
+        height: 100%;
+        background: var(--accent);
+        transition: width 0.15s;
+      }
+      #kit-status,
+      #kit-error p {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      #kit-error .kit-card {
+        max-width: 520px;
+        text-align: left;
+      }
+      #kit-help ol {
+        margin: 14px 0;
+        padding-left: 22px;
+      }
+      #kit-help li {
+        margin: 8px 0;
+      }
+      #kit-help code {
+        background: #1c1828;
+        border: 1px solid #3a3150;
+        border-radius: 6px;
+        padding: 1px 6px;
+        font-size: 13px;
+        user-select: all;
+      }
+      .kit-button {
+        margin: 2px 0 2px 6px;
+        padding: 3px 10px;
+        border-radius: 8px;
+        border: 1px solid #4d435f;
+        background: #26213a;
+        color: var(--text);
+        font: inherit;
+        font-size: 12px;
+        cursor: pointer;
+      }
+      .kit-button.primary {
+        margin: 10px 0 0;
+        padding: 8px 18px;
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #201632;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      #kit-help .kit-other {
+        color: var(--muted);
+        font-size: 12px;
+        margin-top: 14px;
+      }
+      #kit-error h1 {
+        font-size: 20px;
+        font-weight: 600;
+        margin: 0 0 8px;
+      }
+      #kit-fullscreen {
+        position: fixed;
+        right: 12px;
+        bottom: 12px;
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        border: 1px solid #4d435f;
+        background: #16132099;
+        color: var(--text);
+        font-size: 16px;
+        cursor: pointer;
+        opacity: 0.55;
+      }
+      #kit-fullscreen:hover {
+        opacity: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="kit-canvas" tabindex="0"></canvas>
+    <button id="kit-fullscreen" title="Fullscreen" onclick="document.documentElement.requestFullscreen?.()">⛶</button>
+    <div id="kit-loading" class="kit-overlay">
+      <div class="kit-card">
+        <svg class="kit-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+          <path d="M12 2.5 20.5 7v10L12 21.5 3.5 17V7z" />
+          <path d="M3.5 7 12 11.5 20.5 7M12 11.5v10" />
+        </svg>
+        <div class="kit-track"><div id="kit-bar"></div></div>
+        <div id="kit-status">Loading…</div>
+      </div>
+    </div>
+    <div id="kit-error" class="kit-overlay" hidden>
+      <div class="kit-card">
+        <h1></h1>
+        <p></p>
+        <div id="kit-help"></div>
+      </div>
+    </div>
+    <script type="module" src="kit.js"></script>
+  </body>
+</html>

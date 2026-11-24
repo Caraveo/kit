@@ -1,0 +1,43 @@
+/* Kit palette: the editor's Dimension look (#101017 background, #c1a9ff lavender accent). */
+:root {
+	--sl-color-accent-low: #2a2140;
+	--sl-color-accent: #a98bff;
+	--sl-color-accent-high: #e2d3ff;
+	--sl-color-white: #eeebfb;
+	--sl-color-gray-1: #e8e2f6;
+	--sl-color-gray-2: #c7bbdd;
+	--sl-color-gray-3: #a19ab2;
+	--sl-color-gray-4: #6e6682;
+	--sl-color-gray-5: #363147;
+	--sl-color-gray-6: #1c1828;
+	--sl-color-black: #101017;
+}
+
+:root[data-theme='light'] {
+	--sl-color-accent-low: #ece4ff;
+	--sl-color-accent: #6a48d7;
+	--sl-color-accent-high: #2e1a6b;
+	--sl-color-white: #17131f;
+	--sl-color-gray-1: #241f33;
+	--sl-color-gray-2: #3b3450;
+	--sl-color-gray-3: #5f5878;
+	--sl-color-gray-4: #8c86a3;
+	--sl-color-gray-5: #c9c4d9;
+	--sl-color-gray-6: #ede9f7;
+	--sl-color-gray-7: #f6f4fb;
+	--sl-color-black: #ffffff;
+}
+
+/* Rounded screenshots, like the editor's panels. */
+.sl-markdown-content img {
+	border-radius: 14px;
+	border: 1px solid var(--sl-color-gray-5);
+}
+
+kbd {
+	padding: 0.1em 0.4em;
+	border-radius: 4px;
+	border: 1px solid var(--sl-color-gray-5);
+	background: var(--sl-color-gray-6);
+	font-size: 0.85em;
+}

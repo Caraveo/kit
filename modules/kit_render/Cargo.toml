@@ -1,0 +1,29 @@
+[package]
+name = "kit_render"
+description = "Kit module: renders scenes (3D models, 2D sprites, grid, backdrop) with kit_graphics."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[features]
+default = ["vulkan"]
+# The desktop Vulkan renderer. The web player builds without it.
+vulkan = ["dep:kit_graphics"]
+
+[dependencies]
+kit_ecs.workspace = true
+kit_core.workspace = true
+kit_scene.workspace = true
+kit_gamesys.workspace = true
+kit_resource.workspace = true
+kit_graphics = { workspace = true, optional = true }
+glam.workspace = true
+bytemuck.workspace = true
+anyhow.workspace = true
+log.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+image.workspace = true
+env_logger.workspace = true

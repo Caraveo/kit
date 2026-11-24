@@ -1,0 +1,290 @@
+//! # kit_script
+//!
+//! Runs x scripts attached to entities (Defold's script components).
+//!
+//! A script file declares a class; Kit creates one instance per entity and calls
+//! its lifecycle methods while the game is playing:
+//!
+//! * `Init()` — once, before the first update.
+//! * `Update(FLOAT dt)` — every frame.
+//! * `Final()` — when the entity or script goes away, or play stops.
+//! * `OnCollision(other)` / `OnCollisionEnd(other)` — touching another collider
+//!   (`other` is an entity id usable with the `Scene` module).
+//! * `OnTrigger(other)` / `OnTriggerEnd(other)` — overlapping a trigger.
+//!
+//! The class whose name matches the file name is used (`player.x` → `Player`),
+//! otherwise the first class. Files without a class may define top-level
+//! `Init`/`Update` functions instead.
+//!
+//! Engine modules available to `TAKE`: [`MODULES`].
+
+mod host;
+
+pub use host::MODULES;
+
+use host::{Command, EntityHost};
+use kit_core::{App, Console, Module, Stage, Time};
+use kit_ecs::{Entity, World};
+use kit_gamesys::Script;
+use kit_resource::Resources;
+use kit_x::{Interpreter, Value, XError};
+use std::collections::HashMap;
+use std::time::SystemTime;
+
+struct ScriptState {
+    path: String,
+    interp: Interpreter,
+    /// The class instance, or `None` for function-style scripts.
+    object: Option<Value>,
+    initialized: bool,
+    failed: bool,
+    modified: Option<SystemTime>,
+}
+
+/// Script instances per entity. Lives as a world resource.
+#[derive(Default)]
+pub struct ScriptRuntime {
+    states: HashMap<Entity, ScriptState>,
+    last_reload_check: f64,
+}
+
+impl ScriptRuntime {
+    /// Current field values of an entity's script instance (for the inspector).
+    pub fn fields(&self, e: Entity) -> Vec<(String, String, String)> {
+        match self.states.get(&e).and_then(|s| s.object.as_ref()) {
+            Some(Value::Instance(i)) => i.snapshot().into_iter().map(|(n, t, v)| (n, t, v.to_string())).collect(),
+            _ => Vec::new(),
+        }
+    }
+
+    pub fn has_error(&self, e: Entity) -> bool {
+        self.states.get(&e).is_some_and(|s| s.failed)
+    }
+
+    pub fn len(&self) -> usize {
+        self.states.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.states.is_empty()
+    }
+}
+
+fn report(world: &World, path: &str, err: &XError) {
+    let text = if err.path.is_empty() { format!("{path}: {err}") } else { err.to_string() };
+    world.resource_mut::<Console>().error("x", text);
+}
+
+fn load_state(world: &mut World, e: Entity, path: &str, res: &Option<Resources>) -> ScriptState {
+    let mut state = ScriptState {
+        path: path.to_string(),
+        interp: Interpreter::new(path),
+        object: None,
+        initialized: false,
+        failed: true,
+        modified: res.as_ref().and_then(|r| r.modified(path)),
+    };
+    let Some(res) = res else {
+        world.resource_mut::<Console>().error("x", format!("{path}: no project resources available"));
+        return state;
+    };
+    let src = match res.read_text(path) {
+        Ok(s) => s,
+        Err(err) => {
+            world.resource_mut::<Console>().error("x", format!("{path}: {err:#}"));
+            return state;
+        }
+    };
+    let program = match kit_x::parse(&src) {
+        Ok(p) => p,
+        Err(err) => {
+            report(world, path, &XError { path: path.to_string(), ..err });
+            return state;
+        }
+    };
+    let mut commands = Vec::new();
+    let result = {
+        let mut host = EntityHost::new(world, e, Some(res.clone()), &mut commands);
+        state.interp.load(&program, &mut host).and_then(|_| {
+            let stem =
+                std::path::Path::new(path).file_stem().map(|s| s.to_string_lossy().to_lowercase()).unwrap_or_default();
+            let classes = state.interp.class_names();
+            let class = classes.iter().find(|c| c.to_lowercase() == stem).or_else(|| classes.first()).cloned();
+            match class {
+                Some(c) => state.interp.instantiate(&c, Vec::new(), &mut host).map(Some),
+                None => Ok(None),
+            }
+        })
+    };
+    apply_commands(world, commands);
+    match result {
+        Ok(obj) => {
+            state.object = obj;
+            state.failed = false;
+        }
+        Err(err) => report(world, path, &err),
+    }
+    state
+}
+
+/// Call a lifecycle hook if the script defines it.
+fn call_hook(
+    world: &mut World,
+    e: Entity,
+    state: &mut ScriptState,
+    name: &str,
+    args: Vec<Value>,
+    res: &Option<Resources>,
+) {
+    if state.failed {
+        return;
+    }
+    let mut commands = Vec::new();
+    let result = {
+        let mut host = EntityHost::new(world, e, res.clone(), &mut commands);
+        match &state.object {
+            Some(obj) if state.interp.has_method(obj, name) => {
+                state.interp.call_method(obj, name, args, &mut host).map(|_| ())
+            }
+            Some(_) => Ok(()),
+            None if state.interp.has_function(name) => state.interp.call_function(name, args, &mut host).map(|_| ()),
+            None => Ok(()),
+        }
+    };
+    apply_commands(world, commands);
+    if let Err(err) = result {
+        state.failed = true;
+        report(world, &state.path, &err);
+    }
+}
+
+fn apply_commands(world: &mut World, commands: Vec<Command>) {
+    for c in commands {
+        match c {
+            Command::Despawn(e) => kit_scene::despawn_recursive(world, e),
+        }
+    }
+}
+
+/// The per-frame script system.
+pub fn run_scripts(world: &mut World) {
+    let Some(mut rt) = world.remove_resource::<ScriptRuntime>() else { return };
+    let res = world.try_resource::<Resources>().map(|r| r.clone());
+    let (dt, elapsed) = {
+        let t = world.resource::<Time>();
+        (t.delta, t.elapsed)
+    };
+
+    // Hot reload: check script files for changes a few times per second.
+    let check_reload = elapsed - rt.last_reload_check > 0.5 || elapsed < rt.last_reload_check;
+    if check_reload {
+        rt.last_reload_check = elapsed;
+    }
+
+    // Collision hooks for last frame's physics events:
+    // OnCollision(other) / OnCollisionEnd(other) / OnTrigger(other) / OnTriggerEnd(other)
+    let events: Vec<kit_gamesys::CollisionEvent> =
+        world.try_resource::<kit_gamesys::CollisionEvents>().map(|ev| ev.events.clone()).unwrap_or_default();
+    for ev in events {
+        let hook = match (ev.trigger, ev.started) {
+            (false, true) => "OnCollision",
+            (false, false) => "OnCollisionEnd",
+            (true, true) => "OnTrigger",
+            (true, false) => "OnTriggerEnd",
+        };
+        for (me, other) in [(ev.a, ev.b), (ev.b, ev.a)] {
+            if let Some(mut st) = rt.states.remove(&me) {
+                if st.initialized && world.is_alive(me) {
+                    call_hook(world, me, &mut st, hook, vec![Value::Int(other.to_bits() as i64)], &res);
+                }
+                if world.is_alive(me) {
+                    rt.states.insert(me, st);
+                }
+            }
+        }
+    }
+
+    let entities = world.query::<(Script,)>();
+    // Drop states for entities that lost their script.
+    let gone: Vec<Entity> = rt.states.keys().filter(|e| !entities.contains(e)).copied().collect();
+    for e in gone {
+        let mut st = rt.states.remove(&e).unwrap();
+        if world.is_alive(e) {
+            call_hook(world, e, &mut st, "Final", Vec::new(), &res);
+        }
+    }
+
+    for e in entities {
+        if !world.is_alive(e) {
+            rt.states.remove(&e);
+            continue;
+        }
+        let Some(path) = world.get::<Script>(e).map(|s| s.path.clone()) else { continue };
+        if path.trim().is_empty() {
+            rt.states.remove(&e);
+            continue;
+        }
+        let stale = match rt.states.get(&e) {
+            None => true,
+            Some(s) if s.path != path => true,
+            Some(s) => check_reload && res.as_ref().and_then(|r| r.modified(&path)) != s.modified,
+        };
+        if stale {
+            if let Some(mut old) = rt.states.remove(&e) {
+                call_hook(world, e, &mut old, "Final", Vec::new(), &res);
+                if old.path == path {
+                    world.resource_mut::<Console>().info("x", format!("reloaded {path}"));
+                }
+            }
+            let st = load_state(world, e, &path, &res);
+            rt.states.insert(e, st);
+        }
+        let mut st = rt.states.remove(&e).unwrap();
+        if !st.initialized {
+            st.initialized = true;
+            call_hook(world, e, &mut st, "Init", Vec::new(), &res);
+        }
+        if world.is_alive(e) {
+            call_hook(world, e, &mut st, "Update", vec![Value::Float(dt as f64)], &res);
+        }
+        if world.is_alive(e) {
+            rt.states.insert(e, st);
+        }
+    }
+    world.insert_resource(rt);
+}
+
+/// Call `Final` on every script and drop all instances (play stopped).
+pub fn stop_scripts(world: &mut World) {
+    let Some(mut rt) = world.remove_resource::<ScriptRuntime>() else { return };
+    let res = world.try_resource::<Resources>().map(|r| r.clone());
+    for (e, mut st) in rt.states.drain() {
+        if world.is_alive(e) {
+            call_hook(world, e, &mut st, "Final", Vec::new(), &res);
+        }
+    }
+    world.insert_resource(ScriptRuntime::default());
+}
+
+/// Check a script for syntax errors without running it.
+pub fn check_source(path: &str, src: &str) -> Result<(), XError> {
+    kit_x::parse(src).map(|_| ()).map_err(|e| XError { path: path.to_string(), ..e })
+}
+
+pub struct ScriptModule;
+
+impl Module for ScriptModule {
+    fn name(&self) -> &'static str {
+        "script"
+    }
+    fn dependencies(&self) -> &'static [&'static str] {
+        &["scene", "input", "gamesys"]
+    }
+    fn build(&self, app: &mut App) {
+        app.world.insert_resource(ScriptRuntime::default());
+        app.add_play_system(Stage::Update, "x_scripts", run_scripts);
+    }
+}
+
+#[cfg(test)]
+mod tests;

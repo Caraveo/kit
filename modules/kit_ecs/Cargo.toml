@@ -1,0 +1,8 @@
+[package]
+name = "kit_ecs"
+description = "Kit module: entity-component-system world, sparse-set storage, resources."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
