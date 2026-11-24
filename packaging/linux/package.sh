@@ -27,7 +27,7 @@ cp -r examples/hello "$STAGE/examples/"
 rm -rf "$STAGE"/examples/*/export   # games exported from the example
 install -m644 packaging/icons/kit-256.png "$STAGE/kit.png"
 install -m644 packaging/linux/io.github.caraveo.Kit.desktop README.md "$STAGE/"
-[ -f LICENSE ] && install -m644 LICENSE "$STAGE/"
+install -m644 LICENSE BRANDING.md "$STAGE/"
 tar -C "$DIST" -czf "$DIST/$NAME.tar.gz" "$NAME"
 rm -rf "$STAGE"
 echo "wrote $DIST/$NAME.tar.gz"
@@ -47,7 +47,8 @@ for n in 16 32 48 64 128 256 512; do
   mkdir -p "$d"
   install -m644 "packaging/icons/kit-$n.png" "$d/io.github.caraveo.Kit.png"
 done
-install -m644 README.md "$PKG/usr/share/doc/kit/"
+install -m644 README.md BRANDING.md "$PKG/usr/share/doc/kit/"
+install -m644 LICENSE "$PKG/usr/share/doc/kit/copyright"
 SIZE_KB="$(du -sk "$PKG/usr" | cut -f1)"
 cat > "$PKG/DEBIAN/control" <<CONTROL
 Package: kit

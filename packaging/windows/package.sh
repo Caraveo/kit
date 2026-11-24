@@ -19,7 +19,7 @@ cp target/wasm32-unknown-unknown/release/kit_web.wasm "$STAGE/players/web/"
 cp -r examples/hello "$STAGE/examples/"
 rm -rf "$STAGE"/examples/*/export   # games exported from the example
 cp README.md "$STAGE/"
-[ -f LICENSE ] && cp LICENSE "$STAGE/"
+cp LICENSE BRANDING.md "$STAGE/"
 (cd "$DIST" && zip -qr "$NAME.zip" "$NAME")
 rm -rf "$STAGE"
 echo "wrote $DIST/$NAME.zip"

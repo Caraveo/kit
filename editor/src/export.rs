@@ -328,6 +328,7 @@ impl ExportJob {
         std::fs::create_dir_all(&out)?;
         let html = WEB_INDEX.replace("<title>Kit game</title>", &format!("<title>{}</title>", xml_escape(&self.title)));
         std::fs::write(out.join("index.html"), html)?;
+        std::fs::write(out.join("KIT-LICENSE.txt"), KIT_LICENSE)?;
         std::fs::write(out.join("kit.js"), WEB_SCRIPT)?;
         std::fs::copy(wasm, out.join("kit_web.wasm")).with_context(|| format!("copying {}", wasm.display()))?;
         std::fs::write(out.join("game.pack"), kit_web::pack::write_dir_skipping(&self.root, &[out.clone()])?)?;
@@ -367,6 +368,7 @@ impl ExportJob {
         let name = self.safe_name();
         let out = self.dest.join(&name);
         std::fs::create_dir_all(&out)?;
+        std::fs::write(out.join("KIT-LICENSE.txt"), KIT_LICENSE)?;
         let exe = out.join(exe_name(self.platform.id, &name));
         std::fs::copy(player, &exe).with_context(|| format!("writing {}", exe.display()))?;
         for lib in self.libraries(player) {
@@ -384,6 +386,7 @@ impl ExportJob {
         for d in ["MacOS", "Resources", "Frameworks"] {
             std::fs::create_dir_all(contents.join(d))?;
         }
+        std::fs::write(contents.join("Resources/KIT-LICENSE.txt"), KIT_LICENSE)?;
         let exe = contents.join("MacOS").join(&name);
         std::fs::copy(player, &exe)?;
         for lib in self.libraries(player) {
@@ -450,6 +453,7 @@ fn copy_dir(from: &Path, to: &Path, skip: &Path) -> Result<()> {
 
 /// The web player's page and renderer, built into the editor so they always
 /// match it.
+const KIT_LICENSE: &str = include_str!("../../LICENSE");
 const WEB_INDEX: &str = include_str!("../../web/template/index.html");
 const WEB_SCRIPT: &str = include_str!("../../web/template/kit.js");
 
@@ -617,7 +621,9 @@ mod tests {
             };
             let out = job.run().unwrap();
             assert!(dest.join(check).is_file(), "{id}: {check}");
-            let game = if id == "mac" { out.join("Contents/Resources/game") } else { out.join("game") };
+            let resources = if id == "mac" { out.join("Contents/Resources") } else { out };
+            assert_eq!(std::fs::read_to_string(resources.join("KIT-LICENSE.txt")).unwrap(), KIT_LICENSE);
+            let game = resources.join("game");
             assert!(game.join("models/thing/a.mesh").is_file());
             assert!(!game.join(".hidden").exists());
             // The export folder sits inside the project but isn't copied into itself.
@@ -647,6 +653,7 @@ mod tests {
         for f in ["index.html", "kit.js", "kit_web.wasm", "game.pack", "README.txt"] {
             assert!(out.join(f).is_file(), "{f}");
         }
+        assert_eq!(std::fs::read_to_string(out.join("KIT-LICENSE.txt")).unwrap(), KIT_LICENSE);
         let html = std::fs::read_to_string(out.join("index.html")).unwrap();
         assert!(html.contains("<title>My &lt;Game&gt;</title>"));
         let files = kit_web::pack::read(&std::fs::read(out.join("game.pack")).unwrap()).unwrap();

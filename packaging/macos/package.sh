@@ -26,7 +26,7 @@ mkdir -p "$APP/Contents/Resources/players/web"
 cp target/wasm32-unknown-unknown/release/kit_web.wasm "$APP/Contents/Resources/players/web/"
 # Players for other systems built alongside (dist/players/<os>/).
 [ -d "$DIST/players" ] && cp -R "$DIST/players/." "$APP/Contents/Resources/players/"
-cp packaging/icons/kit.icns "$APP/Contents/Resources/"
+cp packaging/icons/kit.icns LICENSE BRANDING.md "$APP/Contents/Resources/"
 sed "s/__VERSION__/$VERSION/g" packaging/macos/Info.plist > "$APP/Contents/Info.plist"
 # Ad-hoc signature so the bundle runs on Apple Silicon (not notarized).
 codesign --force --deep --sign - "$APP"

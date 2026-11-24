@@ -68,3 +68,12 @@ cargo test --workspace --locked
 [Architecture](documentation/src/content/docs/engine/architecture.md) · [Build and packaging guide](documentation/src/content/docs/engine/build-from-source.md) · [Changelog](CHANGELOG.md)
 
 Building something with Kit? [Open an issue](https://github.com/caraveo/kit/issues) to share what you're making, report a rough edge, or tell us what would help you finish it.
+
+## License
+
+Kit’s engine, editor, and runtime are free under the [MIT License](LICENSE).
+You can use Kit to make and sell games without engine royalties. When you
+distribute a game with the Kit runtime, include the Kit license notice.
+
+The [Kit brand assets](BRANDING.md) are reserved. Separately sold educational
+products come with their own terms.

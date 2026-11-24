@@ -18,7 +18,7 @@ if (Test-Path dist/players) { Copy-Item -Recurse -Force dist/players/* "$stage/p
 Copy-Item -Recurse examples/hello "$stage/examples/"
 Remove-Item -Recurse -Force "$stage/examples/hello/export" -ErrorAction SilentlyContinue
 Copy-Item README.md $stage
-if (Test-Path LICENSE) { Copy-Item LICENSE $stage }
+Copy-Item LICENSE, BRANDING.md $stage
 Compress-Archive -Path $stage -DestinationPath "dist/$name.zip" -Force
 Remove-Item -Recurse -Force $stage
 Write-Host "wrote dist/$name.zip"
