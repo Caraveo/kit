@@ -1,99 +1,240 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#161220">
-  <meta name="description" content="Sketch motion, build 2D and 3D scenes, and share playable games with Kit.">
-  <meta property="og:title" content="Kit — Draw a path. Press play.">
-  <meta property="og:description" content="A native 2D and 3D game engine for ideas you can play.">
-  <link rel="icon" href="assets/icon.png">
-  <link rel="preload" href="assets/hero.webp" as="image">
-  <link rel="stylesheet" href="style.css">
-  <script src="kit.js" defer></script>
-  <title>Kit — Draw a path. Press play.</title>
-</head>
-<body>
-  <a class="skip" href="#main">Skip to content</a>
-  <header class="top">
-    <div class="wrap nav">
-      <a class="brand" href="./"><img src="assets/icon.png" width="34" height="34" alt="">Kit</a>
-      <nav aria-label="Main navigation">
-        <a href="#editor">Editor</a><a href="#playground">Playground</a><a href="#assets">Assets</a>
-      </nav>
-      <a class="outline" href="https://github.com/caraveo/kit">GitHub <span aria-hidden="true">↗</span></a>
-    </div>
-  </header>
-  <main id="main">
-    <section class="hero wrap">
-      <div class="hero-copy">
-        <p class="kicker"><span></span> A 2D &amp; 3D GAME ENGINE</p>
-        <h1>Draw a path.<br><em>Press play.</em></h1>
-        <p class="intro">Sketch motion in the viewport, build worlds with your own art, and share a game someone else can play.</p>
-        <div class="actions">
-          <a class="button primary" href="https://github.com/caraveo/kit/releases">Download Kit <span aria-hidden="true">↓</span></a>
-          <a class="button quiet" href="#playground">Try the playground <span aria-hidden="true">↘</span></a>
-        </div>
-        <p class="platforms">Linux <b>·</b> macOS <b>·</b> Windows</p>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#161220" />
+    <meta
+      name="description"
+      content="Sketch motion, build 2D and 3D scenes, and share playable games with Kit."
+    />
+    <meta property="og:title" content="Kit — Draw a path. Press play." />
+    <meta
+      property="og:description"
+      content="A native 2D and 3D game engine for ideas you can play."
+    />
+    <link rel="icon" href="assets/icon.png" />
+    <link rel="preload" href="assets/hero.webp" as="image" />
+    <link rel="stylesheet" href="style.css" />
+    <script src="kit.js" defer></script>
+    <title>Kit — Draw a path. Press play.</title>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="top">
+      <div class="wrap nav">
+        <a class="brand" href="./"
+          ><img src="assets/icon.png" width="34" height="34" alt="" />Kit</a
+        >
+        <nav aria-label="Main navigation">
+          <a href="#editor">Editor</a><a href="#playground">Playground</a
+          ><a href="#assets">Assets</a>
+        </nav>
+        <a class="outline" href="https://github.com/caraveo/kit"
+          >GitHub <span aria-hidden="true">↗</span></a
+        >
       </div>
-      <figure class="hero-art">
-        <img src="assets/hero.webp" alt="Illustration of a violet motion path through a floating game level">
-        <figcaption><span></span> CANVAS MODE / CONCEPT ART</figcaption>
-      </figure>
-    </section>
-    <section class="editor section wrap" id="editor">
-      <div class="section-head">
-        <div><p class="kicker"><span></span> THE EDITOR</p><h2>See the work take shape.</h2></div>
-        <p>Arrange your scene, sculpt terrain, or wire up a script. Press F5 to run the game in the same window.</p>
-      </div>
-      <div class="viewer">
-        <div class="view-bar">
-          <div class="lights" aria-hidden="true"><i></i><i></i><i></i></div>
-          <div class="shots" aria-label="Choose an editor screenshot">
-            <button type="button" data-shot="editor" aria-pressed="true">Scene</button>
-            <button type="button" data-shot="canvas" aria-pressed="false">Canvas</button>
-            <button type="button" data-shot="terrain" aria-pressed="false">Terrain</button>
-            <button type="button" data-shot="script-editor" aria-pressed="false">Script</button>
-            <button type="button" data-shot="turtle-editor" aria-pressed="false">GLB import</button>
+    </header>
+    <main id="main">
+      <section class="hero wrap">
+        <div class="hero-copy">
+          <p class="kicker"><span></span> A 2D &amp; 3D GAME ENGINE</p>
+          <h1>Draw a path.<br /><em>Press play.</em></h1>
+          <p class="intro">
+            Sketch motion in the viewport, build worlds with your own art, and
+            share a game someone else can play.
+          </p>
+          <div class="actions">
+            <a
+              class="button primary"
+              href="https://github.com/caraveo/kit/releases"
+              >Download Kit <span aria-hidden="true">↓</span></a
+            >
+            <a class="button quiet" href="#playground"
+              >Try the playground <span aria-hidden="true">↘</span></a
+            >
           </div>
-          <button class="expand" type="button" aria-label="Enlarge screenshot">↗</button>
+          <p class="platforms">Linux <b>·</b> macOS <b>·</b> Windows</p>
         </div>
-        <img id="editor-shot" src="assets/editor.webp" alt="Kit editor with its scene hierarchy, 3D viewport, and inspector" width="1600" height="900" loading="lazy">
-      </div>
-      <p class="caption" id="shot-caption" aria-live="polite">Scene editing in Kit’s native editor.</p>
-      <dialog id="shot-dialog"><button type="button" class="close" aria-label="Close screenshot">×</button><img alt=""></dialog>
-    </section>
-    <section class="play section" id="playground">
-      <div class="wrap play-grid">
+        <figure class="hero-art">
+          <img
+            src="assets/hero.webp"
+            alt="Illustration of a violet motion path through a floating game level"
+          />
+          <figcaption><span></span> CANVAS MODE / CONCEPT ART</figcaption>
+        </figure>
+      </section>
+      <section class="editor section wrap" id="editor">
+        <div class="section-head">
+          <div>
+            <p class="kicker"><span></span> THE EDITOR</p>
+            <h2>See the work take shape.</h2>
+          </div>
+          <p>
+            Arrange your scene, sculpt terrain, or wire up a script. Press F5 to
+            run the game in the same window.
+          </p>
+        </div>
+        <div class="viewer">
+          <div class="view-bar">
+            <div class="lights" aria-hidden="true"><i></i><i></i><i></i></div>
+            <div class="shots" aria-label="Choose an editor screenshot">
+              <button type="button" data-shot="editor" aria-pressed="true">
+                Scene
+              </button>
+              <button type="button" data-shot="canvas" aria-pressed="false">
+                Canvas
+              </button>
+              <button type="button" data-shot="terrain" aria-pressed="false">
+                Terrain
+              </button>
+              <button
+                type="button"
+                data-shot="script-editor"
+                aria-pressed="false"
+              >
+                Script
+              </button>
+              <button
+                type="button"
+                data-shot="turtle-editor"
+                aria-pressed="false"
+              >
+                GLB import
+              </button>
+            </div>
+            <button
+              class="expand"
+              type="button"
+              aria-label="Enlarge screenshot"
+            >
+              ↗
+            </button>
+          </div>
+          <img
+            id="editor-shot"
+            src="assets/editor.webp"
+            alt="Kit editor with its scene hierarchy, 3D viewport, and inspector"
+            width="1600"
+            height="900"
+            loading="lazy"
+          />
+        </div>
+        <p class="caption" id="shot-caption" aria-live="polite">
+          Scene editing in Kit’s native editor.
+        </p>
+        <dialog id="shot-dialog">
+          <button type="button" class="close" aria-label="Close screenshot">
+            ×</button
+          ><img alt="" />
+        </dialog>
+      </section>
+      <section class="play section" id="playground">
+        <div class="wrap play-grid">
+          <div>
+            <p class="kicker"><span></span> CANVAS PLAYGROUND</p>
+            <h2>Draw the motion.</h2>
+            <p>
+              Draw a route across the grid, then play it. This browser preview
+              shows the idea behind Kit’s Canvas mode.
+            </p>
+            <div class="actions">
+              <button class="button primary" id="play-path" type="button">
+                Play path <span aria-hidden="true">▶</span></button
+              ><button class="button outline" id="reset-path" type="button">
+                Reset
+              </button>
+            </div>
+            <p class="play-status" id="path-status" aria-live="polite">
+              Try the example route or drag to draw your own.
+            </p>
+          </div>
+          <div class="board">
+            <canvas
+              id="path-board"
+              width="700"
+              height="410"
+              aria-label="Draw a route by dragging on the grid. Play path follows the current route."
+            ></canvas>
+            <noscript
+              ><p>Enable JavaScript to use the Canvas playground.</p></noscript
+            >
+          </div>
+        </div>
+      </section>
+      <section class="section wrap" id="assets">
+        <div class="section-head">
+          <div>
+            <p class="kicker"><span></span> FORGE ASSETS</p>
+            <h2>Bring your own world.</h2>
+          </div>
+          <p>
+            Import GLB, glTF, FBX, OBJ, USDZ, or STL. Kit can bring in
+            base-color textures and baked animation clips with supported source
+            files.
+          </p>
+        </div>
+        <div class="gallery">
+          <figure>
+            <div class="art purple">
+              <img
+                src="assets/plasma.webp"
+                loading="lazy"
+                alt="A stone portal with a luminous opening"
+              />
+            </div>
+            <figcaption>Plasma Entrance <span>Environment</span></figcaption>
+          </figure>
+          <figure>
+            <div class="art green">
+              <img
+                src="assets/turtle.webp"
+                loading="lazy"
+                alt="A stylized orange turtle with a patterned shell"
+              />
+            </div>
+            <figcaption>Turtle <span>Character</span></figcaption>
+          </figure>
+          <figure>
+            <div class="art peach">
+              <img
+                src="assets/house.webp"
+                loading="lazy"
+                alt="A miniature stylized house from the FORGE collection"
+              />
+            </div>
+            <figcaption>Poly House <span>Prop</span></figcaption>
+          </figure>
+        </div>
+      </section>
+      <section class="wrap finish">
         <div>
-          <p class="kicker"><span></span> CANVAS PLAYGROUND</p>
-          <h2>Draw the motion.</h2>
-          <p>Draw a route across the grid, then play it. This browser preview shows the idea behind Kit’s Canvas mode.</p>
-          <div class="actions"><button class="button primary" id="play-path" type="button">Play path <span aria-hidden="true">▶</span></button><button class="button outline" id="reset-path" type="button">Reset</button></div>
-          <p class="play-status" id="path-status" aria-live="polite">Try the example route or drag to draw your own.</p>
+          <p class="kicker"><span></span> START WITH THE EXAMPLE</p>
+          <h2>Make it playable.</h2>
+          <p>
+            Build in Rust-powered Kit, script gameplay in x, then export to
+            desktop or the browser.
+          </p>
         </div>
-        <div class="board">
-          <canvas id="path-board" width="700" height="410" aria-label="Draw a route by dragging on the grid. Play path follows the current route."></canvas>
-          <noscript><p>Enable JavaScript to use the Canvas playground.</p></noscript>
+        <div class="actions">
+          <a
+            class="button primary"
+            href="https://github.com/caraveo/kit/releases"
+            >Download Kit <span aria-hidden="true">↓</span></a
+          ><a
+            class="button outline"
+            href="https://github.com/caraveo/kit/blob/main/documentation/src/content/docs/getting-started/first-game.mdx"
+            >First game guide <span aria-hidden="true">↗</span></a
+          >
         </div>
-      </div>
-    </section>
-    <section class="section wrap" id="assets">
-      <div class="section-head">
-        <div><p class="kicker"><span></span> FORGE ASSETS</p><h2>Bring your own world.</h2></div>
-        <p>Import GLB, glTF, FBX, OBJ, USDZ, or STL. Kit can bring in base-color textures and baked animation clips with supported source files.</p>
-      </div>
-      <div class="gallery">
-        <figure><div class="art purple"><img src="assets/plasma.webp" loading="lazy" alt="A stone portal with a luminous opening"></div><figcaption>Plasma Entrance <span>Environment</span></figcaption></figure>
-        <figure><div class="art green"><img src="assets/turtle.webp" loading="lazy" alt="A stylized orange turtle with a patterned shell"></div><figcaption>Turtle <span>Character</span></figcaption></figure>
-        <figure><div class="art peach"><img src="assets/house.webp" loading="lazy" alt="A miniature stylized house from the FORGE collection"></div><figcaption>Poly House <span>Prop</span></figcaption></figure>
-      </div>
-    </section>
-    <section class="wrap finish">
-      <div><p class="kicker"><span></span> START WITH THE EXAMPLE</p><h2>Make it playable.</h2><p>Build in Rust-powered Kit, script gameplay in x, then export to desktop or the browser.</p></div>
-      <div class="actions"><a class="button primary" href="https://github.com/caraveo/kit/releases">Download Kit <span aria-hidden="true">↓</span></a><a class="button outline" href="https://github.com/caraveo/kit/blob/main/documentation/src/content/docs/getting-started/first-game.mdx">First game guide <span aria-hidden="true">↗</span></a></div>
-    </section>
-  </main>
-  <footer class="wrap footer"><a class="brand" href="./"><img src="assets/icon.png" width="28" height="28" alt="">Kit</a><p>Rust · Vulkan · WebGPU</p><a href="https://github.com/caraveo/kit">GitHub ↗</a></footer>
-</body>
+      </section>
+    </main>
+    <footer class="wrap footer">
+      <a class="brand" href="./"
+        ><img src="assets/icon.png" width="28" height="28" alt="" />Kit</a
+      >
+      <p>Rust · Vulkan · WebGPU</p>
+      <a href="https://github.com/caraveo/kit">GitHub ↗</a>
+    </footer>
+  </body>
 </html>
