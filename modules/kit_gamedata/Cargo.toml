@@ -1,0 +1,15 @@
+[package]
+name = "kit_gamedata"
+description = "Kit module: GameData (typed datasets, rows, constants with stable IDs) for Diagram graphs and scripts."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+kit_ecs.workspace = true
+kit_core.workspace = true
+kit_resource.workspace = true
+anyhow.workspace = true
+log.workspace = true
+serde.workspace = true
+serde_json.workspace = true

@@ -4,7 +4,8 @@
 // into its memory: meshes and textures to upload, then the frame's draws
 // (see web/player/src/lib.rs, module `op`). This file only uploads and draws.
 
-const OP = { GEOMETRY: 1, FREE_GEOMETRY: 2, TEXTURE: 3, FRAME: 5, DRAW: 6, END: 7 };
+const OP = { GEOMETRY: 1, FREE_GEOMETRY: 2, TEXTURE: 3, FRAME: 5, DRAW: 6, END: 7, POST: 8 };
+const HDR = "rgba16float";
 const PASS = { OPAQUE: 0, BLENDED: 1, SPRITE: 2, TERRAIN: 3 };
 const DRAW_STRIDE = 256; // per-draw uniform slot (WebGPU's minimum dynamic offset alignment)
 const DRAW_BYTES = 128; // Push in shaders.wgsl: mat4 + 4 vec4
@@ -12,6 +13,9 @@ const FRAME_BYTES = 128; // Frame in shaders.wgsl
 const SAMPLES = 4;
 
 const params = new URLSearchParams(location.search);
+// Protected (signed) exports pin the publisher's key and mode here. The game
+// then loads only game.kitseal and checks its signature before reading it.
+const KIT_TRUST = null;
 const ui = {
   canvas: document.getElementById("kit-canvas"),
   status: document.getElementById("kit-status"),
@@ -199,6 +203,10 @@ class Game {
     this.x.kit_shader();
     return this.text();
   }
+  postShader() {
+    this.x.kit_post_shader();
+    return this.text();
+  }
   /** Forward Kit's log lines to the browser console. Returns error lines. */
   drainLogs() {
     this.x.kit_logs();
@@ -301,21 +309,174 @@ class Renderer {
       alpha: { srcFactor: "one", dstFactor: "one-minus-src-alpha", operation: "add" },
     };
     const frontFace = params.get("frontFace") || "ccw";
-    const pipeline = (vs, fs, buffers, { cull = "none", depthWrite = true, blend } = {}) =>
+    const pipeline = (format, vs, fs, buffers, { cull = "none", depthWrite = true, blend } = {}) =>
       device.createRenderPipeline({
         layout,
         vertex: { module, entryPoint: vs, buffers },
-        fragment: { module, entryPoint: fs, targets: [{ format: this.viewFormat, blend }] },
+        fragment: { module, entryPoint: fs, targets: [{ format, blend }] },
         primitive: { topology: "triangle-list", cullMode: cull, frontFace },
         depthStencil: { format: "depth32float", depthWriteEnabled: depthWrite, depthCompare: "less-equal" },
         multisample: { count: SAMPLES },
       });
-    this.pipelines = {
-      [PASS.OPAQUE]: pipeline("vs_mesh", "fs_mesh", meshBuffers),
-      [PASS.BLENDED]: pipeline("vs_mesh", "fs_mesh", meshBuffers, { depthWrite: false, blend: alpha }),
-      [PASS.SPRITE]: pipeline("vs_mesh", "fs_sprite", meshBuffers, { depthWrite: false, blend: alpha }),
-      [PASS.TERRAIN]: pipeline("vs_terrain", "fs_terrain", terrainBuffers, { cull: "back" }),
+    // Scene pipelines per color format: the canvas, or linear HDR when post-processing.
+    this.scenePipelines = new Map();
+    this.pipelinesFor = (format) => {
+      if (!this.scenePipelines.has(format)) {
+        this.scenePipelines.set(format, {
+          [PASS.OPAQUE]: pipeline(format, "vs_mesh", "fs_mesh", meshBuffers),
+          [PASS.BLENDED]: pipeline(format, "vs_mesh", "fs_mesh", meshBuffers, { depthWrite: false, blend: alpha }),
+          [PASS.SPRITE]: pipeline(format, "vs_mesh", "fs_sprite", meshBuffers, { depthWrite: false, blend: alpha }),
+          [PASS.TERRAIN]: pipeline(format, "vs_terrain", "fs_terrain", terrainBuffers, { cull: "back" }),
+        });
+      }
+      return this.scenePipelines.get(format);
     };
+    this.pipelinesFor(this.viewFormat);
+    this.post = null;
+  }
+
+  /** Post-processing resources (created the first time a volume is active). */
+  setupPost(code) {
+    const device = this.device;
+    const module = device.createShaderModule({ code, label: "kit post" });
+    module.getCompilationInfo().then((info) => {
+      for (const m of info.messages) {
+        (m.type === "error" ? console.error : console.warn)(`post shader ${m.lineNum}:${m.linePos} ${m.message}`);
+      }
+    });
+    const F = GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX;
+    const layout = device.createBindGroupLayout({
+      entries: [
+        { binding: 0, visibility: F, buffer: { type: "uniform" } },
+        { binding: 1, visibility: F, buffer: { type: "uniform", hasDynamicOffset: true, minBindingSize: 256 } },
+        { binding: 2, visibility: F, sampler: { type: "filtering" } },
+        { binding: 3, visibility: F, texture: { sampleType: "float" } },
+        { binding: 4, visibility: F, texture: { sampleType: "float" } },
+        // The scene's MSAA depth, read at sample 0 (WebGPU can't resolve depth).
+        { binding: 5, visibility: F, texture: { sampleType: "depth", multisampled: true } },
+      ],
+    });
+    const placeholder = device.createTexture({
+      size: [1, 1],
+      format: HDR,
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+    });
+    this.post = {
+      module,
+      layout,
+      pipelineLayout: device.createPipelineLayout({ bindGroupLayouts: [layout] }),
+      pipelines: new Map(),
+      sampler: device.createSampler({ magFilter: "linear", minFilter: "linear", addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge" }),
+      placeholder: placeholder.createView(),
+      uniforms: null,
+      passBuffer: null,
+      passCapacity: 0,
+      targets: null,
+    };
+  }
+
+  postPipeline(entry, format) {
+    const key = `${entry}:${format}`;
+    const post = this.post;
+    if (!post.pipelines.has(key)) {
+      post.pipelines.set(
+        key,
+        this.device.createRenderPipeline({
+          layout: post.pipelineLayout,
+          vertex: { module: post.module, entryPoint: "vs_post" },
+          fragment: { module: post.module, entryPoint: entry, targets: [{ format }] },
+          primitive: { topology: "triangle-list" },
+        }),
+      );
+    }
+    return post.pipelines.get(key);
+  }
+
+  /** Scene HDR target and temps, reused while the size stays the same. */
+  postTargets(width, height, divisors) {
+    const t = this.post.targets;
+    if (t && t.width === width && t.height === height) return t;
+    if (t) {
+      t.hdrMsaa.destroy();
+      t.hdr.destroy();
+      t.temps.forEach((x) => x?.destroy());
+    }
+    const make = (w, h, samples = 1) =>
+      this.device.createTexture({
+        size: [Math.max(1, w), Math.max(1, h)],
+        sampleCount: samples,
+        format: HDR,
+        usage: GPUTextureUsage.RENDER_ATTACHMENT | (samples === 1 ? GPUTextureUsage.TEXTURE_BINDING : 0),
+      });
+    this.post.targets = {
+      width,
+      height,
+      hdrMsaa: make(width, height, SAMPLES),
+      hdr: make(width, height),
+      divisors,
+      temps: divisors.map(() => null),
+    };
+    return this.post.targets;
+  }
+
+  /** Run the post passes from the scene (HDR + depth) into the canvas. */
+  runPost(encoder, target, frame) {
+    const post = this.post;
+    const t = this.postTargets(this.size[0], this.size[1], frame.divisors);
+    const texture = (code) => {
+      if (code === 1) return t.hdr;
+      const i = code - 3;
+      if (!t.temps[i]) {
+        const d = t.divisors[i];
+        t.temps[i] = this.device.createTexture({
+          size: [Math.max(1, Math.floor(t.width / d)), Math.max(1, Math.floor(t.height / d))],
+          format: HDR,
+          usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+        });
+      }
+      return t.temps[i];
+    };
+    const viewOf = (code) => (code === 0 ? post.placeholder : texture(code).createView());
+    if (!post.uniforms || post.uniforms.size < frame.uniforms.byteLength) {
+      post.uniforms?.destroy();
+      post.uniforms = this.device.createBuffer({
+        size: Math.ceil(frame.uniforms.byteLength / 256) * 256,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      });
+    }
+    this.device.queue.writeBuffer(post.uniforms, 0, frame.uniforms);
+    const passBytes = frame.passes.length * 256;
+    if (post.passCapacity < passBytes) {
+      post.passBuffer?.destroy();
+      post.passCapacity = Math.max(passBytes, 32 * 256);
+      post.passBuffer = this.device.createBuffer({ size: post.passCapacity, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    }
+    const staging = new Uint8Array(passBytes);
+    frame.passes.forEach((p, i) => staging.set(p.uniforms, i * 256));
+    this.device.queue.writeBuffer(post.passBuffer, 0, staging);
+    const depthView = this.depth.createView();
+    frame.passes.forEach((p, i) => {
+      const out = p.output === 2 ? target : texture(p.output).createView();
+      const format = p.output === 2 ? this.viewFormat : HDR;
+      const group = this.device.createBindGroup({
+        layout: post.layout,
+        entries: [
+          { binding: 0, resource: { buffer: post.uniforms, size: frame.uniforms.byteLength } },
+          { binding: 1, resource: { buffer: post.passBuffer, size: 256 } },
+          { binding: 2, resource: post.sampler },
+          { binding: 3, resource: viewOf(p.a) },
+          { binding: 4, resource: viewOf(p.b) },
+          { binding: 5, resource: depthView },
+        ],
+      });
+      const pass = encoder.beginRenderPass({
+        colorAttachments: [{ view: out, loadOp: "clear", storeOp: "store", clearValue: { r: 0, g: 0, b: 0, a: 1 } }],
+      });
+      pass.setPipeline(this.postPipeline(p.entry, format));
+      pass.setBindGroup(0, group, [i * 256]);
+      pass.draw(3);
+      pass.end();
+    });
   }
 
   makeTexture(width, height, mips) {
@@ -356,7 +517,8 @@ class Renderer {
       size: [width, height],
       sampleCount: SAMPLES,
       format: "depth32float",
-      usage: GPUTextureUsage.RENDER_ATTACHMENT,
+      // Post-processing samples it (Focus, Ambient, "Objects inside" volumes).
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
     });
   }
 
@@ -381,6 +543,7 @@ class Renderer {
     const u32 = (at) => view.getUint32(at, true);
     const draws = [];
     let clear = [0, 0, 0, 1];
+    let postFrame = null;
     let at = 0;
     while (at < bytes.length) {
       const op = u32(at);
@@ -420,6 +583,28 @@ class Renderer {
         clear = [0, 1, 2, 3].map((i) => view.getFloat32(at + i * 4, true));
         this.device.queue.writeBuffer(this.frameBuffer, 0, bytes.buffer, bytes.byteOffset + at + 16, FRAME_BYTES);
         at += 16 + FRAME_BYTES;
+      } else if (op === OP.POST) {
+        const n = u32(at);
+        at += 4;
+        const uniforms = bytes.slice(at, at + n);
+        at += n;
+        const temps = u32(at);
+        at += 4;
+        const divisors = [];
+        for (let i = 0; i < temps; i++) divisors.push(u32(at + i * 4));
+        at += temps * 4;
+        const count = u32(at);
+        at += 4;
+        const passes = [];
+        for (let i = 0; i < count; i++) {
+          const len = u32(at);
+          at += 4;
+          const entry = new TextDecoder().decode(bytes.subarray(at, at + len));
+          at += Math.ceil(len / 4) * 4;
+          passes.push({ entry, a: u32(at), b: u32(at + 4), output: u32(at + 8), uniforms: bytes.slice(at + 12, at + 12 + 256) });
+          at += 12 + 256;
+        }
+        postFrame = { uniforms, divisors, passes };
       } else if (op === OP.DRAW) {
         draws.push({
           pass: u32(at),
@@ -443,11 +628,15 @@ class Renderer {
 
     const encoder = this.device.createCommandEncoder();
     const target = this.context.getCurrentTexture().createView({ format: this.viewFormat });
+    if (postFrame && !this.post) this.setupPost(this.postShaderCode);
+    // With post-processing the scene goes to linear HDR (and keeps its depth).
+    const postTargets = postFrame ? this.postTargets(this.size[0], this.size[1], postFrame.divisors) : null;
+    const pipelines = this.pipelinesFor(postFrame ? HDR : this.viewFormat);
     const pass = encoder.beginRenderPass({
       colorAttachments: [
         {
-          view: this.msaa.createView(),
-          resolveTarget: target,
+          view: postFrame ? postTargets.hdrMsaa.createView() : this.msaa.createView(),
+          resolveTarget: postFrame ? postTargets.hdr.createView() : target,
           clearValue: { r: clear[0], g: clear[1], b: clear[2], a: clear[3] },
           loadOp: "clear",
           storeOp: "discard",
@@ -457,7 +646,7 @@ class Renderer {
         view: this.depth.createView(),
         depthClearValue: 1,
         depthLoadOp: "clear",
-        depthStoreOp: "discard",
+        depthStoreOp: postFrame ? "store" : "discard",
       },
     });
     pass.setBindGroup(0, this.frameGroup);
@@ -466,7 +655,7 @@ class Renderer {
       const g = this.geometry.get(d.geometry);
       if (!g) return;
       if (d.pass !== current) {
-        pass.setPipeline(this.pipelines[d.pass]);
+        pass.setPipeline(pipelines[d.pass]);
         current = d.pass;
       }
       pass.setBindGroup(1, (this.textures.get(d.texture) ?? this.textures.get(0)).group);
@@ -477,7 +666,9 @@ class Renderer {
       pass.drawIndexed(count, 1, d.first, 0, 0);
     });
     pass.end();
+    if (postFrame) this.runPost(encoder, target, postFrame);
     this.device.queue.submit([encoder.finish()]);
+    this.postPasses = postFrame ? postFrame.passes.length : 0;
     return draws.length;
   }
 }
@@ -588,21 +779,38 @@ async function main() {
   device.lost.then((info) => {
     if (info.reason !== "destroyed") fail("The graphics device was lost", info.message);
   });
-  device.addEventListener("uncapturederror", (e) => console.error("WebGPU:", e.error.message));
+  window.kitGpuErrors = [];
+  device.addEventListener("uncapturederror", (e) => {
+    console.error("WebGPU:", e.error.message);
+    window.kitGpuErrors.push(e.error.message);
+  });
 
   let progress = [0, 0];
   const show = () => {
     const p = (progress[0] * 0.2 + progress[1] * 0.8) * 100;
     ui.bar.style.width = `${p.toFixed(1)}%`;
   };
-  const [wasmBytes, pack] = await Promise.all([
-    fetchWithProgress("kit_web.wasm", (p) => ((progress[0] = p), show())),
-    fetchWithProgress("game.pack", (p) => ((progress[1] = p), show())),
-  ]);
+  const packFile = KIT_TRUST ? "game.kitseal" : "game.pack";
+  let wasmBytes, pack;
+  try {
+    [wasmBytes, pack] = await Promise.all([
+      fetchWithProgress("kit_web.wasm", (p) => ((progress[0] = p), show())),
+      fetchWithProgress(packFile, (p) => ((progress[1] = p), show())),
+    ]);
+  } catch (e) {
+    fail("The game couldn't load", KIT_TRUST ? `Its signed game data (${packFile}) is missing.` : String(e?.message ?? e));
+    return;
+  }
   ui.status.textContent = "Starting…";
   const { instance } = await WebAssembly.instantiate(wasmBytes, {});
   const game = new Game(instance);
-  const ok = game.withBytes(pack, (p, n) => game.x.kit_start(p, n, Math.random() * 2 ** 52));
+  const seed = Math.random() * 2 ** 52;
+  const ok = KIT_TRUST
+    ? KIT_TRUST.mode === "signed" &&
+      game.withBytes(new Uint8Array(KIT_TRUST.publisher), (kp, kn) =>
+        game.withBytes(pack, (p, n) => game.x.kit_start_sealed(p, n, kp, kn, seed)),
+      )
+    : game.withBytes(pack, (p, n) => game.x.kit_start(p, n, seed));
   if (!ok) {
     fail("The game couldn't start", game.text());
     game.drainLogs();
@@ -616,6 +824,7 @@ async function main() {
   const viewFormat = format.endsWith("-srgb") ? format : `${format}-srgb`;
   context.configure({ device, format, viewFormats: [viewFormat], alphaMode: "opaque" });
   const renderer = new Renderer(device, context, format, game.shader());
+  renderer.postShaderCode = game.postShader();
   connectInput(game, ui.canvas);
   const sound = (window.kitSound = new Sound(game));
   for (const type of ["pointerdown", "keydown", "touchstart"]) {
@@ -642,6 +851,7 @@ async function main() {
       const ptr = game.x.kit_frame_ptr();
       const len = game.x.kit_frame_len();
       stats.draws = renderer.run(game.bytes.subarray(ptr, ptr + len));
+      stats.postPasses = renderer.postPasses;
     } catch (e) {
       game.drainLogs();
       fail("The game stopped", String(e));

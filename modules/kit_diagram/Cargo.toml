@@ -1,0 +1,21 @@
+[package]
+name = "kit_diagram"
+description = "Kit module: Diagram visual gameplay graphs (typed nodes, validation, scheduling, diagnostics) run on the ECS."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+kit_ecs.workspace = true
+kit_core.workspace = true
+kit_scene.workspace = true
+kit_input.workspace = true
+kit_resource.workspace = true
+kit_gamesys.workspace = true
+kit_script.workspace = true
+kit_gamedata.workspace = true
+glam.workspace = true
+anyhow.workspace = true
+log.workspace = true
+serde.workspace = true
+serde_json.workspace = true

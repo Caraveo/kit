@@ -16,6 +16,10 @@
 //! otherwise the first class. Files without a class may define top-level
 //! `Init`/`Update` functions instead.
 //!
+//! Fields are private by default. `PUBLIC` shows a field in the editor
+//! (read-only); `EDIT` shows it and lets the editor set its value, saved
+//! per object in [`Script::values`] and applied before `Init`.
+//!
 //! Engine modules available to `TAKE`: [`MODULES`].
 
 mod host;
@@ -25,7 +29,8 @@ pub use host::MODULES;
 use host::{Command, EntityHost};
 use kit_core::{App, Console, Module, Stage, Time};
 use kit_ecs::{Entity, World};
-use kit_gamesys::Script;
+use kit_gamesys::{FieldValue, Script};
+pub use kit_x::ast::Access;
 use kit_resource::Resources;
 use kit_x::{Interpreter, Value, XError};
 use std::collections::HashMap;
@@ -41,20 +46,117 @@ struct ScriptState {
     modified: Option<SystemTime>,
 }
 
+/// A PUBLIC or EDIT field, for the inspector.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FieldView {
+    pub name: String,
+    /// x type name (`FLOAT`, `VECTOR`, …).
+    pub ty: String,
+    pub access: Access,
+    /// The value, when it's an editable kind.
+    pub value: Option<FieldValue>,
+    /// The value as text (any kind).
+    pub text: String,
+}
+
+fn field_value(v: &Value) -> Option<FieldValue> {
+    Some(match v {
+        Value::Bool(b) => FieldValue::Bool(*b),
+        Value::Int(i) => FieldValue::Int(*i),
+        Value::Float(f) => FieldValue::Float(*f),
+        Value::Vector(v) => FieldValue::Vector(*v),
+        Value::Str(s) => FieldValue::Text(s.to_string()),
+        _ => return None,
+    })
+}
+
+/// Convert an editor value to a field's declared type.
+fn to_x(ty: &kit_x::ast::Type, v: &FieldValue) -> Option<Value> {
+    use kit_x::ast::Type as T;
+    Some(match (ty, v) {
+        (T::Float, FieldValue::Float(f)) => Value::Float(*f),
+        (T::Float, FieldValue::Int(i)) => Value::Float(*i as f64),
+        (T::Integer, FieldValue::Int(i)) => Value::Int(*i),
+        (T::Integer, FieldValue::Float(f)) if f.fract() == 0.0 => Value::Int(*f as i64),
+        (T::Bool, FieldValue::Bool(b)) => Value::Bool(*b),
+        (T::String, FieldValue::Text(s)) => Value::Str(s.as_str().into()),
+        (T::Vector, FieldValue::Vector(v)) => Value::Vector(*v),
+        _ => return None,
+    })
+}
+
+/// A script's PUBLIC / EDIT fields as declared in its source.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Declared {
+    pub fields: Vec<FieldView>,
+    /// Set when the file can't be read or parsed.
+    pub error: Option<String>,
+}
+
 /// Script instances per entity. Lives as a world resource.
 #[derive(Default)]
 pub struct ScriptRuntime {
     states: HashMap<Entity, ScriptState>,
     last_reload_check: f64,
+    declared: HashMap<String, (Option<SystemTime>, Declared)>,
+}
+
+/// Read a script's declared PUBLIC / EDIT fields (with literal defaults).
+pub fn declared_fields(res: &Resources, path: &str) -> Declared {
+    let src = match res.read_text(path) {
+        Ok(s) => s,
+        Err(e) => return Declared { fields: Vec::new(), error: Some(format!("{e:#}")) },
+    };
+    let program = match kit_x::parse(&src) {
+        Ok(p) => p,
+        Err(e) => return Declared { fields: Vec::new(), error: Some(e.to_string()) },
+    };
+    let stem = std::path::Path::new(path).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+    let fields = kit_x::declared_fields(&program, &stem)
+        .into_iter()
+        .map(|f| FieldView { text: f.default.to_string(), value: field_value(&f.default), name: f.name, ty: f.ty.name(), access: f.access })
+        .collect();
+    Declared { fields, error: None }
 }
 
 impl ScriptRuntime {
-    /// Current field values of an entity's script instance (for the inspector).
-    pub fn fields(&self, e: Entity) -> Vec<(String, String, String)> {
+    /// PUBLIC and EDIT fields of an entity's running script, with live values
+    /// (for the inspector). Private fields are never listed.
+    pub fn fields(&self, e: Entity) -> Vec<FieldView> {
         match self.states.get(&e).and_then(|s| s.object.as_ref()) {
-            Some(Value::Instance(i)) => i.snapshot().into_iter().map(|(n, t, v)| (n, t, v.to_string())).collect(),
+            Some(Value::Instance(i)) => i
+                .snapshot()
+                .into_iter()
+                .map(|(name, ty, access, v)| FieldView { name, ty: ty.name(), access, value: field_value(&v), text: v.to_string() })
+                .collect(),
             _ => Vec::new(),
         }
+    }
+
+    /// Change an EDIT field of a running script. Returns false if the field
+    /// isn't EDIT or the value doesn't fit its type.
+    pub fn set_field(&mut self, e: Entity, name: &str, value: &FieldValue) -> bool {
+        let Some(Value::Instance(i)) = self.states.get(&e).and_then(|s| s.object.as_ref()) else { return false };
+        if i.class.field_access(name) != Access::Edit {
+            return false;
+        }
+        match i.field_type(name).and_then(|t| to_x(&t, value)) {
+            Some(v) => i.set_raw(name, v),
+            None => false,
+        }
+    }
+
+    /// Declared PUBLIC / EDIT fields of a script file (cached until it changes).
+    pub fn declared(&mut self, res: &Resources, path: &str) -> Declared {
+        let modified = res.modified(path);
+        if let Some((m, d)) = self.declared.get(path) {
+            if *m == modified && modified.is_some() {
+                return d.clone();
+            }
+        }
+        let d = declared_fields(res, path);
+        self.declared.insert(path.to_owned(), (modified, d.clone()));
+        d
     }
 
     pub fn has_error(&self, e: Entity) -> bool {
@@ -119,6 +221,26 @@ fn load_state(world: &mut World, e: Entity, path: &str, res: &Option<Resources>)
     apply_commands(world, commands);
     match result {
         Ok(obj) => {
+            // Editor-set values for EDIT fields, before Init runs.
+            if let (Some(Value::Instance(inst)), Some(script)) = (&obj, world.get_cloned::<Script>(e)) {
+                for (name, v) in &script.values {
+                    let access = inst.class.field_access(name);
+                    let typed = inst.field_type(name).and_then(|t| to_x(&t, v));
+                    match (access, typed) {
+                        (Access::Edit, Some(x)) => {
+                            inst.set_raw(name, x);
+                        }
+                        (Access::Edit, None) => world.resource_mut::<Console>().warn(
+                            "x",
+                            format!("{path}: the saved value for `{name}` doesn't fit its type any more; using the script's default"),
+                        ),
+                        _ => world.resource_mut::<Console>().warn(
+                            "x",
+                            format!("{path}: `{name}` has a saved value but isn't an EDIT field (any more); ignoring it"),
+                        ),
+                    }
+                }
+            }
             state.object = obj;
             state.failed = false;
         }

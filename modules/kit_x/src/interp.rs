@@ -991,7 +991,7 @@ fn stmt_line(s: &Stmt) -> u32 {
     }
 }
 
-fn default_for(ty: &Type) -> Value {
+pub(crate) fn default_for(ty: &Type) -> Value {
     match ty {
         Type::Integer => Value::Int(0),
         Type::Float => Value::Float(0.0),

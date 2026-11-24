@@ -213,6 +213,11 @@ impl Parser {
                 }
                 Ok(Stmt::Class(self.class_rest(name, line)?))
             }
+            Tok::Kw(k @ (Kw::PUBLIC | Kw::EDIT)) => Err(XError::at(
+                line,
+                1,
+                format!("{} only works on class fields, inside `CREATE Name[ ... ]`", k.as_str()),
+            )),
             Tok::Kw(Kw::IF) => self.if_stmt(),
             Tok::Kw(Kw::LOOP) => {
                 self.advance();
@@ -372,10 +377,24 @@ impl Parser {
                 return self.err(format!("unclosed class `{name}`: expected `]`"));
             }
             let mline = self.line();
+            let access = if self.eat_kw(Kw::PUBLIC) {
+                Access::Public
+            } else if self.eat_kw(Kw::EDIT) {
+                Access::Edit
+            } else {
+                Access::Private
+            };
+            let word = if access == Access::Edit { "EDIT" } else { "PUBLIC" };
             if self.eat_kw(Kw::CREATE) {
+                if access.is_public() {
+                    return self.err(format!("{word} goes in front of a field (`{word} FLOAT Speed: 5.0`), not a method"));
+                }
                 let n = self.ident("a method name")?;
                 methods.push(self.func_rest(n, Vec::new(), mline)?);
                 continue;
+            }
+            if access.is_public() && !self.at_declaration() {
+                return self.err(format!("expected a field after {word}, like `{word} FLOAT Speed: 5.0`"));
             }
             if !self.at_declaration() {
                 return self.err(format!(
@@ -384,8 +403,20 @@ impl Parser {
                 ));
             }
             match self.declaration()? {
+                Stmt::Func(_) if access.is_public() => {
+                    return Err(XError::at(mline, 1, format!("{word} goes in front of a field, not a method")));
+                }
                 Stmt::Func(f) => methods.push(f),
-                Stmt::Var { ty, name, init, line } => fields.push(FieldDecl { ty, name, init, line }),
+                Stmt::Var { ty, name, init, line } => {
+                    if access == Access::Edit && !editable_type(&ty) {
+                        return Err(XError::at(
+                            line,
+                            1,
+                            format!("EDIT fields must be STRING, INTEGER, FLOAT, BOOL or VECTOR; `{name}` is {} (use PUBLIC to show it read-only)", ty.name()),
+                        ));
+                    }
+                    fields.push(FieldDecl { access, ty, name, init, line })
+                }
                 _ => unreachable!(),
             }
         }
@@ -696,4 +727,9 @@ LOOP(TRUE)[
         let e = parse("FLOAT A: \nIF(1)[").unwrap_err();
         assert_eq!(e.line, 2);
     }
+}
+
+/// Types the editor can edit (EDIT fields).
+pub fn editable_type(ty: &Type) -> bool {
+    matches!(ty, Type::String | Type::Integer | Type::Float | Type::Bool | Type::Vector)
 }

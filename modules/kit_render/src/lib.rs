@@ -90,6 +90,9 @@ pub struct View {
     /// Entities drawn with the selection highlight.
     pub selected: Vec<Entity>,
     pub time: f32,
+    /// Apply post-processing volumes (game cameras; the editor's main view
+    /// only when its "Volumes" preview is on).
+    pub post: bool,
 }
 
 impl View {
@@ -117,6 +120,7 @@ impl View {
             wireframe: false,
             selected: Vec::new(),
             time: 0.0,
+            post: true,
         })
     }
 
@@ -135,11 +139,26 @@ impl View {
             wireframe: false,
             selected: Vec::new(),
             time: 0.0,
+            post: true,
         }
     }
 
     pub fn view_proj(&self) -> Mat4 {
         self.proj * self.view
+    }
+}
+
+/// The camera a view is drawn from, for post-processing. `ndc_y_up`: the
+/// clip matrix has been flipped for WebGPU.
+pub fn camera_info(view: &View, ndc_y_up: bool) -> kit_post::CameraInfo {
+    let view_proj = if ndc_y_up { Mat4::from_scale(Vec3::new(1.0, -1.0, 1.0)) * view.view_proj() } else { view.view_proj() };
+    kit_post::CameraInfo {
+        view_proj,
+        position: view.camera_pos,
+        forward: view.view.inverse().transform_vector3(Vec3::NEG_Z).normalize_or(Vec3::NEG_Z),
+        // Orthographic projections keep w = 1.
+        orthographic: view.proj.w_axis.w == 1.0 && view.proj.z_axis.w == 0.0,
+        ndc_y_up,
     }
 }
 

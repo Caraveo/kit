@@ -101,6 +101,28 @@ impl EditorCamera {
         self.target += (-right * delta.x + up * delta.y) * scale;
     }
 
+    /// Keyboard camera: `dir` = (A/D, Q/E, W/S) in -1…1, held for `dt` seconds.
+    /// W/S zoom in and out, A/D pan the view left and right, Q/E move it
+    /// down and up. Speeds follow the zoom level; `fast` (Shift) triples them.
+    pub fn fly(&mut self, dir: Vec3, dt: f32, fast: bool) {
+        self.goal = None;
+        let boost = if fast { 3.0 } else { 1.0 };
+        let reach = if self.two_d { self.ortho_height } else { self.distance };
+        let speed = reach.max(1.0) * 0.9 * boost;
+        // Zoom: about ×2 per second held.
+        let zoom = (-dir.z * 0.7 * boost * dt).exp();
+        if self.two_d {
+            self.ortho_height = (self.ortho_height * zoom).clamp(0.5, 2000.0);
+            self.target.x += dir.x * speed * dt;
+            self.target.y += dir.y * speed * dt;
+            return;
+        }
+        self.distance = (self.distance * zoom).clamp(0.3, 1500.0);
+        let forward = (self.target - self.eye()).normalize_or(Vec3::NEG_Z);
+        let right = forward.cross(Vec3::Y).normalize_or(Vec3::X);
+        self.target += (right * dir.x + Vec3::Y * dir.y) * speed * dt;
+    }
+
     pub fn zoom(&mut self, scroll: f32) {
         self.goal = None;
         let f = (-scroll * 0.12).exp();
@@ -187,5 +209,25 @@ mod tests {
         assert!(cam.animating());
         cam.orbit(Vec2::new(5.0, 0.0));
         assert!(!cam.animating(), "user input cancels the glide");
+    }
+
+    #[test]
+    fn w_s_zoom_and_a_d_pan() {
+        let mut cam = EditorCamera { yaw: 0.0, pitch: 0.0, ..Default::default() };
+        let (start, d) = (cam.target, cam.distance);
+        cam.fly(Vec3::new(0.0, 0.0, 1.0), 0.5, false);
+        assert!(cam.distance < d * 0.9, "W zooms in");
+        assert_eq!(cam.target, start, "zooming doesn't move the view");
+        cam.fly(Vec3::new(0.0, 0.0, -1.0), 1.0, false);
+        assert!(cam.distance > d, "S zooms out");
+        // Yaw 0 looks toward -Z, so D pans the view to +X.
+        cam.fly(Vec3::new(1.0, 0.0, 0.0), 0.5, false);
+        assert!(cam.target.x > start.x + 1.0 && (cam.target.z - start.z).abs() < 1e-4, "{:?}", cam.target);
+        // 2D: W/S zoom the framing.
+        let mut flat = EditorCamera::default();
+        flat.set_two_d(true);
+        let h = flat.ortho_height;
+        flat.fly(Vec3::new(0.0, 0.0, 1.0), 0.5, false);
+        assert!(flat.ortho_height < h);
     }
 }

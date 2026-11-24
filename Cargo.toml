@@ -3,7 +3,7 @@ resolver = "3"
 members = ["modules/*", "kit", "player", "editor", "web/player"]
 
 [workspace.package]
-version = "0.0.1"
+version = "0.0.2"
 edition = "2024"
 rust-version = "1.85"
 
@@ -23,6 +23,10 @@ kit_collider = { path = "modules/kit_collider" }
 kit_physics = { path = "modules/kit_physics" }
 kit_path = { path = "modules/kit_path" }
 kit_audio = { path = "modules/kit_audio" }
+kit_post = { path = "modules/kit_post" }
+kit_gamedata = { path = "modules/kit_gamedata" }
+kit_diagram = { path = "modules/kit_diagram" }
+kit_export_security = { path = "modules/kit_export_security", default-features = false }
 kit = { path = "kit" }
 
 ash = "0.38"

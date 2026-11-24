@@ -13,14 +13,14 @@
 TAKE Transform, Input, Math
 
 CREATE FreeCamera[
-    FLOAT Speed: 5.0           # units per second
-    FLOAT FastMultiplier: 3.0  # while Shift is held
-    FLOAT MinSpeed: 0.5
-    FLOAT MaxSpeed: 100.0
-    FLOAT LookSensitivity: 0.15  # degrees per pixel of mouse movement
-    FLOAT KeyLookSpeed: 90.0     # degrees per second with the arrow keys
-    FLOAT Smoothing: 10.0        # higher = snappier, lower = floatier
-    BOOL InvertY: FALSE
+    EDIT FLOAT Speed: 5.0           # units per second
+    EDIT FLOAT FastMultiplier: 3.0  # while Shift is held
+    EDIT FLOAT MinSpeed: 0.5
+    EDIT FLOAT MaxSpeed: 100.0
+    EDIT FLOAT LookSensitivity: 0.15  # degrees per pixel of mouse movement
+    EDIT FLOAT KeyLookSpeed: 90.0     # degrees per second with the arrow keys
+    EDIT FLOAT Smoothing: 10.0        # higher = snappier, lower = floatier
+    EDIT BOOL InvertY: FALSE
 
     FLOAT Yaw: 0.0     # degrees around the world Y axis
     FLOAT Pitch: 0.0   # degrees up (+) or down (-)

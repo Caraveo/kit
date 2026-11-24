@@ -34,6 +34,8 @@ export default defineConfig({
 						'editor/canvas-mode',
 						'editor/terrain',
 						'editor/sound',
+						'editor/post-processing',
+						'editor/diagrams',
 						'editor/export',
 					],
 				},

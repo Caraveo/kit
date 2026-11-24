@@ -181,8 +181,8 @@ fn canvas_sketch_creates_a_path_the_object_follows() {
     // The starter cube spins via its script; remove it to measure path movement only.
     h.ed.app.world.remove::<kit::gamesys::Script>(cube);
     h.ed.selected = Some(cube);
-    h.key(Key::D);
-    assert!(h.ed.settings.canvas, "D toggles canvas mode");
+    h.key(Key::Num5);
+    assert!(h.ed.settings.canvas, "5 toggles canvas mode");
     h.ed.settings.canvas_ground = true; // this test draws on the ground
 
     let vp = h.st.viewport_rect;
@@ -435,7 +435,10 @@ fn export_wizard_opens_from_the_header_and_explains_platforms() {
     h.click(ui::marked(&h.ctx, "export_go").unwrap().center());
     h.frame(vec![]);
     assert!(!h.ed.exporting(), "a console export can't start");
-    assert_eq!(h.st.export.destination(&h.ed), Some(h.dir.join("export").join("xbox")));
+    let title = h.ed.project.as_ref().unwrap().config.project.title.clone();
+    let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(PathBuf::from).unwrap();
+    assert_eq!(h.st.export.destination(&h.ed), Some(home.join("KitBuilds").join(&title).join("xbox")));
+    assert_eq!(crate::export::default_builds_dir("A/B: C?"), home.join("KitBuilds").join("A_B_ C_"));
 }
 
 #[derive(Debug)]
@@ -529,6 +532,82 @@ fn dragging_a_sound_onto_an_object_or_the_viewport() {
     h.ed.save_scene().unwrap();
     let text = std::fs::read_to_string(h.dir.join(h.ed.scene_path.clone().unwrap())).unwrap();
     assert!(text.contains("\"audio\"") && text.contains("sounds/hum.wav"));
+}
+
+#[test]
+fn post_volume_authoring_duplicate_undo_and_save() {
+    use kit::gamesys::{Override, PostVolume, VolumeShape};
+    let mut h = Harness::new("post_volume");
+    // An empty object with a Post-Processing Volume (Add component).
+    let e = h.ed.spawn(crate::state::Preset::Empty, None);
+    h.ed.app.world.insert(e, PostVolume::default());
+    h.ed.selected = Some(e);
+    h.frame(vec![]);
+    h.frame(vec![]);
+    assert_eq!(h.ed.entity_kind(e), "VOLUME");
+    assert!(ui::marked(&h.ctx, "toggle_volumes").is_some(), "the viewport has a Volumes toggle");
+    // Inspector: switch to a sphere and turn Glow on (only Glow; others inherit).
+    h.click(ui::marked(&h.ctx, "volume_shape_sphere").expect("shape buttons").center());
+    h.frame(vec![]);
+    h.click(ui::marked(&h.ctx, "fx_glow_on").expect("Glow override").center());
+    h.frame(vec![]);
+    let v = h.ed.world().get::<PostVolume>(e).unwrap().clone();
+    assert_eq!(v.shape, VolumeShape::Sphere);
+    assert_eq!(v.effects.glow.mode, Override::On);
+    assert_eq!(v.effects.color.mode, Override::Inherit);
+    // Undo goes back to the box; redo returns.
+    h.ed.track_changes(true);
+    h.ed.undo();
+    let after_undo = h.ed.world().query::<(PostVolume,)>().len();
+    assert!(after_undo <= 1);
+    h.ed.redo();
+    let e = h.ed.world().query::<(PostVolume,)>()[0];
+    assert_eq!(h.ed.world().get::<PostVolume>(e).unwrap().shape, VolumeShape::Sphere);
+    // Duplicate copies the component.
+    h.ed.duplicate(e);
+    assert_eq!(h.ed.world().query::<(PostVolume,)>().len(), 2);
+    // Save and reopen: settings come back exactly.
+    h.ed.save_scene().unwrap();
+    let path = h.ed.scene_path.clone().unwrap();
+    h.ed.open_scene(&path).unwrap();
+    let vols: Vec<PostVolume> = {
+        let w = h.ed.world();
+        w.query::<(PostVolume,)>().into_iter().map(|e| w.get::<PostVolume>(e).unwrap().clone()).collect()
+    };
+    assert_eq!(vols.len(), 2);
+    assert!(vols.iter().all(|x| *x == v), "saved and reopened unchanged");
+}
+
+#[test]
+fn number_keys_toggle_the_viewport_bar_and_wasd_moves_the_view() {
+    let mut h = Harness::new("keys");
+    let s = h.ed.settings.clone();
+    for k in [Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num6] {
+        h.key(k);
+    }
+    let t = &h.ed.settings;
+    assert_eq!(
+        (t.wireframe, t.lighting, t.grid, t.colliders, t.volumes),
+        (!s.wireframe, !s.lighting, !s.grid, !s.colliders, !s.volumes),
+        "1 wireframe, 2 lighting, 3 grid, 4 colliders, 6 volumes"
+    );
+    // W and D no longer toggle anything; with the mouse over the viewport they move the view.
+    let over = h.st.viewport_rect.center();
+    h.frame(vec![Event::PointerMoved(over)]);
+    let (d, target) = (h.ed.camera.distance, h.ed.camera.target);
+    let hold = |h: &mut Harness, key: Key| {
+        h.frame(vec![Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE }]);
+        for _ in 0..10 {
+            h.frame(vec![]);
+        }
+        h.frame(vec![Event::Key { key, physical_key: None, pressed: false, repeat: false, modifiers: Modifiers::NONE }]);
+    };
+    hold(&mut h, Key::W);
+    assert!(h.ed.camera.distance < d, "W zooms in");
+    assert_eq!(h.ed.settings.wireframe, !s.wireframe, "W no longer toggles wireframe");
+    hold(&mut h, Key::D);
+    assert!(h.ed.camera.target != target, "D pans the view");
+    assert!(!h.ed.settings.canvas, "D no longer toggles canvas");
 }
 
 #[test]
@@ -886,4 +965,115 @@ fn canvas_shift_starts_over_and_points_can_be_dragged() {
     let moved = path_of(&h, cube);
     assert_eq!(moved.len(), fresh.len(), "dragging a point does not add points");
     assert!(moved.last().unwrap().y > last.y + 0.2, "point moved up: {last} -> {}", moved.last().unwrap());
+}
+
+fn press_at(h: &mut Harness, pos: Pos2, button: PointerButton, pressed: bool) {
+    h.frame(vec![Event::PointerButton { pos, button, pressed, modifiers: Modifiers::NONE }]);
+}
+
+
+#[test]
+fn diagram_view_adds_nodes_wires_them_and_undoes_over_the_canvas() {
+    use kit::diagram::{NodeKind, PinRef};
+    let mut h = Harness::new("diagram");
+    let cube = kit::scene::find_by_name(h.ed.world(), "Cube").unwrap();
+    h.ed.selected = Some(cube);
+    h.key(Key::Num7);
+    assert!(h.ed.settings.diagram, "7 opens the Diagram view");
+    // Add a Diagram to the cube (what the view's button and the component menu do).
+    let path = crate::diagram_view::add_diagram(&mut h.ed, cube).unwrap();
+    h.frame(vec![]);
+    h.frame(vec![]);
+    assert_eq!(h.st.diagram.path(), Some(path.as_str()));
+    let start = h.st.diagram.graph.nodes[0].id;
+    let gd = kit::gamedata::GameData::default();
+
+    // Right-click the canvas, search, Enter: a Set Visible node.
+    let then = h.st.diagram.pin_screen_pos(&gd, &PinRef::new(start, "then"), true).expect("on screen");
+    let spot = then + egui::vec2(140.0, 60.0);
+    h.frame(vec![Event::PointerMoved(spot)]);
+    press_at(&mut h, spot, PointerButton::Secondary, true);
+    press_at(&mut h, spot, PointerButton::Secondary, false);
+    h.frame(vec![]);
+    h.frame(vec![Event::Text("set visible".into())]);
+    h.key(Key::Enter);
+    let vis = h.st.diagram.graph.nodes.iter().find(|n| n.kind == NodeKind::SetVisible).map(|n| n.id).expect("node added from the picker");
+    h.frame(vec![]);
+
+    // Drag a wire from On Start's exec output to the new node's exec input.
+    let to = h.st.diagram.pin_screen_pos(&gd, &PinRef::new(vis, "exec"), false).unwrap();
+    drag(&mut h, then, to);
+    assert!(h.st.diagram.graph.links.iter().any(|l| l.from == PinRef::new(start, "then") && l.to == PinRef::new(vis, "exec")), "{:?}", h.st.diagram.graph.links);
+    // Saved to disk right away.
+    let saved = std::fs::read_to_string(h.dir.join(&path)).unwrap();
+    assert!(kit::diagram::Graph::from_json(&saved).unwrap().links.len() == 1);
+
+    // Click the wire to select it; Backspace removes just the wire; undo brings it back.
+    let link = h.st.diagram.graph.links[0].clone();
+    let mid = h.st.diagram.wire_screen_mid(&gd, &link).unwrap();
+    h.click(mid);
+    assert_eq!(h.st.diagram.selected_wire(), Some(&link), "clicking a wire selects it");
+    h.key(Key::Backspace);
+    assert!(h.st.diagram.graph.links.is_empty() && h.st.diagram.graph.node(vis).is_some(), "only the wire is deleted");
+    h.frame(vec![Event::Key { key: Key::Z, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::COMMAND }]);
+    h.frame(vec![]);
+    assert_eq!(h.st.diagram.graph.links, vec![link]);
+    // Clicking empty canvas deselects the wire.
+    h.click(mid + egui::vec2(0.0, 90.0));
+    assert!(h.st.diagram.selected_wire().is_none());
+
+    // Select the node and press Delete over the canvas: the node goes, the cube stays.
+    let header = h.st.diagram.header_screen_pos(vis).unwrap();
+    h.click(header);
+    h.key(Key::Delete);
+    assert!(h.st.diagram.graph.node(vis).is_none());
+    assert!(h.ed.world().is_alive(cube), "Delete over the diagram doesn't delete the object");
+    // Undo over the canvas brings it (and its wire) back.
+    h.frame(vec![Event::Key { key: Key::Z, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::COMMAND }]);
+    h.frame(vec![]);
+    assert!(h.st.diagram.graph.node(vis).is_some() && h.st.diagram.graph.links.len() == 1);
+}
+
+#[test]
+fn import_accepts_every_kind_kit_uses_and_explains_the_rest() {
+    let mut h = Harness::new("import_all");
+    let src = std::env::temp_dir().join(format!("kit_import_src_{}", std::process::id()));
+    std::fs::create_dir_all(&src).unwrap();
+    image::RgbaImage::new(4, 4).save(src.join("hero.png")).unwrap();
+    std::fs::write(src.join("enemy.x"), "CREATE Enemy[\n    EDIT FLOAT Speed: 1.0\n]\n").unwrap();
+    std::fs::write(src.join("boss.kscene"), kit::gamesys::save_scene(h.ed.world()).to_json()).unwrap();
+    std::fs::write(src.join("door.kdiagram"), kit::diagram::Graph::default().to_json()).unwrap();
+    std::fs::write(src.join("notes.docx"), "nope").unwrap();
+    std::fs::write(src.join("fake.png"), "not an image").unwrap();
+    let got: Vec<String> =
+        ["hero.png", "enemy.x", "boss.kscene", "door.kdiagram"].iter().map(|f| h.ed.import_asset(&src.join(f)).unwrap().unwrap()).collect();
+    assert_eq!(got, ["sprites/hero.png", "scripts/enemy.x", "scenes/boss.kscene", "diagrams/door.kdiagram"]);
+    for g in &got {
+        assert!(h.dir.join(g).is_file() && h.ed.assets.contains(g), "{g}");
+    }
+    let err = h.ed.import_asset(&src.join("notes.docx")).unwrap_err().to_string();
+    assert!(err.contains("can't use .docx") && err.contains("sprites"), "{err}");
+    assert!(h.ed.import_asset(&src.join("fake.png")).is_err(), "broken images are refused");
+    // Importing the same file again doesn't duplicate it.
+    assert_eq!(h.ed.import_asset(&src.join("hero.png")).unwrap().unwrap(), "sprites/hero.png");
+    // A sprite dropped on the viewport becomes an object.
+    let e = h.ed.place_sprite("sprites/hero.png", None);
+    assert_eq!(h.ed.world().get::<kit::gamesys::Sprite>(e).unwrap().texture, "sprites/hero.png");
+    let _ = std::fs::remove_dir_all(&src);
+}
+
+
+#[test]
+fn console_starts_collapsed_and_counts_new_errors() {
+    let mut h = Harness::new("console_badge");
+    assert!(!h.ed.settings.console, "collapsed by default");
+    h.ed.console().error("test", "boom");
+    h.frame(vec![]);
+    assert_eq!(h.ed.world().resource::<kit::core::Console>().errors_total, 1);
+    // Opening the console marks them seen.
+    h.key(Key::Backtick);
+    assert!(h.ed.settings.console);
+    h.key(Key::Backtick);
+    h.frame(vec![]);
+    assert_eq!(h.st.errors_seen_for_test(), 1);
 }

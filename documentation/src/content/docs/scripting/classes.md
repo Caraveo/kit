@@ -21,6 +21,31 @@ CREATE Enemy[
 
 Inside a method, you use fields by name (`Health`). Use `THIS` when you need the object itself.
 
+## Showing fields in the editor: PUBLIC and EDIT
+
+Fields are **private** by default: the editor doesn't show them. Put a word in front to change that:
+
+| Written as | In the inspector |
+|---|---|
+| `FLOAT Yaw: 0.0` | Hidden (private) |
+| `PUBLIC INTEGER Health: 10` | Shown with its value, **not editable** |
+| `EDIT FLOAT Speed: 5.0` | Shown **and editable**: public, plus you can set it per object |
+
+```x
+CREATE Player[
+    EDIT FLOAT Speed: 3.0        # tune it in the inspector
+    EDIT VECTOR Spawn: VECTOR(0, 1, 0)
+    PUBLIC INTEGER Coins: 0      # watch it while playing
+    FLOAT Cooldown: 0.0          # internal: hidden
+]
+```
+
+- A value you set in the inspector is saved with the object in the scene and applied **before `Init` runs**. The script's own value (`3.0` above) is the default; **↺** goes back to it.
+- While playing, PUBLIC and EDIT fields show live values. Changing an EDIT field then affects the running game, but is undone when you stop.
+- `EDIT` works on `STRING`, `INTEGER`, `FLOAT`, `BOOL` and `VECTOR` fields. Other types can be `PUBLIC`.
+- `PUBLIC` and `EDIT` only go in front of class fields, not methods or local variables.
+- These words control what the **editor** shows. Your scripts can still read each other's fields in code.
+
 ## Making instances
 
 ```x

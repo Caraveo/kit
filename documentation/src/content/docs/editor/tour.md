@@ -48,7 +48,7 @@ Your scene, rendered live with Vulkan.
 
 Top right: **3D/2D** view (<kbd>T</kbd>), **⛶** frame selection, **↻** auto-rotate (<kbd>R</kbd>).
 
-**The dock** (bottom of the viewport) toggles **Wireframe** (<kbd>W</kbd>), **Lighting** (<kbd>L</kbd>), **Grid** (<kbd>G</kbd>), **Colliders** (<kbd>C</kbd>, collider outlines) and **Canvas** (<kbd>D</kbd>, [sketch paths](/editor/canvas-mode/)). While playing, **Game camera** switches between the game's camera and the editor camera.
+**The dock** (bottom of the viewport) toggles **Wireframe** (<kbd>1</kbd>), **Lighting** (<kbd>2</kbd>), **Grid** (<kbd>3</kbd>), **Colliders** (<kbd>4</kbd>, collider outlines), **Canvas** (<kbd>5</kbd>, [sketch paths](/editor/canvas-mode/)) and **Volumes** (<kbd>6</kbd>). With the mouse over the viewport, hold <kbd>W</kbd> / <kbd>S</kbd> to zoom and <kbd>A</kbd> / <kbd>D</kbd> to pan. While playing, **Game camera** switches between the game's camera and the editor camera.
 
 ## Inspector (right)
 
@@ -56,7 +56,7 @@ Shows the selected object's name and components. Edit any value by dragging the 
 
 ## Console (bottom)
 
-Shows script output (`DISPLAY[...]`) and any errors, with file and line. Toggle it with <kbd>`</kbd> or the **Console** button in the footer.
+Shows script output (`DISPLAY[...]`) and any errors, with file and line. It starts collapsed: open it with <kbd>`</kbd> or the **Console** button in the footer. While it's closed, new errors show as a red **● count** next to that button (click it to open the console).
 
 ## Footer
 

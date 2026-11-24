@@ -2,8 +2,8 @@
 TAKE Transform, Input, Model, Math, Scene
 
 CREATE Actor[
-    FLOAT Speed: 3.0
-    INTEGER Moves: 0
+    EDIT FLOAT Speed: 3.0
+    PUBLIC INTEGER Moves: 0
 
     VOID CREATE Step(FLOAT x, FLOAT z, FLOAT dt)[
         IF(x != 0 OR z != 0)[

@@ -2,8 +2,8 @@
 TAKE Transform, Time, Math
 
 CREATE Spinner[
-    FLOAT Speed: 45.0
-    FLOAT Height: 0.25
+    EDIT FLOAT Speed: 45.0
+    EDIT FLOAT Height: 0.25
     VECTOR Start: VECTOR()
 
     VOID CREATE Init()[

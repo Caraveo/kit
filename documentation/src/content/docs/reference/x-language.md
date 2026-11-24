@@ -10,6 +10,8 @@ description: Every keyword, type, operator and built-in.
 | `TAKE` / `BRING` | Use a module (`TAKE Transform`) or another file (`TAKE "lib/a.x"`) |
 | `CREATE` | Declare a class (`CREATE Name[ … ]`) or function (`TYPE CREATE Name(params)[ … ]`) |
 | `RIDE` | Inherit: `CREATE Child RIDE Parent[ … ]` |
+| `PUBLIC` | Show a class field in the editor, read-only: `PUBLIC INTEGER Health: 10` (fields are private by default) |
+| `EDIT` | Show a class field in the editor and let it be edited per object: `EDIT FLOAT Speed: 5.0` |
 | `NEW` | Make an instance: `NEW Name Class(args)` or `NEW Class(args)` |
 | `CALL` | Optional before a call: `CALL Jump()` |
 | `GIVE` | Return value(s) |

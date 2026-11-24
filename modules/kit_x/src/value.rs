@@ -27,6 +27,14 @@ impl Class {
             .or_else(|| self.parent.as_ref().and_then(|p| p.method(name)))
     }
 
+    /// A field's access, from the most derived class that declares it.
+    pub fn field_access(&self, name: &str) -> crate::ast::Access {
+        match self.decl.fields.iter().find(|f| &*f.name == name) {
+            Some(f) => f.access,
+            None => self.parent.as_ref().map_or(crate::ast::Access::Private, |p| p.field_access(name)),
+        }
+    }
+
     pub fn is_a(&self, name: &str) -> bool {
         self.name() == name || self.parent.as_ref().is_some_and(|p| p.is_a(name))
     }
@@ -57,9 +65,17 @@ impl Instance {
             None => false,
         }
     }
-    /// Field names and current values (for the editor inspector).
-    pub fn snapshot(&self) -> Vec<(String, String, Value)> {
-        self.fields.borrow().iter().map(|(n, t, v)| (n.to_string(), t.name(), v.clone())).collect()
+    /// PUBLIC and EDIT fields with their current values, in declaration
+    /// order (for the editor inspector). Private fields are left out.
+    pub fn snapshot(&self) -> Vec<(String, Type, crate::ast::Access, Value)> {
+        self.fields
+            .borrow()
+            .iter()
+            .filter_map(|(n, t, v)| {
+                let access = self.class.field_access(n);
+                access.is_public().then(|| (n.to_string(), t.clone(), access, v.clone()))
+            })
+            .collect()
     }
 }
 

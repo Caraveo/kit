@@ -53,6 +53,9 @@ pub fn add_default_modules(app: &mut App, project_root: std::path::PathBuf, conf
         .add_module(kit_gamesys::GameSysModule)
         .add_module(kit_script::ScriptModule)
         .add_module(kit_path::PathModule)
+        // Game data, then visual graphs (after scripts, before physics).
+        .add_module(kit_gamedata::GameDataModule)
+        .add_module(kit_diagram::DiagramModule)
         // After scripts and paths, so physics sees this frame's changes.
         .add_module(kit_collider::ColliderModule)
         .add_module(kit_physics::PhysicsModule {
@@ -67,6 +70,9 @@ pub fn add_default_modules(app: &mut App, project_root: std::path::PathBuf, conf
 pub fn project_app(project: &Project) -> Result<App> {
     let mut app = App::new();
     add_default_modules(&mut app, project.root().to_path_buf(), &project.config);
+    // The project's own resources: a folder, or (protected exports) memory.
+    app.world.insert_resource(project.resources.clone());
+    kit_gamedata::reload(&mut app.world);
     let main = &project.config.project.main_scene;
     let text = project.resources.read_text(main).with_context(|| format!("loading main scene `{main}`"))?;
     let scene = SceneFile::from_json(&text).with_context(|| format!("in {main}"))?;
@@ -88,6 +94,56 @@ pub fn run_project(project: Project) -> Result<()> {
             fullscreen: d.fullscreen,
         },
     )
+}
+
+/// Run a project for `frames` fixed steps (1/60 s) without a window and save
+/// what its active camera sees as a PNG (`kit-player --screenshot`). Used to
+/// compare the player with the editor and the web build.
+pub fn screenshot_project(project: Project, out: &std::path::Path, frames: u32, width: u32, height: u32) -> Result<()> {
+    use kit_graphics::{Image, vk};
+    let mut app = project_app(&project)?;
+    kit_scene::propagate_transforms(&mut app.world);
+    for _ in 0..frames {
+        app.update(1.0 / 60.0);
+    }
+    let gfx = Gfx::new(None, &project.config.project.title)?;
+    let mut renderer = Renderer::new(&gfx)?;
+    renderer.prepare(&gfx, &app.world);
+    let extent = vk::Extent2D { width, height };
+    let format = vk::Format::R8G8B8A8_SRGB;
+    let mut image = Image::new(
+        &gfx,
+        extent,
+        format,
+        vk::ImageUsageFlags::COLOR_ATTACHMENT | vk::ImageUsageFlags::TRANSFER_SRC,
+        vk::SampleCountFlags::TYPE_1,
+        "screenshot",
+    )?;
+    let aspect = width as f32 / height.max(1) as f32;
+    let mut view = View::from_camera(&app.world, aspect).unwrap_or_else(|| View::fallback(aspect));
+    view.time = app.world.resource::<kit_core::Time>().elapsed as f32;
+    let target = Target { image: image.image, view: image.view, extent, format };
+    let mut result = Ok(());
+    gfx.one_shot(|cmd| {
+        gfx.image_barrier(
+            cmd,
+            image.image,
+            vk::ImageAspectFlags::COLOR,
+            vk::ImageLayout::UNDEFINED,
+            vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+            (vk::PipelineStageFlags::TOP_OF_PIPE, vk::AccessFlags::empty()),
+            (vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT, vk::AccessFlags::COLOR_ATTACHMENT_WRITE),
+        );
+        result = renderer.render(&gfx, cmd, 0, &target, &view, &app.world);
+    })?;
+    result?;
+    let pixels = image.read_back(&gfx, vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)?;
+    image.destroy(&gfx);
+    renderer.destroy(&gfx);
+    kit_script::stop_scripts(&mut app.world);
+    kit_audio::reset(&mut app.world);
+    image::save_buffer(out, &pixels, width, height, image::ExtendedColorType::Rgba8).context("saving the screenshot")?;
+    Ok(())
 }
 
 struct Gpu {

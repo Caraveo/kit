@@ -250,7 +250,75 @@ pub struct ExportJob {
     pub root: PathBuf,
     pub title: String,
     pub dest: PathBuf,
+    /// Standard, Signed, or Signed + Encrypted.
+    pub protection: Protection,
+    /// Publisher key file for protected exports (default: [`default_key_path`]).
+    pub key_file: Option<PathBuf>,
 }
+
+pub use kit_export_security::Mode as Protection;
+
+/// Kit's settings folder (per user).
+pub fn config_dir() -> Option<PathBuf> {
+    if cfg!(windows) {
+        std::env::var_os("APPDATA").map(|p| PathBuf::from(p).join("Kit"))
+    } else if cfg!(target_os = "macos") {
+        std::env::var_os("HOME").map(|h| PathBuf::from(h).join("Library/Application Support/Kit"))
+    } else {
+        std::env::var_os("XDG_CONFIG_HOME")
+            .map(PathBuf::from)
+            .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))
+            .map(|p| p.join("kit"))
+    }
+}
+
+/// Where exports go by default: `~/KitBuilds/<project name>` (each platform
+/// in its own folder inside it).
+pub fn default_builds_dir(project_title: &str) -> PathBuf {
+    let home = std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" }).map(PathBuf::from).unwrap_or_default();
+    // Keep the title readable, minus characters file systems reject.
+    let name: String = project_title
+        .chars()
+        .map(|c| if c.is_control() || r#"/\:*?"<>|"#.contains(c) { '_' } else { c })
+        .collect();
+    let name = name.trim().trim_matches('.');
+    home.join("KitBuilds").join(if name.is_empty() { "Game" } else { name })
+}
+
+/// Where Kit keeps the publisher signing key unless told otherwise: in the
+/// user's settings, never in a project or export.
+pub fn default_key_path() -> Option<PathBuf> {
+    config_dir().map(|d| d.join("keys").join("publisher.key"))
+}
+
+/// Can `platform` be exported with `mode`? (Err: why not.)
+pub fn protection_supported(platform: &Platform, mode: Protection) -> std::result::Result<(), String> {
+    match (mode, platform.id) {
+        (Protection::Standard, _) => Ok(()),
+        (_, "linux" | "windows" | "mac") => Ok(()),
+        (Protection::Signed, "web") => Ok(()),
+        (Protection::Encrypted, "web") => Err(
+            "Web builds can't be encrypted: every visitor's browser would need the decryption key, so it would only \
+             hide files from people who don't look. Use Signed: it still guarantees players get exactly your build."
+                .into(),
+        ),
+        _ => Err(format!("{} builds don't support protected exports yet", platform.name)),
+    }
+}
+
+/// Load the publisher key for a protected export.
+pub fn load_key(path: Option<&Path>) -> Result<kit_export_security::PublisherKey> {
+    let path = path.map(Path::to_path_buf).or_else(default_key_path).context("no settings folder for the publisher key")?;
+    anyhow::ensure!(
+        path.is_file(),
+        "No publisher key yet. Create one in Export → Protection (Generate key), or pass --key <file>. Expected it at {}",
+        path.display()
+    );
+    kit_export_security::PublisherKey::load(&path)
+}
+
+/// Text in the web bootstrap that a protected export replaces with its trust.
+const WEB_TRUST_PLACEHOLDER: &str = "const KIT_TRUST = null;";
 
 impl ExportJob {
     pub fn needs_build(&self) -> bool {
@@ -266,6 +334,16 @@ impl ExportJob {
     }
 
     pub fn run(&self) -> Result<PathBuf> {
+        // Check what can fail before touching any output.
+        if let Err(why) = protection_supported(&self.platform, self.protection) {
+            bail!("{why}");
+        }
+        let key = if self.protection == Protection::Standard {
+            None
+        } else {
+            anyhow::ensure!(self.platform.export.is_none(), "Installed hooks only support Standard exports");
+            Some(load_key(self.key_file.as_deref())?)
+        };
         let player = match &self.availability {
             Availability::Ready { player } => player.clone(),
             Availability::Rebuild { player } => {
@@ -283,11 +361,82 @@ impl ExportJob {
             ),
             Availability::NeedsPlayer(why) | Availability::Unavailable(why) => bail!("{why}"),
         };
-        match self.platform.id {
-            "mac" => self.write_app(&player),
-            "web" => self.write_web(&player),
-            _ => self.write_folder(&player),
+        // Build next to the destination, then swap it in: a failed export
+        // leaves the previous one untouched.
+        let name = self.safe_name();
+        let final_name = if self.platform.id == "mac" { format!("{name}.app") } else { name.clone() };
+        let out = self.dest.join(&final_name);
+        let staging = self.dest.join(format!(".{final_name}.kit-partial"));
+        if staging.exists() {
+            std::fs::remove_dir_all(&staging)?;
         }
+        std::fs::create_dir_all(&staging)?;
+        let skip = [out.clone(), staging.clone()];
+        let result = match self.platform.id {
+            "mac" => self.write_app(&player, &staging, &skip, key.as_ref()),
+            "web" => self.write_web(&player, &staging, &skip, key.as_ref()),
+            _ => self.write_folder(&player, &staging, &skip, key.as_ref()),
+        };
+        if let Err(e) = result {
+            let _ = std::fs::remove_dir_all(&staging);
+            return Err(e);
+        }
+        let old = self.dest.join(format!(".{final_name}.kit-old"));
+        if old.exists() {
+            std::fs::remove_dir_all(&old)?;
+        }
+        if out.exists() {
+            std::fs::rename(&out, &old).with_context(|| format!("replacing {}", out.display()))?;
+        }
+        if let Err(e) = std::fs::rename(&staging, &out) {
+            if old.exists() {
+                let _ = std::fs::rename(&old, &out);
+            }
+            return Err(e).with_context(|| format!("writing {}", out.display()));
+        }
+        if old.exists() {
+            let _ = std::fs::remove_dir_all(&old);
+        }
+        if self.platform.id == "mac" && key.is_some() {
+            resign_mac_app(&out);
+        }
+        Ok(out)
+    }
+
+    /// The project's game pack, sealed for a protected export.
+    fn sealed_pack(&self, skip: &[PathBuf], key: &kit_export_security::PublisherKey) -> Result<(Vec<u8>, Option<[u8; 32]>)> {
+        let pack = kit_web::pack::write_dir_skipping(&self.root, skip)?;
+        let content_key =
+            if self.protection == Protection::Encrypted { Some(kit_export_security::new_content_key()?) } else { None };
+        let metadata = format!(
+            "title={}\nplatform={}\nkit={}\nbuild={}\n",
+            self.title.replace('\n', " "),
+            self.platform.id,
+            kit::VERSION,
+            kit::BUILD_ID
+        );
+        let sealed = kit_export_security::seal(&pack, key, self.protection, content_key.as_ref(), &metadata)?;
+        Ok((sealed, content_key))
+    }
+
+    /// The launcher: the player with this export's trust pinned in it.
+    fn launcher(&self, player: &Path, key: Option<&kit_export_security::PublisherKey>, content_key: Option<[u8; 32]>) -> Result<Vec<u8>> {
+        let mut bytes = std::fs::read(player).with_context(|| format!("reading {}", player.display()))?;
+        if let Some(key) = key {
+            let trust = kit_export_security::Trust { mode: self.protection, publisher: key.public(), content_key };
+            kit_export_security::write_trust_slot(&mut bytes, &trust)?;
+        }
+        Ok(bytes)
+    }
+
+    fn write_exe(path: &Path, bytes: &[u8]) -> Result<()> {
+        std::fs::write(path, bytes).with_context(|| format!("writing {}", path.display()))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755))?;
+        }
+        Ok(())
     }
 
     /// Export through an installed hook's program.
@@ -320,18 +469,36 @@ impl ExportJob {
 
     /// Web: a static site (`index.html`, `kit.js`, `kit_web.wasm`, `game.pack`)
     /// for any web host, itch.io, or Kit's local preview server.
-    fn write_web(&self, wasm: &Path) -> Result<PathBuf> {
-        let out = self.dest.join(self.safe_name());
-        if out.is_dir() {
-            std::fs::remove_dir_all(&out)?;
-        }
-        std::fs::create_dir_all(&out)?;
+    fn write_web(
+        &self,
+        wasm: &Path,
+        out: &Path,
+        skip: &[PathBuf],
+        key: Option<&kit_export_security::PublisherKey>,
+    ) -> Result<()> {
         let html = WEB_INDEX.replace("<title>Kit game</title>", &format!("<title>{}</title>", xml_escape(&self.title)));
         std::fs::write(out.join("index.html"), html)?;
         std::fs::write(out.join("KIT-LICENSE.txt"), KIT_LICENSE)?;
-        std::fs::write(out.join("kit.js"), WEB_SCRIPT)?;
         std::fs::copy(wasm, out.join("kit_web.wasm")).with_context(|| format!("copying {}", wasm.display()))?;
-        std::fs::write(out.join("game.pack"), kit_web::pack::write_dir_skipping(&self.root, &[out.clone()])?)?;
+        match key {
+            None => {
+                std::fs::write(out.join("kit.js"), WEB_SCRIPT)?;
+                std::fs::write(out.join("game.pack"), kit_web::pack::write_dir_skipping(&self.root, skip)?)?;
+            }
+            Some(key) => {
+                // The bootstrap pins the publisher key and mode; the page only
+                // loads the signed pack.
+                anyhow::ensure!(WEB_SCRIPT.contains(WEB_TRUST_PLACEHOLDER), "kit.js has no trust placeholder");
+                let trust = format!(
+                    "const KIT_TRUST = {{ mode: \"{}\", publisher: [{}] }};",
+                    self.protection.id(),
+                    key.public().iter().map(|b| b.to_string()).collect::<Vec<_>>().join(",")
+                );
+                std::fs::write(out.join("kit.js"), WEB_SCRIPT.replacen(WEB_TRUST_PLACEHOLDER, &trust, 1))?;
+                let (sealed, _) = self.sealed_pack(skip, key)?;
+                std::fs::write(out.join(kit_export_security::SEALED_PACK), sealed)?;
+            }
+        }
         std::fs::write(
             out.join("README.txt"),
             format!(
@@ -343,7 +510,7 @@ impl ExportJob {
                 title = self.title
             ),
         )?;
-        Ok(out)
+        Ok(())
     }
 
     /// Runtime libraries for the target shipped next to the player.
@@ -363,32 +530,61 @@ impl ExportJob {
             .collect()
     }
 
-    /// Windows / Linux: `<Name>/<Name>[.exe]` + `game/` + libraries.
-    fn write_folder(&self, player: &Path) -> Result<PathBuf> {
+    /// Windows / Linux: `<Name>/<Name>[.exe]` + libraries + `game/` (Standard)
+    /// or `game.kitseal` (protected).
+    fn write_folder(
+        &self,
+        player: &Path,
+        out: &Path,
+        skip: &[PathBuf],
+        key: Option<&kit_export_security::PublisherKey>,
+    ) -> Result<()> {
         let name = self.safe_name();
-        let out = self.dest.join(&name);
-        std::fs::create_dir_all(&out)?;
         std::fs::write(out.join("KIT-LICENSE.txt"), KIT_LICENSE)?;
-        let exe = out.join(exe_name(self.platform.id, &name));
-        std::fs::copy(player, &exe).with_context(|| format!("writing {}", exe.display()))?;
         for lib in self.libraries(player) {
             std::fs::copy(&lib, out.join(lib.file_name().unwrap()))?;
         }
-        replace_dir(&self.root, &out.join("game"))?;
-        Ok(out)
+        let content_key = match key {
+            None => {
+                copy_dir(&self.root, &out.join("game"), skip)?;
+                None
+            }
+            Some(key) => {
+                let (sealed, content_key) = self.sealed_pack(skip, key)?;
+                std::fs::write(out.join(kit_export_security::SEALED_PACK), sealed)?;
+                content_key
+            }
+        };
+        Self::write_exe(&out.join(exe_name(self.platform.id, &name)), &self.launcher(player, key, content_key)?)
     }
 
-    /// macOS: `<Name>.app` with the game in Contents/Resources/game.
-    fn write_app(&self, player: &Path) -> Result<PathBuf> {
+    /// macOS: `<Name>.app` with the game in Contents/Resources (a `game/`
+    /// folder, or `game.kitseal` when protected).
+    fn write_app(
+        &self,
+        player: &Path,
+        app: &Path,
+        skip: &[PathBuf],
+        key: Option<&kit_export_security::PublisherKey>,
+    ) -> Result<()> {
         let name = self.safe_name();
-        let app = self.dest.join(format!("{name}.app"));
         let contents = app.join("Contents");
         for d in ["MacOS", "Resources", "Frameworks"] {
             std::fs::create_dir_all(contents.join(d))?;
         }
         std::fs::write(contents.join("Resources/KIT-LICENSE.txt"), KIT_LICENSE)?;
-        let exe = contents.join("MacOS").join(&name);
-        std::fs::copy(player, &exe)?;
+        let content_key = match key {
+            None => {
+                copy_dir(&self.root, &contents.join("Resources/game"), skip)?;
+                None
+            }
+            Some(key) => {
+                let (sealed, content_key) = self.sealed_pack(skip, key)?;
+                std::fs::write(contents.join("Resources").join(kit_export_security::SEALED_PACK), sealed)?;
+                content_key
+            }
+        };
+        Self::write_exe(&contents.join("MacOS").join(&name), &self.launcher(player, key, content_key)?)?;
         for lib in self.libraries(player) {
             std::fs::copy(&lib, contents.join("Frameworks").join(lib.file_name().unwrap()))?;
         }
@@ -411,8 +607,7 @@ impl ExportJob {
             title = xml_escape(&self.title),
         );
         std::fs::write(contents.join("Info.plist"), plist)?;
-        replace_dir(&self.root, &contents.join("Resources/game"))?;
-        Ok(app)
+        Ok(())
     }
 }
 
@@ -420,18 +615,30 @@ fn xml_escape(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
 }
 
-/// Copy a project into `to`, replacing what was there so deleted files don't linger.
-fn replace_dir(from: &Path, to: &Path) -> Result<()> {
-    if to.is_dir() {
-        std::fs::remove_dir_all(to)?;
+/// A protected Mac app's launcher was changed, so its signature must be
+/// renewed. Done here when exporting on a Mac; elsewhere it's reported.
+fn resign_mac_app(app: &Path) {
+    if cfg!(target_os = "macos") {
+        match std::process::Command::new("codesign").args(["--force", "--deep", "--sign", "-"]).arg(app).output() {
+            Ok(o) if o.status.success() => {}
+            Ok(o) => log::warn!("codesign failed: {}", String::from_utf8_lossy(&o.stderr).trim()),
+            Err(e) => log::warn!("codesign: {e}"),
+        }
+    } else {
+        log::warn!(
+            "{} must be re-signed on a Mac before it runs on Apple Silicon: codesign --force --deep --sign - <app>",
+            app.display()
+        );
     }
-    std::fs::create_dir_all(to)?;
-    // Exporting into a folder inside the project must not copy the export into itself.
-    let skip = to.canonicalize()?;
-    copy_dir(from, to, &skip)
 }
 
-fn copy_dir(from: &Path, to: &Path, skip: &Path) -> Result<()> {
+/// Copy a project into `to` (skipping `skip`: export folders inside the project).
+fn copy_dir(from: &Path, to: &Path, skip: &[PathBuf]) -> Result<()> {
+    let skip: Vec<PathBuf> = skip.iter().filter_map(|p| p.canonicalize().ok()).collect();
+    copy_dir_inner(from, to, &skip)
+}
+
+fn copy_dir_inner(from: &Path, to: &Path, skip: &[PathBuf]) -> Result<()> {
     std::fs::create_dir_all(to)?;
     for entry in std::fs::read_dir(from)?.flatten() {
         let name = entry.file_name().to_string_lossy().to_string();
@@ -439,11 +646,11 @@ fn copy_dir(from: &Path, to: &Path, skip: &Path) -> Result<()> {
             continue;
         }
         let p = entry.path();
-        if p.canonicalize().is_ok_and(|c| skip.starts_with(&c)) {
+        if p.canonicalize().is_ok_and(|c| skip.iter().any(|s| s.starts_with(&c))) {
             continue;
         }
         if p.is_dir() {
-            copy_dir(&p, &to.join(&name), skip)?;
+            copy_dir_inner(&p, &to.join(&name), skip)?;
         } else {
             std::fs::copy(&p, to.join(&name))?;
         }
@@ -618,6 +825,8 @@ mod tests {
                 root: root.clone(),
                 title: "My Game!".into(),
                 dest: dest.clone(),
+                protection: Protection::Standard,
+                key_file: None,
             };
             let out = job.run().unwrap();
             assert!(dest.join(check).is_file(), "{id}: {check}");
@@ -648,6 +857,8 @@ mod tests {
             root: root.clone(),
             title: "My <Game>".into(),
             dest: root.join("out_web"),
+            protection: Protection::Standard,
+            key_file: None,
         };
         let out = job.run().unwrap();
         for f in ["index.html", "kit.js", "kit_web.wasm", "game.pack", "README.txt"] {

@@ -8,6 +8,8 @@
 //! perspective one a 3D game, and both kinds of objects can share a scene.
 
 pub mod audio;
+pub mod bridge;
+pub mod post;
 mod physics;
 mod scene_file;
 mod terrain;
@@ -20,6 +22,11 @@ pub use physics::{
 };
 
 pub use audio::{AudioCommand, AudioCommands, AudioSource, AudioState, Rolloff, SOUND_EXTENSIONS, is_sound, stereo_pan};
+pub use post::{
+    AmbientFx, AoQuality, ColorFx, ExposureFx, FocusFx, GlowFx, ImageFx, Override, PostEffects, PostVolume, Tonemap,
+    VolumeAffect, VolumeShape,
+};
+pub use bridge::{BridgeValue, Diagram, GraphEvent, GraphEvents, ScriptCall, ScriptCalls};
 pub use scene_file::{EntityData, ExtraData, SCENE_EXTENSION, SceneFile, clone_subtree, load_scene, save_scene};
 
 use glam::{Mat4, Vec2, Vec3, Vec4};
@@ -211,6 +218,27 @@ impl Default for Light {
 pub struct Script {
     /// Project-relative path to the `.x` file.
     pub path: String,
+    /// Values set in the editor for the script's EDIT fields (field name →
+    /// value). Applied when the script starts, before `Init`.
+    #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub values: std::collections::BTreeMap<String, FieldValue>,
+}
+
+impl Script {
+    pub fn new(path: impl Into<String>) -> Self {
+        Self { path: path.into(), values: Default::default() }
+    }
+}
+
+/// A value for a script's EDIT field.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum FieldValue {
+    Bool(bool),
+    Int(i64),
+    Float(f64),
+    Vector([f64; 3]),
+    Text(String),
 }
 
 /// Registers the game-system module.
@@ -226,6 +254,8 @@ impl Module for GameSysModule {
     fn build(&self, app: &mut App) {
         app.world.insert_resource(AudioCommands::default());
         app.world.insert_resource(AudioState::default());
+        app.world.insert_resource(GraphEvents::default());
+        app.world.insert_resource(ScriptCalls::default());
     }
 }
 

@@ -8,6 +8,7 @@
 mod camera;
 mod canvas;
 mod code;
+mod diagram_view;
 mod gizmos;
 mod export;
 mod hooks;
@@ -205,6 +206,8 @@ struct Automation {
     script: Option<String>,
     play: bool,
     canvas: bool,
+    /// Open the Diagram view.
+    diagram: bool,
     settings: bool,
     new_script: bool,
     terrain: bool,
@@ -214,6 +217,12 @@ struct Automation {
     wizard: bool,
     /// Platform for `--export` (default: this computer's).
     platform: Option<String>,
+    /// `--protect standard|signed|encrypted` for `--export`.
+    protect: Option<String>,
+    /// `--key <file>`: the publisher key for protected exports.
+    key: Option<PathBuf>,
+    /// `--new-key <file>`: create a publisher key there and exit.
+    new_key: Option<PathBuf>,
     /// Force the light (Some(true)) or dark (Some(false)) theme without saving it.
     light: Option<bool>,
     frame_count: u32,
@@ -235,6 +244,11 @@ struct EditorApp {
 // ------------------------------------------------------------- recent projects
 
 fn config_dir() -> Option<PathBuf> {
+    export::config_dir()
+}
+
+#[allow(dead_code)]
+fn config_dir_old() -> Option<PathBuf> {
     if cfg!(windows) {
         std::env::var_os("APPDATA").map(|p| PathBuf::from(p).join("Kit"))
     } else if cfg!(target_os = "macos") {
@@ -305,6 +319,13 @@ fn copy_dir(from: &Path, to: &Path) -> Result<()> {
     Ok(())
 }
 
+/// The Kit logo for the window, taskbar and dock.
+fn app_icon() -> Option<winit::window::Icon> {
+    let img = image::load_from_memory(include_bytes!("../../packaging/icons/kit-256.png")).ok()?.into_rgba8();
+    let (w, h) = img.dimensions();
+    winit::window::Icon::from_rgba(img.into_raw(), w, h).ok()
+}
+
 impl EditorApp {
     fn init(&mut self, event_loop: &ActiveEventLoop) -> Result<()> {
         let window = Arc::new(
@@ -312,7 +333,8 @@ impl EditorApp {
                 Window::default_attributes()
                     .with_title("Kit")
                     .with_inner_size(LogicalSize::new(1480, 900))
-                    .with_min_inner_size(LogicalSize::new(900, 560)),
+                    .with_min_inner_size(LogicalSize::new(900, 560))
+                    .with_window_icon(app_icon()),
             )?,
         );
         let display = window.display_handle()?.as_raw();
@@ -373,6 +395,8 @@ impl EditorApp {
         }
         if let Some(name) = self.auto.select.clone() {
             self.editor.selected = kit::scene::find_by_name(&self.editor.app.world, &name);
+            // Like clicking it in the hierarchy: bring it into view.
+            self.editor.frame_selected();
         }
         if let Some(script) = self.auto.script.clone() {
             self.editor.open_script(&script);
@@ -381,6 +405,7 @@ impl EditorApp {
             self.editor.play();
         }
         self.editor.settings.canvas |= self.auto.canvas;
+        self.editor.settings.diagram |= self.auto.diagram;
         self.editor.request_settings |= self.auto.settings;
         if self.auto.wizard {
             self.ui.export.show(&mut self.editor);
@@ -456,14 +481,21 @@ impl EditorApp {
                 },
                 Request::ImportModels => {
                     let Some(project) = &self.editor.project else { continue };
+                    let mut all: Vec<&str> = vec!["png", "jpg", "jpeg", "x", "kscene", "kdiagram"];
+                    all.extend(kit::gamesys::SOUND_EXTENSIONS);
+                    all.extend(model_import::SOURCE_EXTENSIONS);
                     if let Some(files) = rfd::FileDialog::new()
-                        .set_title("Import 3D models")
+                        .set_title("Import files")
                         .set_directory(project.root())
+                        .add_filter("Everything Kit can use", &all)
+                        .add_filter("Sounds", kit::gamesys::SOUND_EXTENSIONS)
+                        .add_filter("Sprites", &["png", "jpg", "jpeg"])
                         .add_filter("3D models", model_import::SOURCE_EXTENSIONS)
+                        .add_filter("Scripts, scenes and diagrams", &["x", "kscene", "kdiagram"])
                         .pick_files()
                     {
                         for path in files {
-                            let result = self.editor.import_model(&path);
+                            let result = self.editor.import_asset(&path).map(|_| ());
                             self.editor.report(result);
                         }
                     }
@@ -473,6 +505,27 @@ impl EditorApp {
                         let _ = std::fs::create_dir_all(&dir);
                         let mode = if theme::is_light() { "light" } else { "dark" };
                         let _ = std::fs::write(dir.join("theme.txt"), mode);
+                    }
+                }
+                Request::ImportPublisherKey => {
+                    if let Some(file) = rfd::FileDialog::new().set_title("Import a Kit publisher key").pick_file() {
+                        let result = (|| -> Result<String> {
+                            let text = std::fs::read_to_string(&file)?;
+                            let key = kit_export_security::PublisherKey::from_file_text(&text)?;
+                            let path = export::default_key_path().context("no settings folder")?;
+                            anyhow::ensure!(
+                                !path.exists(),
+                                "A publisher key already exists at {}. Move it away (keep a backup) to import another.",
+                                path.display()
+                            );
+                            key.save(&path)?;
+                            Ok(key.fingerprint())
+                        })();
+                        match result {
+                            Ok(fp) => self.editor.notify(format!("Imported publisher key {fp}")),
+                            Err(e) => self.editor.report(Err(e)),
+                        }
+                        self.ui.export.refresh_key();
                     }
                 }
                 Request::PickExportFolder => {
@@ -582,6 +635,7 @@ impl EditorApp {
                     v.backdrop = false;
                     v.clear = ed.light_background();
                 }
+                v.post = ed.settings.volumes;
                 v
             };
             view.lighting = ed.settings.lighting;
@@ -810,6 +864,7 @@ fn main() {
             "--script" => auto.script = args.next(),
             "--play" => auto.play = true,
             "--canvas" => auto.canvas = true,
+            "--diagram" => auto.diagram = true,
             "--settings" => auto.settings = true,
             "--wizard" => auto.wizard = true,
             "--new-script" => auto.new_script = true,
@@ -818,11 +873,27 @@ fn main() {
             "--dark" => auto.light = Some(false),
             "--export" => auto.export = args.next().map(PathBuf::from),
             "--platform" => auto.platform = args.next(),
+            "--protect" => auto.protect = args.next(),
+            "--key" => auto.key = args.next().map(PathBuf::from),
+            "--new-key" => auto.new_key = args.next().map(PathBuf::from),
             other => project = Some(PathBuf::from(other)),
         }
     }
+    if let Some(path) = auto.new_key.clone() {
+        // Creates a publisher signing key; prints only its public fingerprint.
+        let result = kit_export_security::PublisherKey::generate().and_then(|k| k.save(&path).map(|()| k));
+        match result {
+            Ok(k) => println!("Created publisher key {} ({})", path.display(), k.fingerprint()),
+            Err(e) => {
+                eprintln!("kit-editor: {e:#}");
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
     if let Some(dest) = auto.export.clone() {
-        let result = export_headless(project, &dest, auto.platform.as_deref());
+        let result =
+            export_headless(project, &dest, auto.platform.as_deref(), auto.protect.as_deref(), auto.key.clone());
         match result {
             Ok(out) => println!("Exported to {}", out.display()),
             Err(e) => {
@@ -840,13 +911,29 @@ fn main() {
 }
 
 /// `kit-editor <project> --export <folder> [--platform linux|windows|macos]`: export without a window.
-fn export_headless(project: Option<PathBuf>, dest: &Path, platform: Option<&str>) -> Result<PathBuf> {
+fn export_headless(
+    project: Option<PathBuf>,
+    dest: &Path,
+    platform: Option<&str>,
+    protect: Option<&str>,
+    key: Option<PathBuf>,
+) -> Result<PathBuf> {
     let project = project.context("pass the project folder to export")?;
     let id = platform.unwrap_or(export::host());
     let platform = export::platform(id).with_context(|| format!("unknown platform `{id}`"))?;
+    let protection = match protect {
+        None => export::Protection::Standard,
+        Some(p) => export::Protection::parse(p)
+            .with_context(|| format!("unknown protection `{p}` (use standard, signed or encrypted)"))?,
+    };
+    if let Err(why) = export::protection_supported(&platform, protection) {
+        anyhow::bail!("{why}");
+    }
     let mut editor = Editor::new();
     editor.open_project(&project)?;
-    let job = editor.export_job(&platform, dest)?;
+    let mut job = editor.export_job(&platform, dest)?;
+    job.protection = protection;
+    job.key_file = key;
     if job.needs_build() {
         eprintln!("The {} player doesn't match this editor; rebuilding it first…", platform.name);
     }

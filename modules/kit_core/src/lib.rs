@@ -255,6 +255,8 @@ pub struct Console {
     lines: Vec<ConsoleLine>,
     /// Bumped on every push so UIs can auto-scroll.
     pub revision: u64,
+    /// Errors pushed so far (never reset; for "new errors" badges).
+    pub errors_total: u64,
 }
 
 impl Console {
@@ -266,6 +268,9 @@ impl Console {
             LogLevel::Info => log::info!("[{}] {}", line.source, line.text),
             LogLevel::Warn => log::warn!("[{}] {}", line.source, line.text),
             LogLevel::Error => log::error!("[{}] {}", line.source, line.text),
+        }
+        if level == LogLevel::Error {
+            self.errors_total += 1;
         }
         self.lines.push(line);
         if self.lines.len() > Self::MAX_LINES {

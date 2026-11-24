@@ -1,0 +1,1015 @@
+{
+  "version": 1,
+  "entities": [
+    {
+      "id": 0,
+      "name": "Sun",
+      "transform": {
+        "translation": [
+          0,
+          6,
+          0
+        ],
+        "rotation": [
+          -0.4,
+          0.2,
+          0.09,
+          0.89
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "light": {
+        "color": [
+          1.0,
+          0.95,
+          0.85
+        ],
+        "intensity": 1.3
+      }
+    },
+    {
+      "id": 1,
+      "name": "Camera",
+      "transform": {
+        "translation": [
+          12.0,
+          1.8,
+          7.0
+        ],
+        "rotation": [
+          -0.05686531167414724,
+          -0.0,
+          -0.0,
+          0.9983818589739109
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "camera": {
+        "projection": {
+          "kind": "Perspective",
+          "fov_y": 55.0,
+          "near": 0.1,
+          "far": 200.0
+        },
+        "clear_color": [
+          0.07,
+          0.08,
+          0.11,
+          1.0
+        ],
+        "active": true
+      }
+    },
+    {
+      "id": 2,
+      "name": "Ground",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          60,
+          1,
+          30
+        ]
+      },
+      "model": {
+        "mesh": "Plane",
+        "color": [
+          0.32,
+          0.3,
+          0.36,
+          1.0
+        ],
+        "texture": "",
+        "unlit": false,
+        "visible": true
+      }
+    },
+    {
+      "id": 3,
+      "name": "Back wall",
+      "transform": {
+        "translation": [
+          0,
+          4,
+          -8
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          60,
+          8,
+          0.5
+        ]
+      },
+      "model": {
+        "mesh": "Cube",
+        "color": [
+          0.42,
+          0.4,
+          0.48,
+          1.0
+        ],
+        "texture": "",
+        "unlit": false,
+        "visible": true
+      }
+    },
+    {
+      "id": 4,
+      "name": "Cube 0",
+      "transform": {
+        "translation": [
+          -12,
+          0.8,
+          0.0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1.4,
+          1.4,
+          1.4
+        ]
+      },
+      "model": {
+        "mesh": "Cube",
+        "color": [
+          0.9,
+          0.3,
+          0.3,
+          1.0
+        ],
+        "texture": "",
+        "unlit": false,
+        "visible": true
+      }
+    },
+    {
+      "id": 5,
+      "name": "Lamp 0",
+      "transform": {
+        "translation": [
+          -10.8,
+          2.6,
+          -1.0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          0.5,
+          0.5,
+          0.5
+        ]
+      },
+      "model": {
+        "mesh": "Sphere",
+        "color": [
+          1.0,
+          0.85,
+          0.55,
+          1.0
+        ],
+        "texture": "",
+        "unlit": true,
+        "visible": true
+      }
+    },
+    {
+      "id": 6,
+      "name": "Sphere 1",
+      "transform": {
+        "translation": [
+          -9,
+          0.8,
+          0.5
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1.4,
+          1.4,
+          1.4
+        ]
+      },
+      "model": {
+        "mesh": "Sphere",
+        "color": [
+          0.3,
+          0.8,
+          0.4,
+          1.0
+        ],
+        "texture": "",
+        "unlit": false,
+        "visible": true
+      }
+    },
+    {
+      "id": 7,
+      "name": "Lamp 1",
+      "transform": {
+        "translation": [
+          -7.8,
+          2.6,
+          -1.0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          0.5,
+          0.5,
+          0.5
+        ]
+      },
+      "model": {
+        "mesh": "Sphere",
+        "color": [
+          1.0,
+          0.85,
+          0.55,
+          1.0
+        ],
+        "texture": "",
+        "unlit": true,
+        "visible": true
+      }
+    },
+    {
+      "id": 8,
+      "name": "Cylinder 2",
+      "transform": {
+        "translation": [
+          -6,
+          0.8,
+          0.0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1.4,
+          1.4,
+          1.4
+        ]
+      },
+      "model": {
+        "mesh": "Cylinder",
+        "color": [
+          0.3,
+          0.5,
+          0.95,
+          1.0
+        ],
+        "texture": "",
+        "unlit": false,
+        "visible": true
+      }
+    },
+    {
+      "id": 9,
+      "name": "Lamp 2",
+      "transform": {
+        "translation": [
+          -4.8,
+          2.6,
+          -1.0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          0.5,
+          0.5,
+          0.5
+        ]
+      },
+      "model": {
+        "mesh": "Sphere",
+        "color": [
+          1.0,
+          0.85,
+          0.55,
+          1.0
+        ],
+        "texture": "",
+        "unlit": true,
+        "visible": true
+      }
+    },
+    {
+      "id": 10,
+      "name": "Torus 3",
+      "transform": {
+        "translation": [
+          -3,
+          0.8,
+          0.5
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1.4,
+          1.4,
+          1.4
+        ]
+      },
+      "model": {
+        "mesh": "Torus",
+        "color": [
+          0.95,
+          0.8,
+          0.3,
+          1.0
+        ],
+        "texture": "",
+        "unlit": false,
+        "visible": true
+      }
+    },
+    {
+      "id": 11,
+      "name": "Lamp 3",
+      "transform": {
+        "translation": [
+          -1.8,
+          2.6,
+          -1.0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          0.5,
+          0.5,
+          0.5
+        ]
+      },
+      "model": {
+        "mesh": "Sphere",
+        "color": [
+          1.0,
+          0.85,
+          0.55,
+          1.0
+        ],
+        "texture": "",
+        "unlit": true,
+        "visible": true
+      }
+    },
+    {
+      "id": 12,
+      "name": "Cube 4",
+      "transform": {
+        "translation": [
+          0,
+          0.8,
+          0.0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1.4,
+          1.4,
+          1.4
+        ]
+      },
+      "model": {
+        "mesh": "Cube",
+        "color": [
+          0.9,
+          0.3,
+          0.3,
+          1.0
+        ],
+        "texture": "",
+        "unlit": false,
+        "visible": true
+      }
+    },
+    {
+      "id": 13,
+      "name": "Lamp 4",
+      "transform": {
+        "translation": [
+          1.2,
+          2.6,
+          -1.0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          0.5,
+          0.5,
+          0.5
+        ]
+      },
+      "model": {
+        "mesh": "Sphere",
+        "color": [
+          1.0,
+          0.85,
+          0.55,
+          1.0
+        ],
+        "texture": "",
+        "unlit": true,
+        "visible": true
+      }
+    },
+    {
+      "id": 14,
+      "name": "Sphere 5",
+      "transform": {
+        "translation": [
+          3,
+          0.8,
+          0.5
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1.4,
+          1.4,
+          1.4
+        ]
+      },
+      "model": {
+        "mesh": "Sphere",
+        "color": [
+          0.3,
+          0.8,
+          0.4,
+          1.0
+        ],
+        "texture": "",
+        "unlit": false,
+        "visible": true
+      }
+    },
+    {
+      "id": 15,
+      "name": "Lamp 5",
+      "transform": {
+        "translation": [
+          4.2,
+          2.6,
+          -1.0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          0.5,
+          0.5,
+          0.5
+        ]
+      },
+      "model": {
+        "mesh": "Sphere",
+        "color": [
+          1.0,
+          0.85,
+          0.55,
+          1.0
+        ],
+        "texture": "",
+        "unlit": true,
+        "visible": true
+      }
+    },
+    {
+      "id": 16,
+      "name": "Cylinder 6",
+      "transform": {
+        "translation": [
+          6,
+          0.8,
+          0.0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1.4,
+          1.4,
+          1.4
+        ]
+      },
+      "model": {
+        "mesh": "Cylinder",
+        "color": [
+          0.3,
+          0.5,
+          0.95,
+          1.0
+        ],
+        "texture": "",
+        "unlit": false,
+        "visible": true
+      }
+    },
+    {
+      "id": 17,
+      "name": "Lamp 6",
+      "transform": {
+        "translation": [
+          7.2,
+          2.6,
+          -1.0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          0.5,
+          0.5,
+          0.5
+        ]
+      },
+      "model": {
+        "mesh": "Sphere",
+        "color": [
+          1.0,
+          0.85,
+          0.55,
+          1.0
+        ],
+        "texture": "",
+        "unlit": true,
+        "visible": true
+      }
+    },
+    {
+      "id": 18,
+      "name": "Torus 7",
+      "transform": {
+        "translation": [
+          9,
+          0.8,
+          0.5
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1.4,
+          1.4,
+          1.4
+        ]
+      },
+      "model": {
+        "mesh": "Torus",
+        "color": [
+          0.95,
+          0.8,
+          0.3,
+          1.0
+        ],
+        "texture": "",
+        "unlit": false,
+        "visible": true
+      }
+    },
+    {
+      "id": 19,
+      "name": "Lamp 7",
+      "transform": {
+        "translation": [
+          10.2,
+          2.6,
+          -1.0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          0.5,
+          0.5,
+          0.5
+        ]
+      },
+      "model": {
+        "mesh": "Sphere",
+        "color": [
+          1.0,
+          0.85,
+          0.55,
+          1.0
+        ],
+        "texture": "",
+        "unlit": true,
+        "visible": true
+      }
+    },
+    {
+      "id": 20,
+      "name": "Cube 8",
+      "transform": {
+        "translation": [
+          12,
+          0.8,
+          0.0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1.4,
+          1.4,
+          1.4
+        ]
+      },
+      "model": {
+        "mesh": "Cube",
+        "color": [
+          0.9,
+          0.3,
+          0.3,
+          1.0
+        ],
+        "texture": "",
+        "unlit": false,
+        "visible": true
+      }
+    },
+    {
+      "id": 21,
+      "name": "Lamp 8",
+      "transform": {
+        "translation": [
+          13.2,
+          2.6,
+          -1.0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          0.5,
+          0.5,
+          0.5
+        ]
+      },
+      "model": {
+        "mesh": "Sphere",
+        "color": [
+          1.0,
+          0.85,
+          0.55,
+          1.0
+        ],
+        "texture": "",
+        "unlit": true,
+        "visible": true
+      }
+    },
+    {
+      "id": 22,
+      "name": "Pillar",
+      "transform": {
+        "translation": [
+          6,
+          2,
+          0.5
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1.2,
+          4,
+          1.2
+        ]
+      },
+      "model": {
+        "mesh": "Cylinder",
+        "color": [
+          0.95,
+          0.35,
+          0.6,
+          1.0
+        ],
+        "texture": "",
+        "unlit": false,
+        "visible": true
+      }
+    },
+    {
+      "id": 23,
+      "name": "Baseline (global)",
+      "transform": {
+        "translation": [
+          0,
+          0.2,
+          9
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "post_volume": {
+        "shape": "Global",
+        "affect": "Camera",
+        "priority": 0,
+        "blend_distance": 2.0,
+        "weight": 1.0,
+        "effects": {
+          "exposure": {
+            "ev": 0.0,
+            "tonemap": "Filmic",
+            "mode": "On"
+          }
+        }
+      }
+    },
+    {
+      "id": 24,
+      "name": "Cave",
+      "transform": {
+        "translation": [
+          -7,
+          2,
+          3
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          8,
+          6,
+          14
+        ]
+      },
+      "post_volume": {
+        "shape": "Box",
+        "affect": "Camera",
+        "priority": 1,
+        "blend_distance": 3.0,
+        "weight": 1.0,
+        "effects": {
+          "exposure": {
+            "ev": -1.0,
+            "tonemap": "Filmic",
+            "mode": "On"
+          },
+          "color": {
+            "saturation": 0.35,
+            "contrast": 1.15,
+            "temperature": -0.6,
+            "mode": "On"
+          },
+          "ambient": {
+            "radius": 0.8,
+            "strength": 1.6,
+            "quality": "Medium",
+            "mode": "On"
+          }
+        }
+      }
+    },
+    {
+      "id": 25,
+      "name": "Glow Rig",
+      "transform": {
+        "translation": [
+          -2,
+          1.5,
+          4
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": 26,
+      "name": "Glow Room",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          7,
+          7,
+          7
+        ]
+      },
+      "parent": 25,
+      "post_volume": {
+        "shape": "Sphere",
+        "affect": "Camera",
+        "priority": 2,
+        "blend_distance": 2.0,
+        "weight": 1.0,
+        "effects": {
+          "glow": {
+            "threshold": 0.7,
+            "intensity": 2.0,
+            "radius": 0.7,
+            "mode": "On"
+          },
+          "color": {
+            "saturation": 1.2,
+            "contrast": 1.0,
+            "temperature": 0.6,
+            "mode": "On"
+          },
+          "image": {
+            "fxaa": true,
+            "sharpen": 0.4,
+            "mode": "On"
+          }
+        }
+      }
+    },
+    {
+      "id": 27,
+      "name": "Telescope",
+      "transform": {
+        "translation": [
+          9,
+          2,
+          5
+        ],
+        "rotation": [
+          0.0,
+          0.25881904510252074,
+          0.0,
+          0.9659258262890683
+        ],
+        "scale": [
+          4,
+          4,
+          6
+        ]
+      },
+      "post_volume": {
+        "shape": "Box",
+        "affect": "Camera",
+        "priority": 1,
+        "blend_distance": 1.0,
+        "weight": 1.0,
+        "effects": {
+          "focus": {
+            "distance": 6.6,
+            "range": 1.0,
+            "strength": 1.0,
+            "mode": "On"
+          }
+        }
+      }
+    },
+    {
+      "id": 28,
+      "name": "Grey Pillar",
+      "transform": {
+        "translation": [
+          6,
+          2,
+          0.5
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          2.4,
+          5,
+          2.4
+        ]
+      },
+      "post_volume": {
+        "shape": "Box",
+        "affect": "Objects",
+        "priority": 3,
+        "blend_distance": 0.5,
+        "weight": 1.0,
+        "effects": {
+          "color": {
+            "saturation": 0.0,
+            "contrast": 1.0,
+            "temperature": 0.0,
+            "mode": "On"
+          }
+        }
+      }
+    }
+  ]
+}

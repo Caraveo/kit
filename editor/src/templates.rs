@@ -11,8 +11,8 @@ pub const SPINNER_X: &str = r#"# Spins the object and bobs it up and down.
 TAKE Transform, Time, Math
 
 CREATE Spinner[
-    FLOAT Speed: 45.0
-    FLOAT Height: 0.25
+    EDIT FLOAT Speed: 45.0
+    EDIT FLOAT Height: 0.25
     VECTOR Start: VECTOR()
 
     VOID CREATE Init()[
@@ -34,7 +34,7 @@ pub fn script_template(class: &str) -> String {
 TAKE Transform, Input, Time
 
 CREATE {class}[
-    FLOAT Speed: 2.0
+    EDIT FLOAT Speed: 2.0
 
     VOID CREATE Init()[
         DISPLAY["{class} ready"]
@@ -81,7 +81,7 @@ pub fn starter_scene() -> SceneFile {
     push("Sun", light_t, &|d| d.light = Some(Light::default()));
     push("Cube", Transform::from_xyz(0.0, 0.75, 0.0).with_scale(Vec3::splat(1.2)), &|d| {
         d.model = Some(Model { mesh: MeshKind::Cube, color: Vec4::new(0.76, 0.66, 1.0, 1.0), ..Default::default() });
-        d.script = Some(Script { path: "scripts/spinner.x".into() });
+        d.script = Some(Script::new("scripts/spinner.x"));
     });
     SceneFile { entities, ..Default::default() }
 }

@@ -2,8 +2,8 @@
 TAKE Transform, Time, Math
 
 CREATE Orbit[
-    FLOAT Radius: 1.6
-    FLOAT Speed: 1.4
+    EDIT FLOAT Radius: 1.6
+    EDIT FLOAT Speed: 1.4
 
     VOID CREATE Update(FLOAT dt)[
         FLOAT A: Time.Elapsed * Speed

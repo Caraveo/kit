@@ -1,5 +1,57 @@
 # Changelog
 
+## v0.0.2: Diagrams and Effects
+
+### Major features
+- **Diagrams (visual logic):**
+  - Blueprint-style graphs that run directly on the engine, with no code generated.
+  - Press **7** for the Diagram view: add nodes from a searchable picker, drag wires between typed pins, select a wire and press Del to remove it, set values inline, and undo or redo.
+  - **Nodes:**
+    - Events: On Start, On Interact, On Trigger Enter/Exit, On Timer, custom events.
+    - Objects: position, rotation, scale, Move Over Time, visibility.
+    - Appearance and physics: tint, gravity scale, scene gravity, impulse, velocity.
+    - Data and logic: datasets, constants, variables, Compare, Branch, Sequence, Delay, math, logic, conversions.
+    - Integration: sounds, events, script fields.
+  - **Checks:** each problem is flagged on its node and pin before running.
+  - **Runtime:** deterministic frame order, a per-frame node budget against runaway loops, and live highlighting and pin values while playing.
+  - Runs in the editor, the desktop player and the web player (`kit_diagram`).
+- **Game Data:** datasets with typed fields and rows, plus constants, saved in `game.kdata` and referenced by stable IDs (`kit_gamedata`).
+- **Effects (post-processing volumes):**
+  - Box or sphere volumes with bloom, color grading, exposure, fog, depth of field, vignette, sharpening and more.
+  - Each volume affects the camera inside it or the objects inside it. Overlapping volumes blend by priority and soft edges.
+  - Identical on Vulkan and WebGPU, with a Volumes preview (**6**) and the `examples/volumes` project (`kit_post`).
+- **Protected exports:**
+  - Standard, Signed, or Signed + Encrypted.
+  - Uses Ed25519 signatures and XChaCha20-Poly1305 encryption, and a pinned publisher key in each player.
+  - A changed or re-signed game refuses to start (`kit_export_security`).
+
+### x scripting
+- Fields are private by default. `PUBLIC` shows a field in the inspector (read-only) and `EDIT` makes it editable per object; edited values are saved in the scene and applied before `Init`.
+- Diagrams read `PUBLIC` fields and set `EDIT` fields.
+
+### Editor
+- **Shortcuts:**
+  - <kbd>1</kbd>–<kbd>7</kbd> toggle the viewport bar: wireframe, lighting, grid, colliders, canvas, volumes, diagram.
+  - <kbd>W</kbd>/<kbd>S</kbd> zoom, and <kbd>A</kbd>/<kbd>D</kbd> pan (<kbd>Q</kbd>/<kbd>E</kbd> down/up, <kbd>Shift</kbd> faster).
+- **Import files…** and drag-and-drop for every kind of file Kit uses: sounds, sprites, 3D models, scripts, scenes and diagrams. Sprites and sounds dropped on the viewport become objects.
+- **Export:**
+  - Exports go to `~/KitBuilds/<project>/<platform>` by default.
+  - Exports are written atomically.
+  - A stale player is detected and rebuilt.
+- **Inspector and console:**
+  - The console starts collapsed, with a badge for new errors.
+  - The inspector scroll bar appears after a short delay and no longer covers buttons.
+- New app icon.
+
+### Bug fixes
+- The asset list no longer shows copies from exported games inside the project (Scenes showed 6 instead of 2).
+- Long model names no longer overflow the inspector and object list.
+- Fixed hierarchy drag-to-reparent, which could swallow other drags.
+- Light mode now uses a light viewport background and no longer shows a stray dark line between panels.
+- Exports no longer include the export folder itself.
+- Mac exports made on Linux now include MoltenVK.
+
+
 ## v0.0.1 — first release
 
 The first public build of Kit: a modular 2D/3D game engine in Rust with a

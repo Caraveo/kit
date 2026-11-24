@@ -24,6 +24,8 @@
 
 pub use glam as math;
 pub use kit_collider as collider;
+pub use kit_diagram as diagram;
+pub use kit_gamedata as gamedata;
 pub use kit_core as core;
 pub use kit_ecs as ecs;
 pub use kit_engine as engine;

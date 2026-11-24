@@ -1,6 +1,6 @@
 //! `.kscene` files: a JSON list of entities with their components.
 
-use crate::{AudioSource, Camera, Collider, Light, Model, PathFollow, RigidBody, Script, Sprite, Terrain};
+use crate::{AudioSource, Camera, Diagram, PostVolume, Collider, Light, Model, PathFollow, RigidBody, Script, Sprite, Terrain};
 use anyhow::{Context, Result, bail};
 use kit_ecs::{Entity, World};
 use kit_scene::{Name, RootOrder, Transform};
@@ -40,6 +40,10 @@ pub struct EntityData {
     pub terrain: Option<Terrain>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub audio: Option<AudioSource>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub post_volume: Option<PostVolume>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diagram: Option<Diagram>,
     /// Fields this version of Kit does not know (from newer versions or plugins).
     /// Kept and written back so saving never drops them.
     #[serde(flatten)]
@@ -93,6 +97,8 @@ fn entity_data(world: &World, e: Entity, id: u32, parent: Option<u32>) -> Entity
         path: world.get_cloned::<PathFollow>(e),
         terrain: world.get_cloned::<Terrain>(e),
         audio: world.get_cloned::<AudioSource>(e),
+        post_volume: world.get_cloned::<PostVolume>(e),
+        diagram: world.get_cloned::<Diagram>(e),
         extra: world.get::<ExtraData>(e).map(|x| x.0.clone()).unwrap_or_default(),
     }
 }
@@ -161,6 +167,12 @@ pub fn load_scene(world: &mut World, scene: &SceneFile) -> Result<Vec<Entity>> {
         if let Some(a) = &d.audio {
             world.insert(e, a.clone());
         }
+        if let Some(v) = &d.post_volume {
+            world.insert(e, v.clone());
+        }
+        if let Some(g) = &d.diagram {
+            world.insert(e, g.clone());
+        }
         if !d.extra.is_empty() {
             world.insert(e, ExtraData(d.extra.clone()));
         }
@@ -222,7 +234,7 @@ mod tests {
         let root = kit_scene::spawn_node(&mut w, "Root", Transform::IDENTITY);
         let child = kit_scene::spawn_node(&mut w, "Child", Transform::from_xyz(1.0, 0.0, 0.0));
         w.insert(child, Model { mesh: MeshKind::Sphere, ..Default::default() });
-        w.insert(child, Script { path: "scripts/spin.x".into() });
+        w.insert(child, Script::new("scripts/spin.x"));
         w.insert(child, crate::Collider::default());
         w.insert(child, crate::RigidBody { kind: crate::BodyKind::Kinematic, ..Default::default() });
         kit_scene::set_parent(&mut w, child, root);

@@ -13,8 +13,9 @@ fn hello_example_runs_clean() {
     let mut app = kit_engine::project_app(&project).expect("load main scene");
     assert!(app.world.entity_count() > 0);
 
-    let player = kit_scene::find_by_name(&app.world, "Player").unwrap();
-    let start = app.world.get::<kit_scene::Transform>(player).unwrap().translation;
+    // The Player script (when the example still has it; it's meant to be edited).
+    let player = kit_scene::find_by_name(&app.world, "Player");
+    let start = player.and_then(|p| app.world.get::<kit_scene::Transform>(p).map(|t| t.translation));
     app.world.resource_mut::<Input>().press("KeyD");
     for frame in 0..120 {
         if frame == 60 {
@@ -22,8 +23,10 @@ fn hello_example_runs_clean() {
         }
         app.update(1.0 / 60.0);
     }
-    let end = app.world.get::<kit_scene::Transform>(player).unwrap().translation;
-    assert!(end.x > start.x + 1.0, "player should move right: {start} -> {end}");
+    if let (Some(player), Some(start)) = (player, start) {
+        let end = app.world.get::<kit_scene::Transform>(player).unwrap().translation;
+        assert!(end.x > start.x + 1.0, "player should move right: {start} -> {end}");
+    }
 
     // Physics and paths (when those objects exist; the example is meant to be edited).
     if let Some(ball) = kit_scene::find_by_name(&app.world, "Ball 1") {
@@ -42,6 +45,8 @@ fn hello_example_runs_clean() {
         console.lines().iter().filter(|l| l.level == LogLevel::Error).map(|l| l.text.clone()).collect();
     assert!(errors.is_empty(), "script errors: {errors:#?}");
     let text: Vec<_> = console.lines().iter().map(|l| l.text.clone()).collect();
-    assert!(text.iter().any(|t| t.starts_with("Hello from x!")), "{text:?}");
-    assert!(text.iter().any(|t| t.starts_with("Color 1 after")), "{text:?}");
+    if player.is_some() {
+        assert!(text.iter().any(|t| t.starts_with("Hello from x!")), "{text:?}");
+        assert!(text.iter().any(|t| t.starts_with("Color 1 after")), "{text:?}");
+    }
 }

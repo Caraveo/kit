@@ -4,25 +4,42 @@
 
 **Draw a path. Press play. See where it goes.**
 
-Kit is a 2D and 3D game engine for making playable prototypes and building on them. Sketch movement directly in the viewport, bring your own sprites and 3D models, and press **F5** to try the result in the same window. When you're ready to share, export a desktop build or a browser build.
+Kit is a 2D and 3D game engine for making playable prototypes and building on them. Sketch movement directly in the viewport, wire up gameplay with **Diagrams**, set the mood with post-processing **Effects**, bring your own sprites, sounds and 3D models, and press **F5** to try the result in the same window. When you're ready to share, export a desktop build or a browser build.
 
 [Download Kit](https://github.com/caraveo/kit/releases) · [Make your first game](documentation/src/content/docs/getting-started/first-game.mdx) · [Browse the source](https://github.com/caraveo/kit)
 
 ![Kit’s native editor with a scene hierarchy, 3D viewport, and inspector](docs/editor.png)
 
+## New in v0.0.2
+
+- **Diagrams: visual logic, no code.** Press **7** to open the Diagram view under the viewport. Wire events like *On Start*, *On Interact*, *On Trigger* and *On Timer* to actions: move, tint, show or hide objects, change gravity, play sounds, run timers and branches. Diagrams run directly in the engine (in the editor, the desktop player and the browser) and light up live while you play. [Read more](documentation/src/content/docs/editor/diagrams.md)
+- **Game Data.** Datasets, rows and constants that diagrams read by stable IDs, so renaming never breaks a wire.
+- **Effects: post-processing volumes.** Add a box or sphere volume for bloom, color grading, fog, depth of field, vignette, sharpening and more. Each volume affects either the camera inside it or the objects inside it, and overlapping volumes blend. [Read more](documentation/src/content/docs/editor/post-processing.md)
+- **Protected exports.** Sign your game, or sign and encrypt it, so players only run the build you published.
+- **x scripting:** fields are private by default. `PUBLIC` shows a field in the inspector, and `EDIT` makes it editable per object. Diagrams can read `PUBLIC` fields and set `EDIT` fields.
+- **Import anything Kit uses** (sounds, sprites, 3D models, scripts, scenes, diagrams) with **Assets → + → Import files…** or by dragging files onto Kit.
+- **Editor:**
+  - <kbd>1</kbd>–<kbd>7</kbd> toggle the viewport bar.
+  - <kbd>W</kbd>/<kbd>S</kbd> zoom and <kbd>A</kbd>/<kbd>D</kbd> pan.
+  - The console starts collapsed and shows a badge when there are new errors.
+  - New app icon.
+  - Plus many bug fixes. See the [changelog](CHANGELOG.md).
+
 ## What you can build with Kit
 
 - **Make movement by drawing it.** Use [Canvas mode](documentation/src/content/docs/editor/canvas-mode.mdx) to sketch a patrol, moving platform, or obstacle course in the viewport. Hit play to see how the path interacts with colliders and rigid bodies.
 - **Build scenes with your own art.** Work with sprites, lighting, cameras, and sculptable terrain. Import [GLB, glTF, FBX, OBJ, USDZ, and STL](documentation/src/content/docs/editor/scenes-and-assets.md#using-3d-models), with material colors, base-color textures, and baked animation clips when available. Imports other than plain OBJ use Blender 4.5+.
-- **Give objects behavior.** Write gameplay in Kit's [x scripting language](docs/x.md) and edit scripts in the built-in code editor. Add Rapier-powered physics, triggers, and [positional sound](documentation/src/content/docs/editor/sound.md) from the inspector.
-- **Share a playable build.** [Export your game](documentation/src/content/docs/editor/export.md) for Linux, Windows, or macOS with the matching player, or export an HTML5 build for browsers with WebGPU.
+- **Give objects behavior, with or without code.** Wire events to actions in a [Diagram](documentation/src/content/docs/editor/diagrams.md), or write gameplay in Kit's [x scripting language](docs/x.md) in the built-in code editor. Both can work together. Add Rapier-powered physics, triggers, and [positional sound](documentation/src/content/docs/editor/sound.md) from the inspector.
+- **Set the look with Effects.** Drop [post-processing volumes](documentation/src/content/docs/editor/post-processing.md) into a scene for bloom, color grading, fog, depth of field and more, on the camera or on just the objects inside.
+- **Share a playable build.** [Export your game](documentation/src/content/docs/editor/export.md) for Linux, Windows, or macOS with the matching player, or export an HTML5 build for browsers with WebGPU. You can sign or encrypt exports.
 
 ## Try it in a minute
 
 1. Get the package for your platform from [GitHub Releases](https://github.com/caraveo/kit/releases), then open **Kit** and choose **Open example**.
-2. Select an object in the scene and press **D** to enter Canvas mode. Drag in the viewport to sketch a path.
-3. Press **F5** to play. Click the viewport to pass keyboard input to the game.
-4. To bring in your own model, choose **Assets → + → Import 3D models…**, then double-click the imported asset under **Models**.
+2. Select an object in the scene and press **5** to enter Canvas mode. Drag in the viewport to sketch a path.
+3. Press **7** to open the Diagram view, click **+ Add Diagram**, then right-click the canvas to add nodes and drag wires between them.
+4. Press **F5** to play. Click the viewport to pass keyboard input to the game.
+5. To bring in your own files, choose **Assets → + → Import files…**, or drag sounds, sprites and models onto Kit.
 
 | Platform | Packages built by the release workflow |
 | --- | --- |
@@ -40,7 +57,8 @@ Attach a script to an object, then use engine modules such as `Transform` and `I
 TAKE Transform, Input
 
 CREATE Player[
-    FLOAT Speed: 3.0
+    EDIT FLOAT Speed: 3.0      # editable in the inspector
+    PUBLIC INTEGER Coins: 0    # visible, read-only
 
     VOID CREATE Update(FLOAT dt)[
         FLOAT X: Input.Axis("Left", "Right")

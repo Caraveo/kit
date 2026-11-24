@@ -1,0 +1,101 @@
+{
+  "version": 0,
+  "nodes": [
+    {
+      "id": 5,
+      "kind": {
+        "type": "OnStart"
+      },
+      "pos": [
+        -248.0,
+        -128.0
+      ],
+      "inputs": {},
+      "target": "SelfObject"
+    },
+    {
+      "id": 6,
+      "kind": {
+        "type": "PlaySound"
+      },
+      "pos": [
+        240.0,
+        96.0
+      ],
+      "inputs": {
+        "clip": {
+          "Text": ""
+        }
+      },
+      "target": "SelfObject"
+    },
+    {
+      "id": 8,
+      "kind": {
+        "type": "SetTransform",
+        "space": "World"
+      },
+      "pos": [
+        312.0,
+        -224.0
+      ],
+      "inputs": {},
+      "target": {
+        "Picked": "Pineapple_20261123_030943_913589"
+      }
+    },
+    {
+      "id": 9,
+      "kind": {
+        "type": "SetPosition",
+        "space": "World"
+      },
+      "pos": [
+        704.0,
+        -208.0
+      ],
+      "inputs": {},
+      "target": "SelfObject"
+    },
+    {
+      "id": 10,
+      "kind": {
+        "type": "OnTimer"
+      },
+      "pos": [
+        -240.0,
+        -328.0
+      ],
+      "inputs": {
+        "repeat": {
+          "Bool": false
+        }
+      },
+      "target": "SelfObject"
+    }
+  ],
+  "links": [
+    {
+      "from": {
+        "node": 8,
+        "pin": "then"
+      },
+      "to": {
+        "node": 9,
+        "pin": "exec"
+      }
+    },
+    {
+      "from": {
+        "node": 10,
+        "pin": "then"
+      },
+      "to": {
+        "node": 8,
+        "pin": "exec"
+      }
+    }
+  ],
+  "variables": [],
+  "next_id": 10
+}

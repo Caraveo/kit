@@ -14,6 +14,9 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::{Duration, Instant, SystemTime};
 
+#[path = "vulkan_post.rs"]
+mod post;
+
 const MAX_VIEWS_PER_FRAME: usize = 4;
 const FRAMES: usize = kit_graphics::FRAMES_IN_FLIGHT;
 const UBO_STRIDE: u64 = 256;
@@ -84,6 +87,8 @@ struct Attachments {
 
 
 pub struct Renderer {
+    /// Post-processing resources (created the first time a volume is active).
+    post: Option<post::PostGpu>,
     shader: ShaderModule,
     set0_layout: vk::DescriptorSetLayout,
     set1_layout: vk::DescriptorSetLayout,
@@ -219,6 +224,7 @@ impl Renderer {
             }
 
             let mut r = Self {
+                post: None,
                 shader,
                 set0_layout,
                 set1_layout,
@@ -418,7 +424,8 @@ impl Renderer {
             gfx,
             extent,
             DEPTH_FORMAT,
-            vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT,
+            // Sampled: post-processing reads it (Focus, Ambient, volumes per pixel).
+            vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT | vk::ImageUsageFlags::SAMPLED,
             self.samples,
             "depth",
         )?;
@@ -606,6 +613,32 @@ impl Renderer {
         let slot = (frame_index % FRAMES) * MAX_VIEWS_PER_FRAME + self.view_slot.min(MAX_VIEWS_PER_FRAME - 1);
         self.view_slot += 1;
 
+        // Post-processing volumes: none active = the direct path, unchanged.
+        let frame = if view.post {
+            kit_post::frame(world, &crate::camera_info(view, false), target.extent.width, target.extent.height)
+        } else {
+            None
+        };
+        match frame {
+            None => self.draw_scene(gfx, cmd, slot, target, view, world, false).map(|_| ()),
+            Some(frame) => self.render_post(gfx, cmd, slot, target, view, world, &frame),
+        }
+    }
+
+    /// Draw the scene into `target` (left in COLOR_ATTACHMENT_OPTIMAL).
+    /// `keep_depth` stores the depth buffer for post-processing. Returns the
+    /// attachment set used.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn draw_scene(
+        &mut self,
+        gfx: &Gfx,
+        cmd: vk::CommandBuffer,
+        slot: usize,
+        target: &Target,
+        view: &View,
+        world: &World,
+        keep_depth: bool,
+    ) -> Result<usize> {
         let att_index = self.ensure_attachments(gfx, target.format, target.extent)?;
         self.pipelines_for(gfx, target.format)?;
         let device = &gfx.device;
@@ -664,7 +697,7 @@ impl Renderer {
             .image_view(att.depth.view)
             .image_layout(vk::ImageLayout::DEPTH_ATTACHMENT_OPTIMAL)
             .load_op(vk::AttachmentLoadOp::CLEAR)
-            .store_op(vk::AttachmentStoreOp::DONT_CARE)
+            .store_op(if keep_depth { vk::AttachmentStoreOp::STORE } else { vk::AttachmentStoreOp::DONT_CARE })
             .clear_value(vk::ClearValue { depth_stencil: vk::ClearDepthStencilValue { depth: 1.0, stencil: 0 } });
         let colors = [color_att];
         let rendering = vk::RenderingInfo::default()
@@ -802,11 +835,14 @@ impl Renderer {
 
             device.cmd_end_rendering(cmd);
         }
-        Ok(())
+        Ok(att_index)
     }
 
     pub fn destroy(&mut self, gfx: &Gfx) {
         gfx.wait_idle();
+        if let Some(mut post) = self.post.take() {
+            post.destroy(gfx);
+        }
         unsafe {
             for (_, p) in self.pipelines.drain() {
                 for pl in [

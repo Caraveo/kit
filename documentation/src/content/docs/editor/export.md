@@ -10,7 +10,7 @@ Click **Export** in the header to open the Export wizard.
    - **Builds player**: you're running Kit from source and the player is out of date, so Kit rebuilds it first.
    - **Needs player**: Kit needs the game player for that platform (see below).
    - **Coming later / Needs SDK / Guide**: not something Kit can build yet. Click the card to read why.
-2. **Choose the output folder.** By default it's `export/<platform>/` inside your project. Kit never copies this folder into the game.
+2. **Choose the output folder.** By default it's `KitBuilds/<project name>/<platform>/` in your home folder (e.g. `~/KitBuilds/My Game/windows`), so each platform keeps its own build. If you pick a folder inside your project, Kit never copies it into the game.
 3. Click **Export for …**. When it's done, use **Open folder**, or **Run game** (**Play in browser** for HTML5).
 
 Kit saves the scene before exporting, and replaces the previous export's `game/` folder, so files you've deleted don't linger.
@@ -64,10 +64,63 @@ The HTML5 export runs your whole game in the browser: scenes, x scripts, physics
 
 If you run Kit from source, the first web export builds the web player with cargo. That needs Rust's WebAssembly target, which you install once with `rustup target add wasm32-unknown-unknown`.
 
+## Protection
+
+Under **Export → Protection**, pick how the export is protected:
+
+| Mode | Platforms | What it protects |
+|---|---|---|
+| **Standard** | all | Nothing extra: plain game files, as before. |
+| **Signed** | desktop, web | The game checks an Ed25519 signature over its game data **before reading any of it**. Changed, swapped, unsigned or missing game data is refused. The files stay readable. |
+| **Signed + Encrypted** | desktop | Signed, and the game data is encrypted (XChaCha20-Poly1305, fresh random nonce per export), so its scripts and assets can't be browsed or copied casually. |
+
+Protected exports contain the launcher and **one file of game data**, `game.kitseal`. There's never a `game/` folder or plain `game.pack` beside it.
+
+### What a protected game trusts
+
+- The game data is your project's normal game pack inside a versioned envelope. The envelope records the protection version, mode, metadata and payload, and the signature covers all of them.
+- The **publisher's public key** and the **required mode** are pinned in the launcher, never read from the game data. On desktop they're written into the exported game program. On the web they're in the page's `kit.js`.
+- A protected game only loads `game.kitseal`. It ignores a loose `game/` folder, a plain pack and folders passed on the command line, and refuses to start if the signed data is missing or invalid.
+- **Outside this guarantee:** someone who replaces the launcher program or the web page's `kit.js` can run anything. Signing proves the game data is yours as long as the launcher is.
+
+### Encryption, honestly
+
+An encrypted game must decrypt its data to play, offline. Each encrypted export gets a fresh random **content key**, separate from your publisher signing key. It's stored in the exported game program next to the pinned public key, and the game uses it after the signature checks out. That stops casual extraction. It doesn't stop a determined person who inspects or modifies the running game.
+
+Web builds can't be encrypted: every visitor's browser would need the key, so it would only add size. Use Signed.
+
+### Your publisher key
+
+- **Export → Protection → Generate key** creates it, and **Import key file…** brings in one you already have.
+- Kit keeps it in your settings folder, never in a project or export: `~/.config/kit/keys/publisher.key` on Linux, `~/Library/Application Support/Kit/keys/` on macOS, `%APPDATA%\Kit\keys\` on Windows. On Linux and macOS the file is readable only by you, and Kit refuses to use it if other users can read it.
+- The wizard shows the public **fingerprint** (e.g. `a3d2-22cd-b84e-d964`) so you can tell keys apart.
+- **Back it up** somewhere safe and offline. Games you've shipped only accept data signed with this key; without it you can't publish updates those games will load.
+- **Rotating:** generate a new key (move the old file aside first) and export again. Games built with the old key keep trusting only the old key, so players need the new build. Retire a key that might have leaked the same way.
+
+### Exporting from the command line
+
+```sh
+kit-editor --new-key ~/keys/kit-publisher.key        # create a key (prints only its fingerprint)
+kit-editor my-game --export out --platform linux --protect signed --key ~/keys/kit-publisher.key
+kit-editor my-game --export out --platform windows --protect encrypted --key ~/keys/kit-publisher.key
+```
+
+`--key` takes the path to an existing key file; without it, Kit uses the key in your settings folder. The private key is never passed on the command line or written to logs.
+
+### When something's wrong
+
+- **No key:** the export stops before writing anything, and asks you to generate or import one.
+- **Unsupported platform or mode:** the option is disabled in the wizard, and the CLI explains why.
+- **Mismatched player:** as with Standard exports.
+- **Failed exports** leave your previous export untouched: Kit builds the new one next to it and swaps it in only when it's complete.
+- **A player whose game data fails its check** shows: *"This game can't start: the game data's signature is invalid (the files were changed)."* The web page shows the same reason.
+
+**Mac:** writing the pinned key into the game program changes it, so its signature must be renewed. Kit re-signs automatically when you export on a Mac. Mac games protected on Linux or Windows must be re-signed on a Mac (`codesign --force --deep --sign - Game.app`) before they run on Apple Silicon.
+
 ## Exporting from the command line
 
 ```sh
-kit-editor path/to/my-game --export path/to/output [--platform linux|windows|macos|html5]
+kit-editor path/to/my-game --export path/to/output [--platform linux|windows|mac|web] [--protect standard|signed|encrypted] [--key file]
 ```
 
 ## Running a project without exporting

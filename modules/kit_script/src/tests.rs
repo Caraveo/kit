@@ -41,7 +41,7 @@ fn scripts_move_entities_and_read_input() {
 TAKE Transform, Input, Time
 CREATE Mover[
     FLOAT Speed: 2.0
-    INTEGER Frames: 0
+    PUBLIC INTEGER Frames: 0
     VOID CREATE Init()[
         DISPLAY["hello from", Entity()]
     ]
@@ -63,7 +63,7 @@ CREATE Mover[
     )]);
     let mut app = app(root);
     let e = kit_scene::spawn_node(&mut app.world, "Mover", Transform::IDENTITY);
-    app.world.insert(e, Script { path: "scripts/mover.x".into() });
+    app.world.insert(e, Script::new("scripts/mover.x"));
 
     // Frame steps are clamped to 0.25s by Time.
     app.update(0.25);
@@ -75,7 +75,7 @@ CREATE Mover[
     assert_eq!(app.world.get::<Transform>(e).unwrap().translation.y, 10.0);
 
     let fields = app.world.resource::<ScriptRuntime>().fields(e);
-    assert!(fields.iter().any(|(n, _, v)| n == "Frames" && v == "3"), "{fields:?}");
+    assert!(fields.iter().any(|f| f.name == "Frames" && f.text == "3"), "{fields:?}");
 
     // Edit mode: scripts don't run.
     app.mode = RunMode::Edit;
@@ -95,11 +95,11 @@ fn errors_go_to_console_and_stop_the_script() {
     ]);
     let mut app = app(root);
     let a = kit_scene::spawn_node(&mut app.world, "A", Transform::IDENTITY);
-    app.world.insert(a, Script { path: "bad_syntax.x".into() });
+    app.world.insert(a, Script::new("bad_syntax.x"));
     let b = kit_scene::spawn_node(&mut app.world, "B", Transform::IDENTITY);
-    app.world.insert(b, Script { path: "bad_runtime.x".into() });
+    app.world.insert(b, Script::new("bad_runtime.x"));
     let c = kit_scene::spawn_node(&mut app.world, "C", Transform::IDENTITY);
-    app.world.insert(c, Script { path: "missing.x".into() });
+    app.world.insert(c, Script::new("missing.x"));
     app.update(0.1);
     app.update(0.1);
     let text = console_text(&app);
@@ -135,7 +135,7 @@ VOID CREATE Update(FLOAT dt)[
     ]);
     let mut app = app(root);
     let boss = kit_scene::spawn_node(&mut app.world, "Boss", Transform::IDENTITY);
-    app.world.insert(boss, Script { path: "boss.x".into() });
+    app.world.insert(boss, Script::new("boss.x"));
     let minion = kit_scene::spawn_node(&mut app.world, "Minion", Transform::IDENTITY);
     app.update(0.1);
     assert_eq!(app.world.get::<Transform>(minion).unwrap().translation.x, 3.0);
@@ -165,7 +165,7 @@ VOID CREATE Update(FLOAT dt)[
     let ground = kit_scene::spawn_node(&mut app.world, "Ground", Transform::from_xyz(0.0, 1.0, 0.0));
     app.world.insert(ground, t);
     let e = kit_scene::spawn_node(&mut app.world, "Walker", Transform::from_xyz(1.0, 20.0, 1.0));
-    app.world.insert(e, Script { path: "stand.x".into() });
+    app.world.insert(e, Script::new("stand.x"));
     app.update(0.1);
     app.update(0.1);
     let y = app.world.get::<Transform>(e).unwrap().translation.y;
@@ -178,7 +178,7 @@ fn free_camera_example_flies_and_looks() {
     let root = temp_project(&[("scripts/FreeCamera.x", src)]);
     let mut app = app(root);
     let e = kit_scene::spawn_node(&mut app.world, "Camera", Transform::IDENTITY);
-    app.world.insert(e, Script { path: "scripts/FreeCamera.x".into() });
+    app.world.insert(e, Script::new("scripts/FreeCamera.x"));
     let step = |app: &mut App, frames: usize| {
         for _ in 0..frames {
             app.update(1.0 / 60.0);
@@ -254,7 +254,7 @@ CREATE Radio[
     )]);
     let mut app = app(root);
     let e = kit_scene::spawn_node(&mut app.world, "Radio", Transform::IDENTITY);
-    app.world.insert(e, Script { path: "scripts/radio.x".into() });
+    app.world.insert(e, Script::new("scripts/radio.x"));
     app.world.insert(e, kit_gamesys::AudioSource { clip: "sounds/song.ogg".into(), spatial: true, ..Default::default() });
     app.update(0.1);
     app.world.resource_mut::<Input>().press("P");
@@ -275,4 +275,50 @@ CREATE Radio[
     app.update(0.1);
     assert!(app.world.resource::<kit_gamesys::AudioCommands>().0.contains(&kit_gamesys::AudioCommand::Stop(e)));
     assert!(console_text(&app).iter().any(|l| l == "playing FALSE volume 0.25"), "{:?}", console_text(&app));
+}
+
+#[test]
+fn edit_values_apply_before_init_and_private_fields_stay_hidden() {
+    let root = temp_project(&[(
+        "mover.x",
+        r#"
+TAKE Transform
+CREATE Mover[
+    EDIT FLOAT Speed: 1.0
+    EDIT VECTOR Start: VECTOR(0, 0, 0)
+    PUBLIC INTEGER Moves: 0
+    FLOAT Hidden: 3.0
+    VOID CREATE Init()[
+        Transform.Position: Start
+    ]
+    VOID CREATE Update(FLOAT dt)[
+        Transform.Position: Transform.Position + VECTOR(Speed * dt, 0, 0)
+        Moves: Moves + 1
+    ]
+]
+"#,
+    )]);
+    let mut app = app(root.clone());
+    let e = kit_scene::spawn_node(&mut app.world, "M", Transform::IDENTITY);
+    let mut s = Script::new("mover.x");
+    s.values.insert("Speed".into(), kit_gamesys::FieldValue::Float(10.0));
+    s.values.insert("Start".into(), kit_gamesys::FieldValue::Vector([0.0, 5.0, 0.0]));
+    s.values.insert("Moves".into(), kit_gamesys::FieldValue::Int(99)); // PUBLIC: not settable
+    app.world.insert(e, s);
+    app.update(0.5);
+    let p = app.world.get::<Transform>(e).unwrap().translation;
+    assert!((p.y - 5.0).abs() < 1e-4 && p.x > 2.0, "Init saw Start, Update used Speed 10 (the default 1 would move < 0.5): {p:?}");
+    assert!(console_text(&app).iter().any(|l| l.contains("`Moves`") && l.contains("isn't an EDIT field")));
+
+    let mut rt = app.world.resource_mut::<crate::ScriptRuntime>();
+    let names: Vec<(String, crate::Access)> = rt.fields(e).into_iter().map(|f| (f.name, f.access)).collect();
+    assert_eq!(names, [("Speed".into(), crate::Access::Edit), ("Start".into(), crate::Access::Edit), ("Moves".into(), crate::Access::Public)]);
+    assert!(rt.set_field(e, "Speed", &kit_gamesys::FieldValue::Float(2.0)));
+    assert!(!rt.set_field(e, "Moves", &kit_gamesys::FieldValue::Int(1)), "PUBLIC is read-only");
+    assert!(!rt.set_field(e, "Hidden", &kit_gamesys::FieldValue::Float(1.0)), "private");
+    // Declared fields (editor, before Play) match.
+    let res = kit_resource::Resources::new(root);
+    let d = crate::declared_fields(&res, "mover.x");
+    assert_eq!(d.fields.len(), 3);
+    assert_eq!(d.fields[0].value, Some(kit_gamesys::FieldValue::Float(1.0)));
 }

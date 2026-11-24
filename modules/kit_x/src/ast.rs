@@ -117,8 +117,27 @@ pub struct FuncDecl {
     pub line: u32,
 }
 
+/// Who can see a class field outside the script.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Access {
+    /// The default: only the script itself sees it.
+    #[default]
+    Private,
+    /// `PUBLIC FLOAT Health: 100`: shown in the editor, read-only.
+    Public,
+    /// `EDIT FLOAT Speed: 5.0`: public, and editable in the editor.
+    Edit,
+}
+
+impl Access {
+    pub fn is_public(self) -> bool {
+        self != Access::Private
+    }
+}
+
 #[derive(Debug)]
 pub struct FieldDecl {
+    pub access: Access,
     pub ty: Type,
     pub name: Rc<str>,
     pub init: Option<Expr>,

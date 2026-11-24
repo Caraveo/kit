@@ -16,6 +16,17 @@ pub struct ExportWizard {
     /// Availability per platform, computed when the wizard opens
     /// (checking a player reads the whole binary, so not every frame).
     status: Vec<(&'static str, Availability)>,
+    /// The Protection module: how the export is protected.
+    pub protection: crate::export::Protection,
+    /// The publisher key's fingerprint, or why it can't be used.
+    pub key_status: Option<std::result::Result<String, String>>,
+}
+
+impl ExportWizard {
+    /// Re-read the publisher key (after generating or importing one).
+    pub fn refresh_key(&mut self) {
+        self.key_status = Some(crate::export::load_key(None).map(|k| k.fingerprint()).map_err(|e| format!("{e:#}")));
+    }
 }
 
 impl ExportWizard {
@@ -26,6 +37,7 @@ impl ExportWizard {
         }
         self.open = true;
         self.refresh();
+        self.refresh_key();
         if self.platform.is_none() {
             self.platform = Some(crate::export::host());
         }
@@ -48,7 +60,8 @@ impl ExportWizard {
     /// Where the selected platform's build will be written.
     pub fn destination(&self, ed: &Editor) -> Option<PathBuf> {
         let platform = self.selected()?;
-        self.folder.clone().or_else(|| Some(ed.project.as_ref()?.root().join("export").join(platform.id)))
+        let title = &ed.project.as_ref()?.config.project.title;
+        self.folder.clone().or_else(|| Some(crate::export::default_builds_dir(title).join(platform.id)))
     }
 }
 
@@ -103,13 +116,21 @@ fn card(ui: &mut egui::Ui, platform: &Platform, a: Option<&Availability>, select
     resp.on_hover_cursor(egui::CursorIcon::PointingHand)
 }
 
-/// Draw the wizard. Returns true when the user asked to pick an output folder.
-pub fn window(ctx: &egui::Context, ed: &mut Editor, wiz: &mut ExportWizard) -> bool {
+/// What the wizard asks the host to do (OS dialogs).
+#[derive(Default)]
+pub struct WizardRequests {
+    pub pick_folder: bool,
+    pub import_key: bool,
+}
+
+/// Draw the wizard.
+pub fn window(ctx: &egui::Context, ed: &mut Editor, wiz: &mut ExportWizard) -> WizardRequests {
     if !wiz.open {
-        return false;
+        return WizardRequests::default();
     }
     let mut open = true;
     let mut pick_folder = false;
+    let mut import_key = false;
     let title = ed.project.as_ref().map(|p| p.config.project.title.clone()).unwrap_or_default();
     egui::Window::new(RichText::new("Export").strong())
         .id(Id::new("export_wizard"))
@@ -262,6 +283,7 @@ pub fn window(ctx: &egui::Context, ed: &mut Editor, wiz: &mut ExportWizard) -> b
                         wiz.folder = None;
                     }
                 });
+                protection_module(ui, ed, wiz, &platform, &mut import_key);
             }
 
             ui.add_space(12.0);
@@ -281,7 +303,7 @@ pub fn window(ctx: &egui::Context, ed: &mut Editor, wiz: &mut ExportWizard) -> b
                 crate::ui::mark_rect(ui, "export_go", export.rect);
                 if export.clicked() {
                     if let Some(dest) = wiz.destination(ed) {
-                        let result = ed.start_export(&platform, &dest);
+                        let result = ed.start_export(&platform, &dest, wiz.protection);
                         ed.report(result);
                     }
                 }
@@ -321,7 +343,7 @@ pub fn window(ctx: &egui::Context, ed: &mut Editor, wiz: &mut ExportWizard) -> b
     if !open && !ed.exporting() {
         wiz.open = false;
     }
-    pick_folder
+    WizardRequests { pick_folder, import_key }
 }
 
 /// A platform's requirements, as a short list.
@@ -333,4 +355,108 @@ fn requirements(ui: &mut egui::Ui, platform: &Platform) {
     for r in platform.requirements {
         ui.label(RichText::new(format!("•  {r}")).size(11.5).color(MUTED()));
     }
+}
+
+/// The Protection module: Standard, Signed, or Signed + Encrypted, and the
+/// publisher key.
+fn protection_module(
+    ui: &mut egui::Ui,
+    ed: &mut Editor,
+    wiz: &mut ExportWizard,
+    platform: &Platform,
+    import_key: &mut bool,
+) {
+    use crate::export::{Protection, protection_supported};
+    ui.add_space(10.0);
+    crate::widgets::section_label(ui, "PROTECTION");
+    if protection_supported(platform, wiz.protection).is_err() {
+        wiz.protection = Protection::Standard;
+    }
+    ui.horizontal(|ui| {
+        for mode in Protection::ALL {
+            let supported = protection_supported(platform, mode);
+            let r = ui
+                .add_enabled(supported.is_ok() && !ed.exporting(), egui::Button::selectable(wiz.protection == mode, mode.label()));
+            crate::ui::mark_rect(ui, match mode {
+                Protection::Standard => "protect_standard",
+                Protection::Signed => "protect_signed",
+                Protection::Encrypted => "protect_encrypted",
+            }, r.rect);
+            let r = match &supported {
+                Err(why) => r.on_disabled_hover_text(why.as_str()),
+                Ok(()) => r,
+            };
+            if r.clicked() {
+                wiz.protection = mode;
+            }
+        }
+    });
+    let explain = match wiz.protection {
+        Protection::Standard => "Plain game files, as before: anyone can open, read or change them.",
+        Protection::Signed => {
+            "Your game checks a signature before it loads anything. If the game data is changed, swapped for someone \
+             else's, or missing, it refuses to run. The files can still be read."
+        }
+        Protection::Encrypted => {
+            "Signed, and the game data is encrypted so its scripts and assets can't be browsed or copied casually. \
+             The game must decrypt it to play, so a determined person inspecting the running game can still recover \
+             it. Desktop only."
+        }
+    };
+    ui.label(RichText::new(explain).size(11.5).color(MUTED()));
+    if wiz.protection == Protection::Standard {
+        return;
+    }
+    ui.add_space(4.0);
+    ui.horizontal(|ui| {
+        ui.add_sized([86.0, 22.0], egui::Label::new(RichText::new("Publisher key").size(12.0).color(LABEL())));
+        match &wiz.key_status {
+            Some(Ok(fingerprint)) => {
+                ui.label(RichText::new(fingerprint).monospace().size(12.0).color(TEXT()))
+                    .on_hover_text("Your public fingerprint. Builds you publish only trust this key.");
+            }
+            Some(Err(_)) | None => {
+                ui.label(RichText::new("None yet").size(12.0).color(WARN()));
+            }
+        }
+    });
+    ui.horizontal(|ui| {
+        ui.add_space(90.0);
+        let has_key = matches!(wiz.key_status, Some(Ok(_)));
+        if !has_key {
+            let r = ui.add_enabled(!ed.exporting(), egui::Button::new("Generate key"));
+            crate::ui::mark_rect(ui, "generate_key", r.rect);
+            if r.clicked() {
+                let result = crate::export::default_key_path()
+                    .ok_or_else(|| anyhow::anyhow!("no settings folder for the publisher key"))
+                    .and_then(|path| kit_export_security::PublisherKey::generate().and_then(|k| k.save(&path).map(|()| (k, path))));
+                match result {
+                    Ok((k, path)) => ed.notify(format!(
+                        "Created your publisher key ({}). Back up {}: builds you publish only trust this key.",
+                        k.fingerprint(),
+                        path.display()
+                    )),
+                    Err(e) => ed.report(Err(e)),
+                }
+                wiz.refresh_key();
+            }
+            if ui.add_enabled(!ed.exporting(), egui::Button::new("Import key file…")).clicked() {
+                *import_key = true;
+            }
+        } else if let Some(path) = crate::export::default_key_path() {
+            if ui.button("Show key file").on_hover_text(path.display().to_string()).clicked() {
+                crate::export::reveal(path.parent().unwrap_or(&path));
+            }
+        }
+    });
+    if let Some(Err(why)) = &wiz.key_status {
+        if !why.starts_with("No publisher key yet") {
+            ui.label(RichText::new(why).size(11.0).color(ERROR()));
+        }
+    }
+    ui.label(
+        RichText::new("The private key stays in your Kit settings folder: never in the project or the export.")
+            .size(11.0)
+            .color(MUTED()),
+    );
 }

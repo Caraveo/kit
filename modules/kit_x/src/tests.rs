@@ -230,3 +230,43 @@ CREATE Mover[
     let e = interp.load(&parse("TAKE Nope").unwrap(), &mut host).unwrap_err();
     assert!(e.to_string().contains("unknown module `Nope`"));
 }
+
+#[test]
+fn fields_are_private_unless_public_or_edit() {
+    let src = r#"
+CREATE Base[
+    EDIT FLOAT Speed: 2.0
+    INTEGER Secret: 1
+]
+CREATE Hero RIDE Base[
+    PUBLIC INTEGER Health: 100
+    EDIT VECTOR Spawn: VECTOR(1, -2, 3)
+    EDIT STRING Title: "hi"
+    FLOAT Hidden: 5.0
+    VOID CREATE Init()[ ]
+]
+"#;
+    let p = crate::parse(src).unwrap();
+    let fields = crate::declared_fields(&p, "hero");
+    let names: Vec<(&str, crate::ast::Access)> = fields.iter().map(|f| (f.name.as_str(), f.access)).collect();
+    use crate::ast::Access::*;
+    assert_eq!(names, [("Speed", Edit), ("Health", Public), ("Spawn", Edit), ("Title", Edit)]);
+    assert!(matches!(fields[2].default, Value::Vector([1.0, -2.0, 3.0])));
+    // The running instance shows only the same fields.
+    let mut host = crate::StdHost::default();
+    let mut it = crate::run("t.x", src, &mut host).unwrap();
+    let Value::Instance(i) = it.instantiate("Hero", vec![], &mut host).unwrap() else { panic!() };
+    let live: Vec<String> = i.snapshot().into_iter().map(|f| f.0).collect();
+    assert_eq!(live, ["Speed", "Health", "Spawn", "Title"]);
+}
+
+#[test]
+fn public_and_edit_mistakes_are_explained() {
+    let e = crate::parse("EDIT FLOAT X: 1.0").unwrap_err();
+    assert!(e.message.contains("only works on class fields"), "{}", e.message);
+    let e = crate::parse("CREATE A[\n    EDIT VOID CREATE Go()[ ]\n]").unwrap_err();
+    assert!(e.message.contains("not a method"), "{}", e.message);
+    let e = crate::parse("CREATE A[\n    EDIT INDEX Items: []\n]").unwrap_err();
+    assert!(e.message.contains("use PUBLIC"), "{}", e.message);
+    assert!(crate::parse("CREATE A[\n    PUBLIC INDEX Items: []\n]").is_ok());
+}

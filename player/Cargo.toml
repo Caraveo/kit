@@ -11,6 +11,8 @@ path = "src/main.rs"
 
 [dependencies]
 kit.workspace = true
+kit_resource.workspace = true
+kit_export_security = { workspace = true, features = ["decrypt"] }
 anyhow.workspace = true
 env_logger.workspace = true
 log.workspace = true

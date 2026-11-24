@@ -1,0 +1,8 @@
+[project]
+title = "Volumes"
+version = "0.0.1"
+main_scene = "main.kscene"
+
+[display]
+width = 1280
+height = 720

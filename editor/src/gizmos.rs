@@ -4,7 +4,7 @@ use crate::canvas::to_screen;
 use crate::state::Editor;
 use crate::theme::viewport::*;
 use egui::{Color32, Pos2, Rect, Stroke};
-use kit::gamesys::{AudioSource, Camera, Light, Model, Projection, Sprite};
+use kit::gamesys::{AudioSource, Camera, Light, Model, PostVolume, Projection, Sprite, VolumeAffect, VolumeShape};
 use kit::math::{Mat4, Vec3};
 use kit::render::View;
 use kit::scene::GlobalTransform;
@@ -117,6 +117,85 @@ pub fn draw(painter: &egui::Painter, ed: &Editor, rect: Rect, view: &View) {
             ));
         }
         let _ = Pos2::ZERO;
+    }
+
+    // Post-processing volumes: the shape, and (dashed) the blend region.
+    for e in w.query::<(PostVolume,)>() {
+        let Some(g) = w.get::<GlobalTransform>(e).map(|g| g.0) else { continue };
+        let v = w.get::<PostVolume>(e).unwrap().clone();
+        let selected = ed.selected == Some(e);
+        let base = if v.affect == VolumeAffect::Objects && v.shape != VolumeShape::Global {
+            pick(Color32::from_rgb(0xb0, 0x6a, 0x00), Color32::from_rgb(0xff, 0xc0, 0x6a))
+        } else {
+            pick(Color32::from_rgb(0x6a, 0x3f, 0xd0), Color32::from_rgb(0xc1, 0xa9, 0xff))
+        };
+        let color = if selected { base } else { base.gamma_multiply(0.45) };
+        let (scale, rot, pos) = g.to_scale_rotation_translation();
+        let frame = Mat4::from_rotation_translation(rot, pos);
+        let half = scale.abs() * 0.5;
+        let width = if selected { 1.8 } else { 1.1 };
+        match v.shape {
+            VolumeShape::Global => {
+                if let Some(c) = to_screen(vp, rect, pos) {
+                    painter.circle_stroke(c, 10.0, Stroke::new(width, color));
+                    painter.text(c, egui::Align2::CENTER_CENTER, "∞", egui::FontId::proportional(13.0), color);
+                }
+            }
+            VolumeShape::Box => {
+                let edges = |half: Vec3, dashed: bool| {
+                    let corner = |i: usize| {
+                        let s = Vec3::new(
+                            if i & 1 == 0 { -1.0 } else { 1.0 },
+                            if i & 2 == 0 { -1.0 } else { 1.0 },
+                            if i & 4 == 0 { -1.0 } else { 1.0 },
+                        );
+                        frame.transform_point3(s * half)
+                    };
+                    for (a, b) in [(0, 1), (2, 3), (4, 5), (6, 7), (0, 2), (1, 3), (4, 6), (5, 7), (0, 4), (1, 5), (2, 6), (3, 7)] {
+                        if let (Some(p), Some(q)) = (to_screen(vp, rect, corner(a)), to_screen(vp, rect, corner(b))) {
+                            if dashed {
+                                painter.extend(egui::Shape::dashed_line(&[p, q], Stroke::new(1.0, color.gamma_multiply(0.6)), 5.0, 5.0));
+                            } else {
+                                painter.line_segment([p, q], Stroke::new(width, color));
+                            }
+                        }
+                    }
+                };
+                edges(half, false);
+                if v.blend_distance > 0.0 && selected {
+                    edges(half + Vec3::splat(v.blend_distance), true);
+                }
+            }
+            VolumeShape::Sphere => {
+                let radius = half.max_element();
+                let right = view.view.row(0).truncate().normalize_or_zero();
+                let Some(c) = to_screen(vp, rect, pos) else { continue };
+                let rings: &[(f32, bool)] = if selected && v.blend_distance > 0.0 {
+                    &[(0.0, false), (1.0, true)]
+                } else {
+                    &[(0.0, false)]
+                };
+                for &(extra, dashed) in rings {
+                    let r = radius + extra * v.blend_distance;
+                    if let Some(edge) = to_screen(vp, rect, pos + right * r) {
+                        let stroke = Stroke::new(if dashed { 1.0 } else { width }, if dashed { color.gamma_multiply(0.6) } else { color });
+                        painter.circle_stroke(c, (edge - c).length(), stroke);
+                    }
+                    let ring: Vec<Pos2> = (0..=64)
+                        .filter_map(|i| {
+                            let a = i as f32 / 64.0 * std::f32::consts::TAU;
+                            to_screen(vp, rect, pos + Vec3::new(a.cos(), 0.0, a.sin()) * r)
+                        })
+                        .collect();
+                    if ring.len() > 2 {
+                        painter.add(egui::Shape::dashed_line(&ring, Stroke::new(1.0, color.gamma_multiply(0.5)), 6.0, 5.0));
+                    }
+                }
+            }
+        }
+        if let Some(c) = to_screen(vp, rect, pos).filter(|_| v.shape != VolumeShape::Global) {
+            painter.text(c, egui::Align2::CENTER_CENTER, "✨", egui::FontId::proportional(13.0), color);
+        }
     }
 
     // Sounds: a speaker marker; when selected, the proximity range.

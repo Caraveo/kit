@@ -10,3 +10,5 @@ node_modules/
 /.copilotkit/
 # Game exports made inside projects
 /examples/*/export/
+# Cloudflare Wrangler local state
+.wrangler/

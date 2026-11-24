@@ -1,5 +1,5 @@
-//! Game packs: a whole project in one file, so the web page can fetch it in
-//! one request.
+//! Game packs: a whole project in one file. The web player fetches one, and
+//! protected exports seal one (see `kit_export_security`).
 //!
 //! Layout (little-endian): `KITPACK1`, file count (u32), then per file: path
 //! length (u32), UTF-8 project-relative path with `/` separators, data length
@@ -22,14 +22,26 @@ pub fn read(bytes: &[u8]) -> Result<HashMap<String, Vec<u8>>> {
     };
     let word = |b: &[u8]| u32::from_le_bytes(b.try_into().unwrap()) as usize;
     let count = word(take(4)?);
-    let mut files = HashMap::with_capacity(count);
+    let mut files = HashMap::with_capacity(count.min(1 << 16));
     for _ in 0..count {
         let name_len = word(take(4)?);
         let name = std::str::from_utf8(take(name_len)?).context("game pack has a bad file name")?.to_owned();
+        ensure!(safe_name(&name), "game pack has an unsafe file name: {name:?}");
         let len = word(take(4)?);
-        files.insert(name, take(len)?.to_vec());
+        let data = take(len)?.to_vec();
+        ensure!(files.insert(name.clone(), data).is_none(), "game pack lists {name:?} twice");
     }
     Ok(files)
+}
+
+/// A relative path inside the project: no absolute paths, `..`, backslashes
+/// or empty parts.
+fn safe_name(name: &str) -> bool {
+    !name.is_empty()
+        && !name.starts_with('/')
+        && !name.contains('\\')
+        && !name.contains(':')
+        && name.split('/').all(|part| !part.is_empty() && part != "." && part != "..")
 }
 
 /// Pack a project folder. Skips hidden files and build/export folders, like
@@ -106,5 +118,26 @@ mod tests {
         assert_eq!(names, ["kit.project", "scripts/a.x"]);
         assert_eq!(files["scripts/a.x"], b"x");
         assert!(read(b"KITPACK1\x05\0\0\0").is_err(), "truncated packs are rejected");
+        // Unsafe and duplicate paths.
+        let one = |name: &str| {
+            let mut p = b"KITPACK1".to_vec();
+            p.extend_from_slice(&1u32.to_le_bytes());
+            p.extend_from_slice(&(name.len() as u32).to_le_bytes());
+            p.extend_from_slice(name.as_bytes());
+            p.extend_from_slice(&0u32.to_le_bytes());
+            p
+        };
+        for bad in ["../x", "/etc/passwd", "a/../b", "a\\b", "c:/x", "", "a//b"] {
+            assert!(read(&one(bad)).is_err(), "{bad:?}");
+        }
+        assert!(read(&one("scripts/ok.x")).is_ok());
+        let mut dup = b"KITPACK1".to_vec();
+        dup.extend_from_slice(&2u32.to_le_bytes());
+        for _ in 0..2 {
+            dup.extend_from_slice(&1u32.to_le_bytes());
+            dup.push(b'a');
+            dup.extend_from_slice(&0u32.to_le_bytes());
+        }
+        assert!(read(&dup).is_err(), "duplicate names are rejected");
     }
 }

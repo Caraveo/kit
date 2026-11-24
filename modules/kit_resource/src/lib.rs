@@ -7,6 +7,7 @@
 //! folder and uses `/` separators, e.g. `scripts/player.x`.
 
 pub mod model;
+pub mod pack;
 
 use anyhow::{Context, Result, bail};
 use kit_core::{App, Module};
@@ -215,7 +216,11 @@ impl Resources {
                     continue;
                 }
                 if p.is_dir() {
-                    stack.push(p);
+                    // A folder with its own project file is another game (an
+                    // export, or a nested project), not this project's assets.
+                    if !p.join(PROJECT_FILE).is_file() {
+                        stack.push(p);
+                    }
                 } else if p.extension().is_some_and(|x| x.eq_ignore_ascii_case(ext)) {
                     if let Some(r) = self.relative(&p) {
                         out.push(r);
@@ -236,6 +241,13 @@ pub struct Project {
 }
 
 impl Project {
+    /// A project held in memory (from a verified game pack).
+    pub fn from_files(files: std::collections::HashMap<String, Vec<u8>>) -> Result<Self> {
+        let resources = Resources::in_memory(files);
+        let config = ProjectConfig::parse(&resources.read_text(PROJECT_FILE)?)?;
+        Ok(Self { resources, config })
+    }
+
     /// Open a project from its folder or its `kit.project` file.
     pub fn open(path: &Path) -> Result<Self> {
         let file = if path.is_dir() { path.join(PROJECT_FILE) } else { path.to_path_buf() };
@@ -302,6 +314,26 @@ mod tests {
 #[cfg(test)]
 mod memory_tests {
     use super::*;
+
+    #[test]
+    fn listing_skips_exported_games_inside_the_project() {
+        let root = std::env::temp_dir().join(format!("kit-list-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        for (path, text) in [
+            ("kit.project", "[project]\ntitle = \"T\"\n"),
+            ("main.kscene", "{}"),
+            ("scenes/level2.kscene", "{}"),
+            ("export/linux/T/game/kit.project", "[project]\ntitle = \"T\"\n"),
+            ("export/linux/T/game/main.kscene", "{}"),
+            ("export/linux/T/game/scenes/level2.kscene", "{}"),
+        ] {
+            let p = root.join(path);
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::write(p, text).unwrap();
+        }
+        assert_eq!(Resources::new(&root).list("kscene"), ["main.kscene", "scenes/level2.kscene"]);
+        let _ = std::fs::remove_dir_all(&root);
+    }
 
     #[test]
     fn in_memory_projects_read_without_a_disk() {

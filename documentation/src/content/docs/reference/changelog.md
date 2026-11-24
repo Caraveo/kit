@@ -3,6 +3,21 @@ title: Changelog
 description: What's new in each version.
 ---
 
+## v0.0.2: Diagrams and Effects
+
+- **Diagrams:** visual logic with nodes and wires. Press <kbd>7</kbd>. It runs in the editor, the players and the browser, and lights up live while you play. See [Diagrams](/editor/diagrams/).
+- **Game Data:** datasets and constants that diagrams read by stable IDs.
+- **Effects:** post-processing volumes for the camera or for the objects inside them. See [Post-processing](/editor/post-processing/).
+- **Protected exports:** signed, or signed and encrypted.
+- **x:** `PUBLIC` and `EDIT` fields (private by default).
+- **Editor:**
+  - <kbd>1</kbd>–<kbd>7</kbd> toggle the viewport bar.
+  - <kbd>W</kbd>/<kbd>S</kbd> zoom and <kbd>A</kbd>/<kbd>D</kbd> pan.
+  - **Import files…** for everything Kit uses.
+  - The console starts collapsed.
+  - New icon.
+  - Many bug fixes.
+
 ## v0.0.1
 
 The first release.

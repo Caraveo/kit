@@ -1,0 +1,24 @@
+[package]
+name = "kit_export_security"
+description = "Kit module: signed (Ed25519) and signed + encrypted (XChaCha20-Poly1305) game packs for protected exports, shared by the editor and players."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[features]
+default = ["verify"]
+# Check a pack's signature (every protected player).
+verify = ["dep:ed25519-dalek", "dep:sha2"]
+# Decrypt encrypted packs (desktop player).
+decrypt = ["verify", "dep:chacha20poly1305"]
+# Make keys, sign and encrypt (the editor only: keeps key generation and
+# randomness out of the players).
+publish = ["decrypt", "dep:getrandom", "dep:base64", "ed25519-dalek/zeroize"]
+
+[dependencies]
+anyhow.workspace = true
+ed25519-dalek = { version = "2", default-features = false, features = ["std", "fast"], optional = true }
+sha2 = { version = "0.10", optional = true }
+chacha20poly1305 = { version = "0.10", default-features = false, features = ["alloc"], optional = true }
+getrandom = { version = "0.2", optional = true }
+base64 = { workspace = true, optional = true }

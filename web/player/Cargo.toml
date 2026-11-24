@@ -15,7 +15,10 @@ kit_scene.workspace = true
 kit_input.workspace = true
 kit_resource.workspace = true
 kit_gamesys.workspace = true
+kit_gamedata.workspace = true
+kit_diagram.workspace = true
 kit_render = { workspace = true, default-features = false }
+kit_post.workspace = true
 kit_x.workspace = true
 kit_script.workspace = true
 kit_collider.workspace = true
@@ -26,3 +29,7 @@ glam.workspace = true
 anyhow.workspace = true
 log.workspace = true
 bytemuck.workspace = true
+
+# Signed web exports are verified by the WebAssembly entry points only.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+kit_export_security = { workspace = true, features = ["verify"] }

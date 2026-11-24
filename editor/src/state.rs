@@ -21,9 +21,10 @@ pub struct AssetGroup {
     pub supported: bool,
 }
 
-pub const ASSET_GROUPS: [AssetGroup; 7] = [
+pub const ASSET_GROUPS: [AssetGroup; 8] = [
     AssetGroup { name: "Scenes", icon: "◈", extensions: &["kscene"], supported: true },
     AssetGroup { name: "Scripts", icon: "✏", extensions: &["x"], supported: true },
+    AssetGroup { name: "Diagrams", icon: "◫", extensions: &["kdiagram"], supported: true },
     AssetGroup { name: "Sprites", icon: "🖼", extensions: &["png", "jpg", "jpeg"], supported: true },
     AssetGroup { name: "Models", icon: "◆", extensions: crate::model_import::EXTENSIONS, supported: false },
     AssetGroup { name: "Sounds", icon: "♪", extensions: kit::gamesys::SOUND_EXTENSIONS, supported: true },
@@ -95,6 +96,11 @@ pub struct ViewSettings {
     pub canvas_ground: bool,
     /// Draw collider outlines.
     pub colliders: bool,
+    /// Preview post-processing volumes in the main viewport (from the editor
+    /// camera). Camera previews and Play always apply them.
+    pub volumes: bool,
+    /// Show the Diagram (visual logic) view under the viewport.
+    pub diagram: bool,
     /// Terrain sculpting tool (when a terrain is selected).
     pub sculpt: Option<kit::gamesys::SculptTool>,
     pub brush_radius: f32,
@@ -107,11 +113,13 @@ impl Default for ViewSettings {
             wireframe: false,
             lighting: true,
             grid: true,
-            console: true,
+            console: false,
             game_camera: true,
             canvas: false,
             canvas_ground: false,
             colliders: true,
+            volumes: true,
+            diagram: false,
             sculpt: None,
             brush_radius: 4.0,
             brush_strength: 0.5,
@@ -318,24 +326,75 @@ impl Editor {
             self.refresh_assets(true);
             return Ok(rel);
         }
-        let dir = root.join("sounds");
-        std::fs::create_dir_all(&dir)?;
-        let (stem, ext) = name.rsplit_once('.').unwrap_or((name, ""));
-        let mut rel = format!("sounds/{name}");
-        for n in 2.. {
-            let target = root.join(&rel);
-            if !target.exists() {
-                std::fs::write(&target, &bytes)?;
-                break;
-            }
-            if std::fs::read(&target).is_ok_and(|b| b == bytes) {
-                break; // same file already imported
-            }
-            rel = format!("sounds/{stem}-{n}.{ext}");
-        }
+        let rel = copy_into_project(&root, "sounds", name, &bytes)?;
         self.refresh_assets(true);
         self.notify(format!("{rel} added under Assets → Sounds"));
         Ok(rel)
+    }
+
+    /// Import any file Kit can use: sounds, sprites, 3D models, scripts,
+    /// scenes and diagrams. Each kind is checked, then copied into its folder
+    /// (`sprites/`, `scripts/`, …); files already in the project stay where
+    /// they are. Returns the project path (None for models, which import in
+    /// the background).
+    pub fn import_asset(&mut self, source: &Path) -> Result<Option<String>> {
+        let name = source.file_name().and_then(|n| n.to_str()).context("The file name must be valid UTF-8")?.to_owned();
+        let ext = Path::new(&name).extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+        if kit::gamesys::is_sound(&name) {
+            return self.import_sound(source).map(Some);
+        }
+        if crate::model_import::SOURCE_EXTENSIONS.contains(&ext.as_str()) {
+            self.import_model(source)?;
+            return Ok(None);
+        }
+        let project = self.project.as_ref().context("Open a project before importing files")?;
+        let root = project.root().to_path_buf();
+        let bytes = std::fs::read(source).with_context(|| format!("reading {}", source.display()))?;
+        let text = || String::from_utf8(bytes.clone()).with_context(|| format!("{name} isn't a text file"));
+        let (folder, group) = match ext.as_str() {
+            "png" | "jpg" | "jpeg" => {
+                image::load_from_memory(&bytes).with_context(|| format!("{name} isn't an image Kit can read"))?;
+                ("sprites", "Sprites")
+            }
+            "x" => {
+                if let Err(e) = kit::x::parse(&text()?) {
+                    self.console().warn("import", format!("{name} has a script error (imported anyway): {e}"));
+                }
+                ("scripts", "Scripts")
+            }
+            "kscene" => {
+                kit::gamesys::SceneFile::from_json(&text()?).with_context(|| format!("{name} isn't a Kit scene"))?;
+                ("scenes", "Scenes")
+            }
+            "kdiagram" => {
+                kit::diagram::Graph::from_json(&text()?).with_context(|| format!("{name} isn't a Kit diagram"))?;
+                ("diagrams", "Diagrams")
+            }
+            _ => bail!(
+                "Kit can't use .{ext} files. It imports sounds (WAV, MP3, Ogg, FLAC, AAC), sprites (PNG, JPEG), 3D models ({}), scripts (.x), scenes (.kscene) and diagrams (.kdiagram).",
+                crate::model_import::SOURCE_EXTENSIONS.iter().map(|e| e.to_uppercase()).collect::<Vec<_>>().join(", ")
+            ),
+        };
+        let rel = match source.canonicalize().ok().and_then(|s| s.strip_prefix(root.canonicalize().ok()?).ok().map(|r| r.to_path_buf())) {
+            Some(inside) => inside.to_string_lossy().replace('\\', "/"),
+            None => copy_into_project(&root, folder, &name, &bytes)?,
+        };
+        self.refresh_assets(true);
+        self.notify(format!("{rel} added under Assets → {group}"));
+        Ok(Some(rel))
+    }
+
+    /// Add a sprite object showing `texture` (at `at`, or near the view).
+    pub fn place_sprite(&mut self, texture: &str, at: Option<Vec3>) -> Entity {
+        let e = self.spawn(Preset::Empty, None);
+        let name = Path::new(texture).file_stem().and_then(|s| s.to_str()).unwrap_or("Sprite").to_owned();
+        self.app.world.insert(e, Name(name));
+        self.app.world.insert(e, kit::gamesys::Sprite { texture: texture.to_owned(), ..Default::default() });
+        if let (Some(p), Some(mut t)) = (at, self.app.world.get_mut::<kit::scene::Transform>(e)) {
+            t.translation = p;
+        }
+        self.selected = Some(e);
+        e
     }
 
     /// Add a sound object playing `clip` (at `at`, or near the view).
@@ -750,6 +809,8 @@ impl Editor {
             "MODEL"
         } else if w.has::<kit::gamesys::AudioSource>(e) {
             "SOUND"
+        } else if w.has::<kit::gamesys::PostVolume>(e) {
+            "VOLUME"
         } else if w.has::<Script>(e) {
             "SCRIPT"
         } else {
@@ -787,6 +848,13 @@ impl Editor {
                 m.mesh.bounding_radius() * s.abs().max_element()
             } else if let Some(sp) = w.get::<Sprite>(e) {
                 (sp.size * s.truncate()).length() * 0.5
+            } else if let Some(v) = w.get::<kit::gamesys::PostVolume>(e) {
+                // The volume's own size (globals: a marker-sized spot).
+                match v.shape {
+                    kit::gamesys::VolumeShape::Box => (s.abs() * 0.5).length(),
+                    kit::gamesys::VolumeShape::Sphere => s.abs().max_element() * 0.5,
+                    kit::gamesys::VolumeShape::Global => 0.5,
+                }
             } else {
                 0.5
             };
@@ -826,6 +894,9 @@ impl Editor {
         if self.playing {
             return;
         }
+        // Graphs and game data are read fresh for each Play.
+        kit::gamedata::reload(&mut self.app.world);
+        kit::diagram::reset(&mut self.app.world);
         let snapshot = kit::gamesys::save_scene(&self.app.world);
         let idx = self.selected_index();
         self.play_snapshot = Some((snapshot, idx));
@@ -844,6 +915,7 @@ impl Editor {
         kit::collider::reset(&mut self.app.world);
         kit::path::reset(&mut self.app.world);
         kit::audio::reset(&mut self.app.world);
+        kit::diagram::reset(&mut self.app.world);
         self.app.mode = RunMode::Edit;
         self.app.world.resource_mut::<kit::core::Time>().elapsed = 0.0;
         self.playing = false;
@@ -943,16 +1015,31 @@ impl Editor {
             root: project.root().to_path_buf(),
             title: project.config.project.title.clone(),
             dest: dest.to_path_buf(),
+            protection: crate::export::Protection::Standard,
+            key_file: None,
         })
     }
 
     /// Export in the background (saving the scene first). `poll_export` reports the result.
-    pub fn start_export(&mut self, platform: &crate::export::Platform, dest: &Path) -> Result<()> {
+    pub fn start_export(
+        &mut self,
+        platform: &crate::export::Platform,
+        dest: &Path,
+        protection: crate::export::Protection,
+    ) -> Result<()> {
         anyhow::ensure!(self.export_job.is_none(), "An export is already in progress");
+        if let Err(why) = crate::export::protection_supported(platform, protection) {
+            bail!("{why}");
+        }
+        if protection != crate::export::Protection::Standard {
+            // A missing or unreadable key is reported before anything is written.
+            crate::export::load_key(None)?;
+        }
         if self.scene_dirty() {
             self.save_scene()?;
         }
-        let job = self.export_job(platform, dest)?;
+        let mut job = self.export_job(platform, dest)?;
+        job.protection = protection;
         if let crate::export::Availability::NeedsPlayer(why) | crate::export::Availability::Unavailable(why) =
             &job.availability
         {
@@ -1100,4 +1187,24 @@ mod tests {
         ed.reparent(b, None, 0);
         assert_eq!(kit::scene::roots(ed.world())[0], b);
     }
+}
+
+/// Copy `bytes` to `<folder>/<name>` in the project, picking `name-2.ext`, …
+/// when a different file already has that name. Returns the project path.
+fn copy_into_project(root: &Path, folder: &str, name: &str, bytes: &[u8]) -> Result<String> {
+    std::fs::create_dir_all(root.join(folder))?;
+    let (stem, ext) = name.rsplit_once('.').unwrap_or((name, ""));
+    let mut rel = format!("{folder}/{name}");
+    for n in 2.. {
+        let target = root.join(&rel);
+        if !target.exists() {
+            std::fs::write(&target, bytes)?;
+            break;
+        }
+        if std::fs::read(&target).is_ok_and(|b| b == bytes) {
+            break; // the same file is already there
+        }
+        rel = format!("{folder}/{stem}-{n}.{ext}");
+    }
+    Ok(rel)
 }

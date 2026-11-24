@@ -23,6 +23,8 @@ pub enum Request {
     OpenPath(PathBuf),
     /// Choose the Export wizard's output folder.
     PickExportFolder,
+    /// Import a publisher key file (Export → Protection).
+    ImportPublisherKey,
     /// The light/dark theme was switched; remember it.
     SaveTheme,
 }
@@ -42,6 +44,7 @@ pub struct UiState {
     pub brush: crate::terrain_tools::Brush,
     pub gizmo: crate::move_gizmo::MoveGizmo,
     pub export: crate::export_wizard::ExportWizard,
+    pub diagram: crate::diagram_view::DiagramView,
     /// Camera preview (picture-in-picture): texture and desired pixel size; [0, 0] = hidden.
     pub preview_tex: Option<egui::TextureId>,
     pub preview_px: [u32; 2],
@@ -52,6 +55,8 @@ pub struct UiState {
     pub fps: f32,
     pub gpu_name: String,
     console_rev: u64,
+    /// Errors already seen (the console was open when they arrived).
+    errors_seen: u64,
     pointer_moved: f32,
 }
 
@@ -62,6 +67,11 @@ pub(crate) enum AssetKind {
 }
 
 impl UiState {
+    #[cfg(test)]
+    pub fn errors_seen_for_test(&self) -> u64 {
+        self.errors_seen
+    }
+
     pub fn new(recent: Vec<PathBuf>, gpu_name: String) -> Self {
         Self {
             viewport_tex: None,
@@ -76,6 +86,7 @@ impl UiState {
             brush: Default::default(),
             gizmo: Default::default(),
             export: Default::default(),
+            diagram: Default::default(),
             preview_tex: None,
             preview_px: [0, 0],
             preview_camera: None,
@@ -85,6 +96,7 @@ impl UiState {
             fps: 0.0,
             gpu_name,
             console_rev: 0,
+            errors_seen: 0,
             pointer_moved: 0.0,
         }
     }
@@ -171,20 +183,22 @@ pub fn draw(root: &mut Ui, ed: &mut Editor, st: &mut UiState) {
     let drop_pos = ctx.input(|i| i.pointer.latest_pos());
     for file in ctx.input_mut(|input| std::mem::take(&mut input.raw.dropped_files)) {
         let path = file.path().to_path_buf();
-        if kit::gamesys::is_sound(&path.to_string_lossy()) {
-            match ed.import_sound(&path) {
-                Ok(clip) => {
-                    if let Some(pos) = drop_pos.filter(|p| st.viewport_rect.contains(*p) && !ed.playing) {
-                        let at = viewport_point(ed, st, pos);
-                        ed.place_sound(&clip, Some(at));
+        let on_viewport = drop_pos.filter(|p| st.viewport_rect.contains(*p) && !ed.playing);
+        match ed.import_asset(&path) {
+            Ok(Some(rel)) => {
+                // Dropped on the 3D view: sounds and sprites become objects there.
+                if let Some(pos) = on_viewport {
+                    let at = viewport_point(ed, st, pos);
+                    if kit::gamesys::is_sound(&rel) {
+                        ed.place_sound(&rel, Some(at));
+                    } else if matches!(crate::state::asset_group(&rel).map(|g| g.name), Some("Sprites")) {
+                        ed.place_sprite(&rel, Some(at));
                     }
                 }
-                Err(e) => ed.report(Err(e)),
             }
-            continue;
+            Ok(None) => {}
+            Err(e) => ed.report(Err(e)),
         }
-        let result = ed.import_model(&path);
-        ed.report(result);
     }
     // Overlays on the 3D view follow its background (white in light mode unless the scene sets one).
     let game_view = ed.playing && ed.settings.game_camera;
@@ -258,6 +272,22 @@ pub fn draw(root: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                         });
                     });
             }
+            if ed.settings.diagram {
+                egui::Panel::bottom("diagram")
+                    .default_size(ui.available_height() * 0.6)
+                    .size_range(180.0..=(ui.available_height() - 120.0).max(200.0))
+                    .resizable(true)
+                    .frame(Frame::NONE.inner_margin(Margin { left: 0, right: 0, top: 8, bottom: 0 }))
+                    .show_separator_line(false)
+                    .show(ui, |ui| {
+                        theme_card().inner_margin(Margin::symmetric(12, 10)).show(ui, |ui| {
+                            ui.set_min_size(ui.available_size());
+                            crate::diagram_view::show(ui, ed, &mut st.diagram);
+                        });
+                    });
+            } else {
+                st.diagram.hovered = false;
+            }
             viewport(ui, ed, st);
         });
 
@@ -267,8 +297,12 @@ pub fn draw(root: &mut Ui, ed: &mut Editor, st: &mut UiState) {
     code::script_window(&ctx, ed);
     new_asset_dialog(&ctx, ed, st);
     crate::settings::window(&ctx, ed, &mut st.settings);
-    if crate::export_wizard::window(&ctx, ed, &mut st.export) {
+    let wizard = crate::export_wizard::window(&ctx, ed, &mut st.export);
+    if wizard.pick_folder {
         st.requests.push(Request::PickExportFolder);
+    }
+    if wizard.import_key {
+        st.requests.push(Request::ImportPublisherKey);
     }
     welcome(&ctx, ed, st);
     help(&ctx, st);
@@ -321,24 +355,70 @@ fn shortcuts(ctx: &egui::Context, ed: &mut Editor, st: &mut UiState) {
     if typing {
         return;
     }
+    // Over the Diagram view, editing keys act on the graph.
+    let in_diagram = ed.settings.diagram && st.diagram.hovered;
     if undo && !redo {
-        ed.undo();
+        if in_diagram { st.diagram.undo(ed) } else { ed.undo() }
     }
     if redo {
-        ed.redo();
+        if in_diagram { st.diagram.redo(ed) } else { ed.redo() }
+    }
+    if in_diagram {
+        let pressed = |k: Key| ctx.input(|i| i.key_pressed(k) && i.modifiers.is_none());
+        if pressed(Key::Delete) || pressed(Key::Backspace) {
+            st.diagram.delete_selected(ed);
+        }
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, Key::D)) {
+            st.diagram.duplicate_selected(ed);
+        }
+        if pressed(Key::Num7) {
+            ed.settings.diagram = false;
+        }
+        return;
     }
     let pressed = |k: Key| ctx.input(|i| i.key_pressed(k) && i.modifiers.is_none());
     if pressed(Key::F) {
         ed.frame_selected();
     }
-    if pressed(Key::W) {
+    // 1–6: the viewport toggles, in the bar's order.
+    if pressed(Key::Num1) {
         ed.settings.wireframe = !ed.settings.wireframe;
     }
-    if pressed(Key::L) {
+    if pressed(Key::Num2) {
         ed.settings.lighting = !ed.settings.lighting;
     }
-    if pressed(Key::G) {
+    if pressed(Key::Num3) {
         ed.settings.grid = !ed.settings.grid;
+    }
+    if pressed(Key::Num4) {
+        ed.settings.colliders = !ed.settings.colliders;
+    }
+    if pressed(Key::Num5) && !ed.playing {
+        ed.settings.canvas = !ed.settings.canvas;
+    }
+    if pressed(Key::Num6) {
+        ed.settings.volumes = !ed.settings.volumes;
+    }
+    if pressed(Key::Num7) {
+        ed.settings.diagram = !ed.settings.diagram;
+    }
+    // W/S zoom, A/D pan (+ Q/E, Shift) while the mouse is over the viewport.
+    let over_viewport = ctx.input(|i| i.pointer.hover_pos()).is_some_and(|p| st.viewport_rect.contains(p));
+    let using_game_camera = ed.playing && ed.settings.game_camera;
+    if over_viewport && !using_game_camera {
+        let (dir, fast, dt) = ctx.input(|i| {
+            let k = |key: Key| if i.key_down(key) { 1.0 } else { 0.0 };
+            let dir = kit::math::Vec3::new(
+                k(Key::D) - k(Key::A),
+                k(Key::E) - k(Key::Q),
+                k(Key::W) - k(Key::S),
+            );
+            (dir, i.modifiers.shift, i.stable_dt.min(0.1))
+        });
+        if dir != kit::math::Vec3::ZERO && !ctx.input(|i| i.modifiers.command || i.modifiers.alt) {
+            ed.camera.fly(dir, dt, fast);
+            ctx.request_repaint();
+        }
     }
     if pressed(Key::R) {
         ed.camera.auto_rotate = !ed.camera.auto_rotate;
@@ -347,12 +427,7 @@ fn shortcuts(ctx: &egui::Context, ed: &mut Editor, st: &mut UiState) {
         let two_d = !ed.camera.two_d;
         ed.camera.set_two_d(two_d);
     }
-    if pressed(Key::D) {
-        ed.settings.canvas = !ed.settings.canvas;
-    }
-    if pressed(Key::C) {
-        ed.settings.colliders = !ed.settings.colliders;
-    }
+
     if esc && ed.settings.canvas {
         ed.settings.canvas = false;
     }
@@ -508,11 +583,25 @@ fn footer(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
             } else if ed.camera.two_d {
                 &["F1 shortcuts", "Scroll to zoom", "Drag to pan"]
             } else {
-                &["F1 shortcuts", "Shift + drag to pan", "Scroll to zoom", "Drag to orbit"]
+                &["F1 shortcuts", "W/S zoom · A/D pan", "Shift + drag to pan", "Scroll to zoom", "Drag to orbit"]
             };
             for t in tips {
                 ui.label(RichText::new(*t).size(11.0).color(MUTED()));
                 ui.add_space(6.0);
+            }
+            // Collapsed by default; new errors show a count here.
+            let total = ed.world().try_resource::<kit::core::Console>().map_or(0, |c| c.errors_total);
+            if ed.settings.console {
+                st.errors_seen = total;
+            }
+            let unseen = total.saturating_sub(st.errors_seen);
+            if unseen > 0 {
+                let badge = ui
+                    .add(egui::Label::new(RichText::new(format!("● {unseen}")).size(11.0).color(ERROR())).sense(egui::Sense::click()))
+                    .on_hover_text(format!("{unseen} new error{} in the console", if unseen == 1 { "" } else { "s" }));
+                if badge.clicked() {
+                    ed.settings.console = true;
+                }
             }
             if ghost(ui, RichText::new(if ed.settings.console { "Console ▾" } else { "Console ▸" }).size(11.0).text())
                 .clicked()
@@ -573,6 +662,7 @@ fn entity_icon(ed: &Editor, e: Entity) -> &'static str {
         "MODEL" => "◆",
         "SCRIPT" => "✏",
         "SOUND" => "♪",
+        "VOLUME" => "✨",
         _ => "○",
     }
 }
@@ -873,7 +963,11 @@ fn assets(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                     begin_new_asset(ed, st, AssetKind::Scene);
                     ui.close();
                 }
-                if ui.add_enabled(ed.project.is_some(), egui::Button::new("Import 3D models…")).clicked() {
+                if ui
+                    .add_enabled(ed.project.is_some(), egui::Button::new("Import files…"))
+                    .on_hover_text("Sounds, sprites, 3D models, scripts, scenes and diagrams. You can also drag files onto Kit.")
+                    .clicked()
+                {
                     st.requests.push(Request::ImportModels);
                     ui.close();
                 }
@@ -1252,6 +1346,43 @@ fn section(ui: &mut Ui, id: &str, title: &str, icon: &str, removable: bool, body
     keep
 }
 
+/// Space kept free on the right of the inspector for its scroll bar.
+const SCROLL_BAR_ROOM: f32 = 12.0;
+
+/// Show a panel's scroll bar only after the mouse has rested over the panel
+/// for a moment, or right away while scrolling, so it doesn't flicker in
+/// over the controls when passing by.
+fn delayed_scroll_bar(ui: &Ui, id: &str) -> egui::scroll_area::ScrollBarVisibility {
+    const DELAY: f64 = 0.6;
+    const LINGER: f64 = 1.2;
+    let rect = ui.available_rect_before_wrap();
+    let ctx = ui.ctx();
+    let (now, hovered, scrolling) = ctx.input(|i| {
+        let hovered = i.pointer.hover_pos().is_some_and(|p| rect.contains(p));
+        (i.time, hovered, hovered && i.smooth_scroll_delta.y != 0.0)
+    });
+    let key = egui::Id::new(("scroll_bar_delay", id));
+    let (mut since, mut last_scroll): (Option<f64>, f64) = ctx.data(|d| d.get_temp(key)).unwrap_or((None, f64::NEG_INFINITY));
+    since = if hovered { Some(since.unwrap_or(now)) } else { None };
+    if scrolling {
+        last_scroll = now;
+    }
+    ctx.data_mut(|d| d.insert_temp(key, (since, last_scroll)));
+    let rested = since.is_some_and(|t| now - t >= DELAY);
+    let recent = now - last_scroll < LINGER;
+    if let Some(t) = since.filter(|_| !rested) {
+        ctx.request_repaint_after(std::time::Duration::from_secs_f64((t + DELAY - now).max(0.0)));
+    }
+    if recent && !rested {
+        ctx.request_repaint_after(std::time::Duration::from_secs_f64(LINGER));
+    }
+    if rested || recent {
+        egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded
+    } else {
+        egui::scroll_area::ScrollBarVisibility::AlwaysHidden
+    }
+}
+
 fn inspector(ui: &mut Ui, ed: &mut Editor) {
     widgets::section_label(ui, "INSPECTOR");
     ui.add_space(6.0);
@@ -1265,11 +1396,16 @@ fn inspector(ui: &mut Ui, ed: &mut Editor) {
     };
     let images = ed.assets_with(&["png", "jpg", "jpeg"]);
     let models = ed.assets_with(crate::model_import::EDITABLE_EXTENSIONS);
-    egui::ScrollArea::vertical().id_salt("inspector").auto_shrink([false, false]).show(ui, |ui| {
+    let bar = delayed_scroll_bar(ui, "inspector");
+    egui::ScrollArea::vertical().id_salt("inspector").auto_shrink([false, false]).scroll_bar_visibility(bar).show(ui, |ui| {
+        // Keep content clear of the scroll bar so it never covers buttons.
+        ui.set_max_width(ui.available_width() - SCROLL_BAR_ROOM);
         components(ui, ed, e, &images, &models);
         physics_sections(ui, ed, e);
         // Script section needs &mut Editor (opening files), so it is drawn separately.
         audio_section(ui, ed, e);
+        volume_section(ui, ed, e);
+        diagram_section(ui, ed, e);
         script_section(ui, ed, e);
         add_component_menu(ui, ed, e);
     });
@@ -1494,6 +1630,151 @@ fn components(ui: &mut Ui, ed: &mut Editor, e: Entity, images: &[String], models
 
 fn label(ui: &mut Ui, text: &str) {
     ui.add_sized([62.0, 20.0], egui::Label::new(RichText::new(text).size(12.0).color(LABEL())));
+}
+
+/// Inherit / On / Off for one effect group; true when the group is On.
+fn override_row(ui: &mut Ui, id: &str, title: &str, mode: &mut kit::gamesys::Override) -> bool {
+    use kit::gamesys::Override;
+    ui.horizontal(|ui| {
+        ui.add_sized([62.0, 20.0], egui::Label::new(RichText::new(title).size(12.0).strong().color(TEXT_STRONG())));
+        for m in Override::ALL {
+            let r = ui.selectable_label(*mode == m, RichText::new(m.label()).size(11.5));
+            if m == Override::On {
+                mark(ui, leak_mark(format!("fx_{id}_on")), r.rect);
+            }
+            if r.on_hover_text(match m {
+                Override::Inherit => "Keep what lower-priority volumes set",
+                Override::On => "Use this volume's settings",
+                Override::Off => "Switch this effect off here",
+            })
+            .clicked()
+            {
+                *mode = m;
+            }
+        }
+    });
+    *mode == Override::On
+}
+
+/// Marks need `'static` names; effect ids are a fixed small set.
+fn leak_mark(name: String) -> &'static str {
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+    static NAMES: Mutex<Option<HashMap<String, &'static str>>> = Mutex::new(None);
+    let mut names = NAMES.lock().unwrap();
+    let names = names.get_or_insert_with(HashMap::new);
+    names.entry(name.clone()).or_insert_with(|| Box::leak(name.into_boxed_str()))
+}
+
+fn slider(ui: &mut Ui, text: &str, value: &mut f32, range: std::ops::RangeInclusive<f32>) {
+    ui.horizontal(|ui| {
+        ui.add_space(14.0);
+        ui.add_sized([62.0, 20.0], egui::Label::new(RichText::new(text).size(11.5).color(LABEL())));
+        ui.add(egui::Slider::new(value, range).fixed_decimals(2));
+    });
+}
+
+/// The Post-Processing Volume component: shape, blending, and per-effect overrides.
+fn volume_section(ui: &mut Ui, ed: &mut Editor, e: Entity) {
+    use kit::gamesys::{AoQuality, PostVolume, Tonemap, VolumeAffect, VolumeShape};
+    let Some(mut v) = ed.world().get_cloned::<PostVolume>(e) else { return };
+    let keep = section(ui, "post_volume", "Post-Processing Volume", "✨", true, |ui| {
+        ui.horizontal(|ui| {
+            label(ui, "Shape");
+            for s in VolumeShape::ALL {
+                let r = ui.selectable_label(v.shape == s, s.label());
+                mark(ui, leak_mark(format!("volume_shape_{}", s.label().to_lowercase())), r.rect);
+                if r.clicked() {
+                    v.shape = s;
+                }
+            }
+        });
+        let local = v.shape != VolumeShape::Global;
+        if local {
+            ui.horizontal(|ui| {
+                label(ui, "Affect");
+                for a in VolumeAffect::ALL {
+                    ui.selectable_value(&mut v.affect, a, a.label()).on_hover_text(match a {
+                        VolumeAffect::Camera => "The whole picture changes while the camera is inside or near",
+                        VolumeAffect::Objects => "Only what's inside the volume changes, seen from anywhere",
+                    });
+                }
+            });
+        }
+        ui.horizontal(|ui| {
+            label(ui, "Priority");
+            ui.add(egui::DragValue::new(&mut v.priority).range(-1000..=1000))
+                .on_hover_text("Higher wins where volumes overlap");
+            if local {
+                ui.label(RichText::new("Blend").size(12.0).color(LABEL()));
+                ui.add(egui::DragValue::new(&mut v.blend_distance).range(0.0..=1000.0).speed(0.05).suffix(" m"))
+                    .on_hover_text("World units outside the shape over which it fades in");
+            }
+        });
+        ui.horizontal(|ui| {
+            label(ui, "Weight");
+            ui.add(egui::Slider::new(&mut v.weight, 0.0..=1.0).fixed_decimals(2));
+        });
+        ui.label(
+            RichText::new(if local {
+                "Size, position and rotation come from the Transform. Invisible in the game."
+            } else {
+                "Applies everywhere: scene-wide defaults that local volumes build on."
+            })
+            .size(11.0)
+            .color(MUTED()),
+        );
+        ui.add_space(4.0);
+        let fx = &mut v.effects;
+        if override_row(ui, "color", "Color", &mut fx.color.mode) {
+            slider(ui, "Saturation", &mut fx.color.saturation, 0.0..=2.0);
+            slider(ui, "Contrast", &mut fx.color.contrast, 0.5..=1.5);
+            slider(ui, "Temperature", &mut fx.color.temperature, -1.0..=1.0);
+        }
+        if override_row(ui, "exposure", "Exposure", &mut fx.exposure.mode) {
+            slider(ui, "EV", &mut fx.exposure.ev, -5.0..=5.0);
+            ui.horizontal(|ui| {
+                ui.add_space(14.0);
+                ui.add_sized([62.0, 20.0], egui::Label::new(RichText::new("Tone map").size(11.5).color(LABEL())));
+                ui.selectable_value(&mut fx.exposure.tonemap, Tonemap::Filmic, "Filmic");
+                ui.selectable_value(&mut fx.exposure.tonemap, Tonemap::None, "None");
+            });
+        }
+        if override_row(ui, "glow", "Glow", &mut fx.glow.mode) {
+            slider(ui, "Threshold", &mut fx.glow.threshold, 0.0..=4.0);
+            slider(ui, "Intensity", &mut fx.glow.intensity, 0.0..=4.0);
+            slider(ui, "Radius", &mut fx.glow.radius, 0.0..=1.0);
+        }
+        if override_row(ui, "focus", "Focus", &mut fx.focus.mode) {
+            slider(ui, "Distance", &mut fx.focus.distance, 0.1..=200.0);
+            slider(ui, "Range", &mut fx.focus.range, 0.1..=50.0);
+            slider(ui, "Strength", &mut fx.focus.strength, 0.0..=1.0);
+        }
+        if override_row(ui, "ambient", "Ambient", &mut fx.ambient.mode) {
+            slider(ui, "Radius", &mut fx.ambient.radius, 0.05..=5.0);
+            slider(ui, "Strength", &mut fx.ambient.strength, 0.0..=4.0);
+            ui.horizontal(|ui| {
+                ui.add_space(14.0);
+                ui.add_sized([62.0, 20.0], egui::Label::new(RichText::new("Quality").size(11.5).color(LABEL())));
+                for q in AoQuality::ALL {
+                    ui.selectable_value(&mut fx.ambient.quality, q, q.label());
+                }
+            });
+        }
+        if override_row(ui, "image", "Image", &mut fx.image.mode) {
+            ui.horizontal(|ui| {
+                ui.add_space(80.0);
+                ui.checkbox(&mut fx.image.fxaa, "FXAA").on_hover_text("Smooths jagged edges (MSAA stays on)");
+            });
+            slider(ui, "Sharpen", &mut fx.image.sharpen, 0.0..=1.0);
+        }
+    });
+    let w = &mut ed.app.world;
+    if !keep {
+        w.remove::<PostVolume>(e);
+    } else if w.get::<PostVolume>(e).is_some_and(|old| *old != v) {
+        *w.get_mut::<PostVolume>(e).unwrap() = v;
+    }
 }
 
 /// The Audio Source component: clip with preview, volume/pitch, and proximity.
@@ -1956,7 +2237,7 @@ fn script_section(ui: &mut Ui, ed: &mut Editor, e: Entity) {
             }
         });
         if ed.playing {
-            let rt = ed.world().resource::<kit::script::ScriptRuntime>();
+            let mut rt = ed.world().resource_mut::<kit::script::ScriptRuntime>();
             if rt.has_error(e) {
                 ui.label(RichText::new("Stopped after an error (see console)").size(11.0).color(ERROR()));
             }
@@ -1964,16 +2245,90 @@ fn script_section(ui: &mut Ui, ed: &mut Editor, e: Entity) {
             if !fields.is_empty() {
                 ui.add_space(4.0);
                 egui::Grid::new("script_fields").num_columns(3).spacing([10.0, 3.0]).show(ui, |ui| {
-                    for (name, ty, value) in fields {
-                        ui.label(RichText::new(ty).size(10.0).color(CODE_TYPE()).monospace());
-                        ui.label(RichText::new(name).size(12.0).color(LABEL()));
-                        ui.label(RichText::new(value).size(12.0).monospace().color(TEXT_STRONG()));
+                    for f in fields {
+                        field_label(ui, &f);
+                        match (&f.access, f.value.clone()) {
+                            // Live changes last until Play stops.
+                            (kit::script::Access::Edit, Some(mut v)) => {
+                                if field_editor(ui, &mut v) {
+                                    rt.set_field(e, &f.name, &v);
+                                }
+                            }
+                            _ => {
+                                ui.label(RichText::new(&f.text).size(12.0).monospace().color(TEXT_STRONG()));
+                            }
+                        }
                         ui.end_row();
                     }
                 });
+                ui.label(RichText::new("Changes while playing are undone when you stop.").size(10.5).color(MUTED()));
             }
-        } else {
-            ui.label(RichText::new("Fields show live values while playing.").size(11.0).color(MUTED()));
+        } else if !s.path.is_empty() {
+            let declared = {
+                let res = ed.world().try_resource::<kit::resource::Resources>().map(|r| r.clone());
+                res.map(|res| ed.world().resource_mut::<kit::script::ScriptRuntime>().declared(&res, &s.path))
+            };
+            if let Some(d) = declared {
+                if let Some(err) = &d.error {
+                    ui.label(RichText::new(format!("Can't read fields: {err}")).size(11.0).color(ERROR()));
+                }
+                if !d.fields.is_empty() {
+                    ui.add_space(4.0);
+                    egui::Grid::new("script_fields").num_columns(4).spacing([10.0, 3.0]).show(ui, |ui| {
+                        for f in &d.fields {
+                            field_label(ui, f);
+                            match (&f.access, &f.value) {
+                                (kit::script::Access::Edit, Some(default)) => {
+                                    let mut v = s.values.get(&f.name).cloned().unwrap_or_else(|| default.clone());
+                                    if field_editor(ui, &mut v) {
+                                        if v == *default {
+                                            s.values.remove(&f.name);
+                                        } else {
+                                            s.values.insert(f.name.clone(), v);
+                                        }
+                                    }
+                                    if s.values.contains_key(&f.name) {
+                                        if ui.small_button("↺").on_hover_text(format!("Back to the script's default ({})", f.text)).clicked() {
+                                            s.values.remove(&f.name);
+                                        }
+                                    } else {
+                                        ui.label("");
+                                    }
+                                }
+                                _ => {
+                                    ui.label(RichText::new(&f.text).size(12.0).monospace().color(MUTED()))
+                                        .on_hover_text("PUBLIC: shown, not editable. Write EDIT in front to edit it here.");
+                                    ui.label("");
+                                }
+                            }
+                            ui.end_row();
+                        }
+                    });
+                } else if d.error.is_none() {
+                    ui.label(
+                        RichText::new("No editable fields. Put EDIT in front of a field to set it here (PUBLIC shows it read-only).")
+                            .size(11.0)
+                            .color(MUTED()),
+                    );
+                }
+                // Saved values for fields that are gone or no longer EDIT.
+                let stale: Vec<String> = s
+                    .values
+                    .keys()
+                    .filter(|k| !d.fields.iter().any(|f| &f.name == *k && f.access == kit::script::Access::Edit))
+                    .cloned()
+                    .collect();
+                if !stale.is_empty() && d.error.is_none() {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(format!("Unused saved values: {}", stale.join(", "))).size(11.0).color(WARN()));
+                        if ui.small_button("Remove").clicked() {
+                            for k in &stale {
+                                s.values.remove(k);
+                            }
+                        }
+                    });
+                }
+            }
         }
     });
     if !keep {
@@ -1994,6 +2349,61 @@ fn script_section(ui: &mut Ui, ed: &mut Editor, e: Entity) {
     }
 }
 
+fn diagram_section(ui: &mut Ui, ed: &mut Editor, e: Entity) {
+    let Some(mut d) = ed.world().get_cloned::<kit::gamesys::Diagram>(e) else { return };
+    let graphs = ed.assets_with(&["kdiagram"]);
+    let keep = section(ui, "diagram", "Diagram", "◫", true, |ui| {
+        ui.horizontal(|ui| {
+            ui.add_sized([62.0, 20.0], egui::Label::new(RichText::new("Graph").size(12.0).color(LABEL())));
+            let shown = if d.graph.is_empty() { "None".to_string() } else { d.graph.clone() };
+            egui::ComboBox::from_id_salt("diagram_file").selected_text(shown).width(ui.available_width() - 4.0).show_ui(ui, |ui| {
+                ui.selectable_value(&mut d.graph, String::new(), "None");
+                for g in &graphs {
+                    ui.selectable_value(&mut d.graph, g.clone(), g);
+                }
+            });
+        });
+        ui.horizontal(|ui| {
+            ui.add_space(66.0);
+            if ui.button(if ed.settings.diagram { "Hide Diagram view (7)" } else { "Open Diagram view (7)" }).clicked() {
+                ed.settings.diagram = !ed.settings.diagram;
+            }
+        });
+    });
+    if !keep {
+        ed.app.world.remove::<kit::gamesys::Diagram>(e);
+    } else if ed.world().get::<kit::gamesys::Diagram>(e).is_some_and(|cur| *cur != d) {
+        *ed.app.world.get_mut::<kit::gamesys::Diagram>(e).unwrap() = d;
+    }
+}
+
+/// Type and name of a script field.
+fn field_label(ui: &mut Ui, f: &kit::script::FieldView) {
+    ui.label(RichText::new(&f.ty).size(10.0).color(CODE_TYPE()).monospace());
+    ui.label(RichText::new(&f.name).size(12.0).color(LABEL()));
+}
+
+/// An input for an EDIT field's value. Returns true when it changed.
+fn field_editor(ui: &mut Ui, v: &mut kit::gamesys::FieldValue) -> bool {
+    use kit::gamesys::FieldValue as F;
+    match v {
+        F::Bool(b) => ui.checkbox(b, "").changed(),
+        F::Int(i) => ui.add(egui::DragValue::new(i).speed(0.1)).changed(),
+        F::Float(f) => ui.add(egui::DragValue::new(f).speed(0.05).max_decimals(3)).changed(),
+        F::Text(t) => ui.add(egui::TextEdit::singleline(t).desired_width(140.0)).changed(),
+        F::Vector(a) => {
+            ui.horizontal(|ui| {
+                let mut changed = false;
+                for x in a.iter_mut() {
+                    changed |= ui.add(egui::DragValue::new(x).speed(0.05).max_decimals(3)).changed();
+                }
+                changed
+            })
+            .inner
+        }
+    }
+}
+
 fn add_component_menu(ui: &mut Ui, ed: &mut Editor, e: Entity) {
     let mut sketch_now = false;
     add_component_menu_inner(ui, ed, e, &mut sketch_now);
@@ -2003,6 +2413,14 @@ fn add_component_menu(ui: &mut Ui, ed: &mut Editor, e: Entity) {
 }
 
 fn add_component_menu_inner(ui: &mut Ui, ed: &mut Editor, e: Entity, sketch_now: &mut bool) {
+    let mut add_diagram = false;
+    add_component_menu_body(ui, ed, e, sketch_now, &mut add_diagram);
+    if add_diagram && crate::diagram_view::add_diagram(ed, e).is_some() {
+        ed.settings.diagram = true;
+    }
+}
+
+fn add_component_menu_body(ui: &mut Ui, ed: &mut Editor, e: Entity, sketch_now: &mut bool, add_diagram: &mut bool) {
     ui.add_space(8.0);
     ui.vertical_centered(|ui| {
         ui.menu_button(RichText::new("+  Add component").color(ACCENT()), |ui| {
@@ -2029,6 +2447,11 @@ fn add_component_menu_inner(ui: &mut Ui, ed: &mut Editor, e: Entity, sketch_now:
             add(ui, "Light", has_light, &mut || {
                 w.insert(e, Light::default());
             });
+            let has_diagram = w.has::<kit::gamesys::Diagram>(e);
+            if ui.add_enabled(!has_diagram, egui::Button::new("Diagram (visual logic)")).clicked() {
+                *add_diagram = true;
+                ui.close();
+            }
             let has_script = w.has::<Script>(e);
             add(ui, "Script", has_script, &mut || {
                 w.insert(e, Script::default());
@@ -2057,6 +2480,10 @@ fn add_component_menu_inner(ui: &mut Ui, ed: &mut Editor, e: Entity, sketch_now:
                 let mut t = kit::gamesys::Terrain::default();
                 t.generate(1, 6.0, 0.5);
                 w.insert(e, t);
+            });
+            let has_volume = w.has::<kit::gamesys::PostVolume>(e);
+            add(ui, "✨ Post-Processing Volume", has_volume, &mut || {
+                w.insert(e, kit::gamesys::PostVolume::default());
             });
             let has_audio = w.has::<kit::gamesys::AudioSource>(e);
             add(ui, "♪ Audio Source", has_audio, &mut || {
@@ -2293,27 +2720,38 @@ fn viewport(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 4.0;
                         let s = &mut ed.settings;
-                        if dock_toggle(ui, "◇", "Wireframe", s.wireframe).on_hover_text("W").clicked() {
+                        if dock_toggle(ui, "◇", "Wireframe", s.wireframe).on_hover_text("Wireframe (1)").clicked() {
                             s.wireframe = !s.wireframe;
                         }
-                        if dock_toggle(ui, "☀", "Lighting", s.lighting).on_hover_text("L").clicked() {
+                        if dock_toggle(ui, "☀", "Lighting", s.lighting).on_hover_text("Lighting (2)").clicked() {
                             s.lighting = !s.lighting;
                         }
-                        if dock_toggle(ui, "#", "Grid", s.grid).on_hover_text("G").clicked() {
+                        if dock_toggle(ui, "#", "Grid", s.grid).on_hover_text("Grid (3)").clicked() {
                             s.grid = !s.grid;
                         }
                         if dock_toggle(ui, "⬚", "Colliders", s.colliders)
-                            .on_hover_text("Show collider outlines (C)")
+                            .on_hover_text("Show collider outlines (4)")
                             .clicked()
                         {
                             s.colliders = !s.colliders;
                         }
                         if !ed.playing
                             && dock_toggle(ui, "✏", "Canvas", s.canvas)
-                                .on_hover_text("Sketch movement paths: select an object and drag (D)")
+                                .on_hover_text("Sketch movement paths: select an object and drag (5)")
                                 .clicked()
                         {
                             s.canvas = !s.canvas;
+                        }
+                        let r = dock_toggle(ui, "✨", "Volumes", s.volumes)
+                            .on_hover_text("Preview post-processing volumes from the editor camera (6)");
+                        mark(ui, "toggle_volumes", r.rect);
+                        if r.clicked() {
+                            s.volumes = !s.volumes;
+                        }
+                        let r = dock_toggle(ui, "◫", "Diagram", s.diagram).on_hover_text("Visual logic for the selected object (7)");
+                        mark(ui, "toggle_diagram", r.rect);
+                        if r.clicked() {
+                            s.diagram = !s.diagram;
                         }
                         if ed.playing && dock_toggle(ui, "🎥", "Game camera", s.game_camera).clicked() {
                             s.game_camera = !s.game_camera;
@@ -2519,11 +2957,15 @@ fn help(ctx: &egui::Context, st: &mut UiState) {
                     ("Zoom", "Scroll"),
                     ("Frame selection", "F"),
                     ("2D / 3D view", "T"),
-                    ("Wireframe", "W"),
-                    ("Lighting", "L"),
-                    ("Grid", "G"),
-                    ("Canvas mode (sketch paths)", "D"),
-                    ("Collider outlines", "C"),
+                    ("Zoom in / out", "W / S"),
+                    ("Pan left / right", "A / D (Q / E down / up, Shift faster)"),
+                    ("Wireframe", "1"),
+                    ("Lighting", "2"),
+                    ("Grid", "3"),
+                    ("Collider outlines", "4"),
+                    ("Canvas mode (sketch paths)", "5"),
+                    ("Volumes preview", "6"),
+                    ("Diagram view (visual logic)", "7"),
                     ("Auto-rotate", "R"),
                     ("Rename", "F2"),
                     ("Duplicate", "Ctrl D"),

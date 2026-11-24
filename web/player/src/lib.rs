@@ -11,7 +11,7 @@
 //! No wasm-bindgen: the page calls the `kit_*` functions exported below and
 //! reads results straight out of WebAssembly memory.
 
-pub mod pack;
+pub use kit_resource::pack;
 
 use anyhow::{Context, Result};
 use glam::{Mat4, Vec3};
@@ -35,6 +35,12 @@ pub mod op {
     /// pass (0 opaque, 1 blended, 2 sprite, 3 terrain), geometry, first, count, texture, uniforms (32 floats).
     pub const DRAW: u32 = 6;
     pub const END: u32 = 7;
+    /// Post-processing for this frame (right after FRAME; absent = draw
+    /// straight to the canvas): uniform byte count, uniforms, temp count, each
+    /// temp's size divisor, pass count, then per pass: entry name (length +
+    /// bytes, padded to 4), inputs a and b, output (slot codes: 0 none,
+    /// 1 scene, 2 output, 3 + n = temp n), and its 256-byte uniforms.
+    pub const POST: u32 = 8;
 }
 
 /// Passes as numbered in the command buffer.
@@ -80,6 +86,8 @@ impl WebPlayer {
             .add_module(kit_gamesys::GameSysModule)
             .add_module(kit_script::ScriptModule)
             .add_module(kit_path::PathModule)
+            .add_module(kit_gamedata::GameDataModule)
+            .add_module(kit_diagram::DiagramModule)
             .add_module(kit_collider::ColliderModule)
             .add_module(kit_physics::PhysicsModule {
                 gravity: Vec3::from_array(physics.gravity),
@@ -90,6 +98,7 @@ impl WebPlayer {
             .add_module(kit_audio::AudioModule { device: false });
         // Read the project from memory instead of a folder.
         app.world.insert_resource(resources.clone());
+        kit_gamedata::reload(&mut app.world);
         let main = &config.project.main_scene;
         let text = resources.read_text(main).with_context(|| format!("loading main scene `{main}`"))?;
         let scene = SceneFile::from_json(&text).with_context(|| format!("in {main}"))?;
@@ -248,6 +257,35 @@ impl WebPlayer {
         self.draw_cmd(pass_id(item.pass), geometry, item.first, count, texture, &item.uniforms);
     }
 
+    fn post(&mut self, post: &kit_post::PostFrame) {
+        let slot = |s: Option<kit_post::Slot>| match s {
+            None => 0,
+            Some(kit_post::Slot::Scene) => 1,
+            Some(kit_post::Slot::Out) => 2,
+            Some(kit_post::Slot::Temp(i)) => 3 + i as u32,
+        };
+        self.u32(op::POST);
+        let uniforms = bytemuck::bytes_of(&post.uniforms).to_vec();
+        self.u32(uniforms.len() as u32);
+        self.out.extend_from_slice(&uniforms);
+        self.u32(kit_post::TEMPS.len() as u32);
+        for (_, divisor) in kit_post::TEMPS {
+            self.u32(divisor);
+        }
+        self.u32(post.passes.len() as u32);
+        for p in &post.passes {
+            self.u32(p.entry.len() as u32);
+            self.out.extend_from_slice(p.entry.as_bytes());
+            while self.out.len() % 4 != 0 {
+                self.out.push(0);
+            }
+            self.u32(slot(p.a));
+            self.u32(slot(p.b));
+            self.u32(slot(Some(p.output)));
+            self.out.extend_from_slice(bytemuck::bytes_of(&p.uniforms));
+        }
+    }
+
     /// Run one frame and build its command buffer.
     pub fn frame(&mut self, dt: f32, width: f32, height: f32) -> &[u8] {
         self.out.clear();
@@ -266,9 +304,15 @@ impl WebPlayer {
             self.imported.get(asset).and_then(|m| m.as_ref()).map(|(_, g)| g)
         });
 
+        let post = view.post.then(|| {
+            kit_post::frame(world, &kit_render::camera_info(&view, true), width.max(1.0) as u32, height.max(1.0) as u32)
+        });
         self.u32(op::FRAME);
         self.f32s(&clear.to_array());
         self.f32s(bytemuck::cast_slice(std::slice::from_ref(&uniforms)));
+        if let Some(Some(post)) = post {
+            self.post(&post);
+        }
         for item in &list.opaque {
             self.item(item);
         }
@@ -405,6 +449,12 @@ mod exports {
         set_text(&web_shader());
     }
 
+    /// The post-processing shader (for the page's 4× MSAA depth).
+    #[unsafe(no_mangle)]
+    pub extern "C" fn kit_post_shader() {
+        set_text(&kit_post::shader_source(4));
+    }
+
     #[unsafe(no_mangle)]
     pub extern "C" fn kit_build_id() {
         set_text(kit_core::BUILD_MARKER);
@@ -435,6 +485,26 @@ mod exports {
             }
             Err(e) => {
                 set_text(&format!("{e:#}"));
+                0
+            }
+        }
+    }
+
+    /// Start a protected (signed) game: verify `ptr/len` (a sealed pack)
+    /// against the publisher key the page pinned (`key_ptr`, 32 bytes) before
+    /// reading any of it. Returns 1, or 0 with the reason in the text result.
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn kit_start_sealed(ptr: *const u8, len: usize, key_ptr: *const u8, key_len: usize, seed: f64) -> u32 {
+        let sealed = unsafe { std::slice::from_raw_parts(ptr, len) };
+        let key = unsafe { std::slice::from_raw_parts(key_ptr, key_len) };
+        let Ok(key) = <[u8; 32]>::try_from(key) else {
+            set_text("the page's publisher key is invalid");
+            return 0;
+        };
+        match kit_export_security::open(sealed, &key, kit_export_security::Mode::Signed, None) {
+            Ok(pack) => unsafe { kit_start(pack.as_ptr(), pack.len(), seed) },
+            Err(e) => {
+                set_text(&format!("This game's files failed their security check: {e}."));
                 0
             }
         }
@@ -547,6 +617,20 @@ mod tests {
                     size
                 }
                 op::FRAME => 4 * (4 + 32),
+                op::POST => {
+                    let mut j = i;
+                    let n = word(j) as usize;
+                    j += 4 + n;
+                    let temps = word(j) as usize;
+                    j += 4 + temps * 4;
+                    let passes = word(j) as usize;
+                    j += 4;
+                    for _ in 0..passes {
+                        let len = word(j) as usize;
+                        j += 4 + len.div_ceil(4) * 4 + 12 + 256;
+                    }
+                    j - i
+                }
                 op::DRAW => 4 * 5 + 4 * 32,
                 op::END => 0,
                 other => panic!("unknown opcode {other}"),
@@ -573,6 +657,17 @@ mod tests {
         assert!(p.imported.values().all(Option::is_some), "imported models load from the pack");
         assert!(p.textures.values().all(Option::is_some), "textures load from the pack");
         assert!(p.app.world.storage::<kit_gamesys::Script>().is_some());
+    }
+
+    #[test]
+    fn post_volumes_send_a_post_command() {
+        let hello = commands(WebPlayer::new(&hello_pack()).unwrap().frame(1.0 / 60.0, 640.0, 360.0));
+        assert!(!hello.contains(&op::POST), "no volumes: direct path");
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/volumes");
+        let mut p = WebPlayer::new(&pack::write_dir(&root).unwrap()).unwrap();
+        let ops = commands(p.frame(1.0 / 60.0, 640.0, 360.0));
+        let at = ops.iter().position(|o| *o == op::POST).expect("POST command");
+        assert_eq!(ops[at - 1], op::FRAME, "POST follows FRAME");
     }
 
     #[test]

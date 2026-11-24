@@ -2,7 +2,7 @@
 
 use glam::{Mat4, Vec2, Vec3, Vec4Swizzles};
 use kit_ecs::{Entity, World};
-use kit_gamesys::{AudioSource, Camera, Light, MeshKind, Model, Sprite, Terrain};
+use kit_gamesys::{AudioSource, Camera, PostVolume, Light, MeshKind, Model, Sprite, Terrain};
 use kit_scene::GlobalTransform;
 
 /// A world-space ray.
@@ -119,7 +119,7 @@ pub fn pick(world: &World, ray: &Ray) -> Option<Entity> {
     }
     // Cameras, lights and sounds are picked by their editor gizmo.
     let gizmos = world.query::<(Camera,)>().into_iter().chain(world.query::<(Light,)>());
-    for e in gizmos.chain(world.query::<(AudioSource,)>()) {
+    for e in gizmos.chain(world.query::<(AudioSource,)>()).chain(world.query::<(PostVolume,)>()) {
         if world.has::<Model>(e) || world.has::<Sprite>(e) {
             continue;
         }
