@@ -46,6 +46,9 @@ impl Module for MultiplayerModule {
         app.add_play_system(Stage::PostUpdate, "multiplayer_send", send);
         // After scene_requests (gamesys registers it first), so Scene.Load is seen this frame.
         app.add_play_system(Stage::Last, "multiplayer_scenes", scenes);
+        // Runs in every mode: disconnects as soon as play stops (the editor's
+        // Stop), so editing never keeps a connection open.
+        app.add_system(Stage::Last, "multiplayer_stop", stop_when_not_playing);
     }
 }
 
@@ -160,12 +163,18 @@ pub struct Multiplayer {
     requests: HashMap<u16, Entity>,
     last_interest: f64,
     status: String,
+    /// Set by the play systems each frame; cleared by the always-running check.
+    played: bool,
 }
 
 impl Multiplayer {
     /// What a game or the editor can show ("Connected · 3 players", "Off: …").
     pub fn status(&self) -> &str {
         &self.status
+    }
+    /// Is a connection open (or being opened)?
+    pub fn connected(&self) -> bool {
+        matches!(self.phase, Phase::On(_))
     }
     fn now(&mut self) -> f64 {
         self.start.get_or_insert_with(Instant::now).elapsed().as_secs_f64()
@@ -229,6 +238,7 @@ fn kit_settings_file() -> &'static str {
 
 fn receive(world: &mut World) {
     let Some(mut mp) = world.remove_resource::<Multiplayer>() else { return };
+    mp.played = true;
     if matches!(mp.phase, Phase::Unchecked) {
         start(world, &mut mp);
     }
@@ -487,6 +497,25 @@ fn send(world: &mut World) {
     world.insert_resource(mp);
 }
 
+/// Play systems didn't run this frame (the editor is in edit mode): close any
+/// connection and forget the session, so the next Play starts fresh (and
+/// re-reads Project → Multiplayer).
+fn stop_when_not_playing(world: &mut World) {
+    let Some(mut mp) = world.try_resource_mut::<Multiplayer>() else { return };
+    if std::mem::take(&mut mp.played) {
+        return;
+    }
+    if !matches!(mp.phase, Phase::Unchecked) {
+        let was_on = matches!(mp.phase, Phase::On(_));
+        // Dropping the connections closes their sockets (and threads).
+        *mp = Multiplayer::default();
+        drop(mp);
+        if was_on {
+            say(world, "disconnected (play stopped)");
+        }
+    }
+}
+
 /// Follow Scene.Load into the new scene's sector.
 fn scenes(world: &mut World) {
     let loaded: Vec<String> = match world.try_resource::<kit_gamesys::scenes::SceneEvents>() {
@@ -514,6 +543,52 @@ fn scenes(world: &mut World) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A project with Multiplayer on, pointing at an address nobody listens on.
+    fn project() -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("kit_mp_mode_{}_{:?}", std::process::id(), std::thread::current().id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("kit.project"), "[project]\ntitle = \"T\"\nversion = \"0.0.1\"\nmain_scene = \"main.kscene\"\n").unwrap();
+        std::fs::write(dir.join("circuits.lock"), "version = 1\n[[circuit]]\nid = \"kit.multiplayer\"\nversion = \"0.1.1\"\nsha256 = \"x\"\nsource = \"t\"\nenabled = true\n").unwrap();
+        std::fs::write(dir.join("circuits.settings.toml"), "[\"kit.multiplayer\"]\nenvironment = \"env_test\"\nconnect_url = \"ws://127.0.0.1:9/api/v1/realtime/connect\"\n").unwrap();
+        dir
+    }
+
+    #[test]
+    fn connects_only_while_playing() {
+        let root = project();
+        let mut app = App::new();
+        app.add_module(kit_resource::ResourceModule { root: root.clone() }).add_module(kit_scene::SceneModule).add_module(kit_gamesys::GameSysModule).add_module(MultiplayerModule);
+        let on = |app: &App| app.world.resource::<Multiplayer>().connected();
+
+        // Editing: never connects.
+        app.mode = kit_core::RunMode::Edit;
+        for _ in 0..3 {
+            app.update(1.0 / 60.0);
+        }
+        assert!(!on(&app), "edit mode must not connect");
+
+        // Play: connects.
+        app.mode = kit_core::RunMode::Play;
+        app.update(1.0 / 60.0);
+        assert!(on(&app));
+        app.update(1.0 / 60.0);
+        assert!(on(&app), "stays connected while playing");
+
+        // Stop: disconnects on the next frame and stays off while editing.
+        app.mode = kit_core::RunMode::Edit;
+        app.update(1.0 / 60.0);
+        assert!(!on(&app), "stopping disconnects");
+        app.update(1.0 / 60.0);
+        assert!(!on(&app));
+
+        // Play again: a fresh connection.
+        app.mode = kit_core::RunMode::Play;
+        app.update(1.0 / 60.0);
+        assert!(on(&app));
+        let _ = std::fs::remove_dir_all(&root);
+    }
 
     #[test]
     fn reads_project_settings_and_lock() {
