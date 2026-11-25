@@ -13,7 +13,7 @@ case "${TARGET:-$(uname -m)}" in
 esac
 MOLTENVK="${MOLTENVK:-$(brew --prefix molten-vk 2>/dev/null)/lib/libMoltenVK.dylib}"
 [ -f "$MOLTENVK" ] || { echo "MoltenVK not found at $MOLTENVK" >&2; exit 1; }
-if ! lipo -verify_arch "$ARCH" "$MOLTENVK"; then
+if ! lipo "$MOLTENVK" -verify_arch "$ARCH"; then
   echo "MoltenVK at $MOLTENVK does not support $ARCH. Set MOLTENVK to a dylib with that architecture." >&2
   exit 1
 fi
