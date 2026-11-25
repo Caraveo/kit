@@ -31,6 +31,7 @@ Press **8** (or **Rex** in the viewport bar). Sign in once with a code shown in 
 - Console starts collapsed with a badge for new errors; the inspector scroll bar no longer covers buttons.
 
 ### Fixes
+- **Mac (Intel):** the v0.0.3 Intel package bundled an Apple Silicon-only MoltenVK, so Kit couldn't start on Intel Macs. Both Mac packages now include Khronos's universal MoltenVK.
 - Inspecting a rig volume no longer rounds its values and marks the scene as edited.
 - A spinning rigged model no longer re-deforms its mesh every frame.
 - Audio tests no longer fail randomly when run in parallel.
