@@ -210,3 +210,57 @@ play.addEventListener("click", () => {
 });
 points = example;
 render();
+
+// Platform-aware download button. Picks a package only when the OS (and, where
+// it matters, the CPU) is certain; otherwise the button opens the chooser.
+(function () {
+  const widgets = document.querySelectorAll("[data-download]");
+  if (!widgets.length) return;
+  const ua = navigator.userAgent || "";
+  const uaData = navigator.userAgentData;
+  const os = /Windows/i.test(ua) ? "windows" : /Mac OS X|Macintosh/i.test(ua) && !/iPhone|iPad/i.test(ua) ? "mac"
+    : /Linux|X11/i.test(ua) && !/Android/i.test(ua) ? "linux" : null;
+  const names = { windows: "Windows", mac: "Mac", linux: "Linux" };
+
+  function apply(arch) {
+    widgets.forEach((w) => {
+      const primary = w.querySelector("[data-dl-primary]");
+      const menu = w.querySelector("details");
+      const links = [...w.querySelectorAll("a[data-os]")];
+      links.forEach((a) => a.classList.toggle("dl-suggested", a.dataset.os === os && (!arch || a.dataset.arch === arch)));
+      // Linux: a .deb suits Ubuntu/Debian, the .tar.gz any distribution, so let people pick.
+      const pick = os && arch && os !== "linux" ? links.find((a) => a.dataset.os === os && a.dataset.arch === arch) : null;
+      if (pick) {
+        primary.href = pick.href;
+        primary.innerHTML = `Download for ${pick.querySelector("b").textContent.replace(" · ", " (") + ")"} <span aria-hidden="true">↓</span>`;
+        primary.onclick = null;
+      } else {
+        primary.innerHTML = `${os ? "Download for " + names[os] : "Download Kit"} <span aria-hidden="true">↓</span>`;
+        primary.onclick = (e) => {
+          e.preventDefault();
+          menu.open = true;
+          (w.querySelector("a.dl-suggested") || links[0]).focus();
+        };
+      }
+    });
+  }
+
+  let arch = null;
+  if (os === "windows") arch = /ARM64|aarch64/i.test(ua) ? "arm64" : /Win64|x64|WOW64/i.test(ua) ? "x64" : null;
+  if (os === "linux") arch = /aarch64|arm64/i.test(ua) ? "arm64" : /x86_64|amd64/i.test(ua) ? "x64" : null;
+  // Mac browsers report "Intel" even on Apple Silicon, so the UA alone can't tell.
+  apply(os === "mac" ? null : arch);
+  if (uaData && uaData.getHighEntropyValues) {
+    uaData.getHighEntropyValues(["architecture", "bitness"]).then((v) => {
+      if (v.architecture === "arm") apply("arm64");
+      else if (v.architecture === "x86" && v.bitness === "64") apply("x64");
+    }).catch(() => {});
+  }
+  // Close a menu with Escape or by clicking elsewhere.
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") document.querySelectorAll(".dl-menu[open]").forEach((d) => { d.open = false; d.querySelector("summary").focus(); });
+  });
+  document.addEventListener("click", (e) => {
+    document.querySelectorAll(".dl-menu[open]").forEach((d) => { if (!d.contains(e.target) && !d.parentElement.contains(e.target)) d.open = false; });
+  });
+})();

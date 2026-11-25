@@ -54,11 +54,25 @@
             share a game someone else can play.
           </p>
           <div class="actions">
-            <a
-              class="button primary"
-              href="https://github.com/caraveo/kit/releases/latest"
-              >Download Kit <span aria-hidden="true">↓</span></a
-            >
+            <div class="download" data-download>
+              <a class="button primary" data-dl-primary href="https://github.com/caraveo/kit/releases/latest"
+                >Download Kit <span aria-hidden="true">↓</span></a
+              >
+              <details class="dl-menu" id="dl-top">
+                <summary class="button quiet" aria-label="All platforms: choose a download">All platforms <span aria-hidden="true">▾</span></summary>
+                <ul role="list">
+                <li><a href="https://github.com/caraveo/kit/releases/download/v0.0.4/kit-0.0.4-macos-arm64.dmg" data-os="mac" data-arch="arm64" data-kind="pkg"><b>Mac · Apple Silicon (M1–M4)</b><small>.dmg installer · kit-0.0.4-macos-arm64.dmg</small></a></li>
+                <li><a href="https://github.com/caraveo/kit/releases/download/v0.0.4/kit-0.0.4-macos-x86_64.dmg" data-os="mac" data-arch="x64" data-kind="pkg"><b>Mac · Intel</b><small>.dmg installer · kit-0.0.4-macos-x86_64.dmg</small></a></li>
+                <li><a href="https://github.com/caraveo/kit/releases/download/v0.0.4/kit-0.0.4-windows-x86_64.zip" data-os="windows" data-arch="x64" data-kind="pkg"><b>Windows · x64</b><small>portable .zip · kit-0.0.4-windows-x86_64.zip</small></a></li>
+                <li><a href="https://github.com/caraveo/kit/releases/download/v0.0.4/kit-0.0.4-windows-arm64.zip" data-os="windows" data-arch="arm64" data-kind="pkg"><b>Windows · ARM64</b><small>portable .zip · kit-0.0.4-windows-arm64.zip</small></a></li>
+                <li><a href="https://github.com/caraveo/kit/releases/download/v0.0.4/kit_0.0.4_amd64.deb" data-os="linux" data-arch="x64" data-kind="deb"><b>Ubuntu / Debian · x64</b><small>.deb package · kit_0.0.4_amd64.deb</small></a></li>
+                <li><a href="https://github.com/caraveo/kit/releases/download/v0.0.4/kit_0.0.4_arm64.deb" data-os="linux" data-arch="arm64" data-kind="deb"><b>Ubuntu / Debian · ARM64</b><small>.deb package · kit_0.0.4_arm64.deb</small></a></li>
+                <li><a href="https://github.com/caraveo/kit/releases/download/v0.0.4/kit-0.0.4-linux-x86_64.tar.gz" data-os="linux" data-arch="x64" data-kind="pkg"><b>Linux · x64 (any distribution)</b><small>portable .tar.gz · kit-0.0.4-linux-x86_64.tar.gz</small></a></li>
+                <li><a href="https://github.com/caraveo/kit/releases/download/v0.0.4/kit-0.0.4-linux-aarch64.tar.gz" data-os="linux" data-arch="arm64" data-kind="pkg"><b>Linux · ARM64 (any distribution)</b><small>portable .tar.gz · kit-0.0.4-linux-aarch64.tar.gz</small></a></li>
+                  <li class="dl-all"><a href="https://github.com/caraveo/kit/releases/tag/v0.0.4">Release notes &amp; checksums ↗</a></li>
+                </ul>
+              </details>
+            </div>
             <a class="button quiet" href="#playground"
               >Try the playground <span aria-hidden="true">↘</span></a
             >
@@ -374,11 +388,25 @@
           </p>
         </div>
         <div class="actions">
-          <a
-            class="button primary"
-            href="https://github.com/caraveo/kit/releases/latest"
-            >Download Kit <span aria-hidden="true">↓</span></a
-          ><a
+          <div class="download" data-download>
+              <a class="button primary" data-dl-primary href="https://github.com/caraveo/kit/releases/latest"
+                >Download Kit <span aria-hidden="true">↓</span></a
+              >
+              <details class="dl-menu" id="dl-bottom">
+                <summary class="button quiet" aria-label="All platforms: choose a download">All platforms <span aria-hidden="true">▾</span></summary>
+                <ul role="list">
+                <li><a href="https://github.com/caraveo/kit/releases/download/v0.0.4/kit-0.0.4-macos-arm64.dmg" data-os="mac" data-arch="arm64" data-kind="pkg"><b>Mac · Apple Silicon (M1–M4)</b><small>.dmg installer · kit-0.0.4-macos-arm64.dmg</small></a></li>
+                <li><a href="https://github.com/caraveo/kit/releases/download/v0.0.4/kit-0.0.4-macos-x86_64.dmg" data-os="mac" data-arch="x64" data-kind="pkg"><b>Mac · Intel</b><small>.dmg installer · kit-0.0.4-macos-x86_64.dmg</small></a></li>
+                <li><a href="https://github.com/caraveo/kit/releases/download/v0.0.4/kit-0.0.4-windows-x86_64.zip" data-os="windows" data-arch="x64" data-kind="pkg"><b>Windows · x64</b><small>portable .zip · kit-0.0.4-windows-x86_64.zip</small></a></li>
+                <li><a href="https://github.com/caraveo/kit/releases/download/v0.0.4/kit-0.0.4-windows-arm64.zip" data-os="windows" data-arch="arm64" data-kind="pkg"><b>Windows · ARM64</b><small>portable .zip · kit-0.0.4-windows-arm64.zip</small></a></li>
+                <li><a href="https://github.com/caraveo/kit/releases/download/v0.0.4/kit_0.0.4_amd64.deb" data-os="linux" data-arch="x64" data-kind="deb"><b>Ubuntu / Debian · x64</b><small>.deb package · kit_0.0.4_amd64.deb</small></a></li>
+                <li><a href="https://github.com/caraveo/kit/releases/download/v0.0.4/kit_0.0.4_arm64.deb" data-os="linux" data-arch="arm64" data-kind="deb"><b>Ubuntu / Debian · ARM64</b><small>.deb package · kit_0.0.4_arm64.deb</small></a></li>
+                <li><a href="https://github.com/caraveo/kit/releases/download/v0.0.4/kit-0.0.4-linux-x86_64.tar.gz" data-os="linux" data-arch="x64" data-kind="pkg"><b>Linux · x64 (any distribution)</b><small>portable .tar.gz · kit-0.0.4-linux-x86_64.tar.gz</small></a></li>
+                <li><a href="https://github.com/caraveo/kit/releases/download/v0.0.4/kit-0.0.4-linux-aarch64.tar.gz" data-os="linux" data-arch="arm64" data-kind="pkg"><b>Linux · ARM64 (any distribution)</b><small>portable .tar.gz · kit-0.0.4-linux-aarch64.tar.gz</small></a></li>
+                  <li class="dl-all"><a href="https://github.com/caraveo/kit/releases/tag/v0.0.4">Release notes &amp; checksums ↗</a></li>
+                </ul>
+              </details>
+            </div><a
             class="button outline"
             href="https://github.com/caraveo/kit/blob/main/documentation/src/content/docs/getting-started/first-game.mdx"
             >First game guide <span aria-hidden="true">↗</span></a

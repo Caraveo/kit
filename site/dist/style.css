@@ -883,3 +883,30 @@ dialog::backdrop {
   text-decoration: underline;
   text-underline-offset: 0.15em;
 }
+
+/* Platform-aware download: primary button + "All platforms" menu */
+.download { position: relative; display: inline-flex; gap: 8px; flex-wrap: wrap; align-items: stretch; }
+.dl-menu { position: relative; }
+.dl-menu > summary { list-style: none; cursor: pointer; height: 100%; }
+.dl-menu > summary::-webkit-details-marker { display: none; }
+.dl-menu > summary:focus-visible, .download a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.dl-menu ul {
+  position: absolute; z-index: 20; top: calc(100% + 8px); left: 0; margin: 0; padding: 6px;
+  min-width: min(360px, calc(100vw - 32px)); list-style: none;
+  background: #17121f; border: 1px solid rgba(211, 175, 255, 0.25); border-radius: 14px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+}
+.dl-menu li a {
+  display: flex; flex-direction: column; gap: 2px; padding: 9px 12px; border-radius: 10px;
+  color: inherit; text-decoration: none;
+}
+.dl-menu li a:hover, .dl-menu li a:focus-visible { background: rgba(211, 175, 255, 0.12); }
+.dl-menu li a.dl-suggested { background: rgba(211, 175, 255, 0.18); }
+.dl-menu li b { font-weight: 600; font-size: 0.95rem; }
+.dl-menu li small { opacity: 0.7; font-size: 0.78rem; overflow-wrap: anywhere; }
+.dl-menu li.dl-all { border-top: 1px solid rgba(211, 175, 255, 0.15); margin-top: 4px; padding-top: 4px; }
+@media (max-width: 640px) {
+  .download { width: 100%; }
+  .download > .button, .dl-menu, .dl-menu > summary { width: 100%; justify-content: center; }
+  .dl-menu ul { position: static; margin-top: 8px; min-width: 0; }
+}
