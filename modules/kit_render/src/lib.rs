@@ -93,6 +93,11 @@ pub struct View {
     /// Apply post-processing volumes (game cameras; the editor's main view
     /// only when its "Volumes" preview is on).
     pub post: bool,
+    /// Models drawn see-through (the editor's Rig mode shows volumes inside).
+    pub ghosts: Vec<Entity>,
+    /// Extra shapes drawn on top of the scene, see-through (editor helpers
+    /// such as rig volumes).
+    pub overlay: Vec<draw::Overlay>,
 }
 
 impl View {
@@ -121,6 +126,8 @@ impl View {
             selected: Vec::new(),
             time: 0.0,
             post: true,
+            ghosts: Vec::new(),
+            overlay: Vec::new(),
         })
     }
 
@@ -140,6 +147,8 @@ impl View {
             selected: Vec::new(),
             time: 0.0,
             post: true,
+            ghosts: Vec::new(),
+            overlay: Vec::new(),
         }
     }
 

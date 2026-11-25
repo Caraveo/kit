@@ -1,0 +1,8 @@
+{
+  "name": "kit-website",
+  "account_id": "39bf5f7ab4e3524825a484793939cd6b",
+  "compatibility_date": "2026-11-01",
+  "workers_dev": false,
+  "routes": [{ "pattern": "kitgameengine.win", "custom_domain": true }],
+  "assets": { "directory": "./dist" }
+}

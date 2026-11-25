@@ -586,6 +586,88 @@ fn post_volume_authoring_duplicate_undo_and_save() {
 }
 
 #[test]
+fn rig_controls_are_visible_only_for_a_model_or_its_volume() {
+    use kit::gamesys::{Model, Rig, RigShape};
+    use kit::scene::Transform;
+
+    let mut h = Harness::new("rig_visibility");
+    let model = h.ed.spawn(crate::state::Preset::Empty, None);
+    h.ed.app.world.insert(model, Model::default());
+    let child = h.ed.spawn(crate::state::Preset::Empty, Some(model));
+    let dock = "toggle_rig";
+
+    h.ed.selected = Some(child);
+    h.key(Key::Num9);
+    assert!(!h.ed.settings.rig);
+    assert!(ui::marked(&h.ctx, dock).is_none());
+
+    h.ed.selected = Some(model);
+    h.key(Key::Num9);
+    assert!(h.ed.settings.rig);
+    assert!(ui::marked(&h.ctx, dock).is_some());
+
+    h.ed.app.world.insert(model, Rig::default());
+    h.ed.selected = Some(child);
+    h.ctx.data_mut(|data| data.remove::<Rect>(egui::Id::new(("kit_mark", dock))));
+    h.frame(vec![]);
+    assert!(ui::marked(&h.ctx, dock).is_none(), "ordinary children do not show Rig controls");
+
+    let volume = kit::rigg::preset::add_volume(
+        &mut h.ed.app.world,
+        model,
+        "Control",
+        RigShape::Sphere { radius: 1.0 },
+        Transform::default(),
+    );
+    h.ed.selected = Some(volume);
+    h.frame(vec![]);
+    assert!(ui::marked(&h.ctx, dock).is_some());
+}
+
+#[test]
+fn rig_mode_creates_and_saves_a_rig_without_rebinding_a_pose_on_entry() {
+    use kit::gamesys::{Model, Rig, RigShape, RigVolume};
+    use kit::scene::Transform;
+
+    let mut h = Harness::new("rig_mode");
+    let model = h.ed.spawn(crate::state::Preset::Empty, None);
+    h.ed.app.world.insert(model, Model::default());
+    h.ed.selected = Some(model);
+    h.frame(vec![]);
+    h.frame(vec![]);
+    h.click(ui::marked(&h.ctx, "create_rig").unwrap().center());
+    assert!(h.ed.settings.rig);
+    assert!(h.ed.world().has::<Rig>(model));
+
+    let volume = kit::rigg::preset::add_volume(
+        &mut h.ed.app.world,
+        model,
+        "Control",
+        RigShape::Sphere { radius: 1.0 },
+        Transform::default(),
+    );
+    kit::rigg::rebind(&mut h.ed.app.world, model);
+    let rest = h.ed.world().get::<RigVolume>(volume).unwrap().rest;
+    let pose = Transform::from_xyz(1.0, 0.0, 0.0);
+    h.ed.app.world.insert(volume, pose);
+    h.key(Key::Num9);
+    assert!(!h.ed.settings.rig);
+    h.key(Key::Num9);
+    assert!(h.ed.settings.rig);
+    assert_eq!(h.ed.world().get::<RigVolume>(volume).unwrap().rest, rest);
+
+    h.ed.undo();
+    assert!(kit::scene::find_by_name(h.ed.world(), "Control").is_none());
+    h.ed.redo();
+    let path = h.ed.scene_path.clone().unwrap();
+    h.ed.save_scene().unwrap();
+    h.ed.open_scene(&path).unwrap();
+    let volume = kit::scene::find_by_name(h.ed.world(), "Control").unwrap();
+    assert_eq!(h.ed.world().get::<RigVolume>(volume).unwrap().rest, rest);
+    assert_eq!(h.ed.world().get::<Transform>(volume).unwrap().matrix(), pose.matrix());
+}
+
+#[test]
 fn number_keys_toggle_the_viewport_bar_and_wasd_moves_the_view() {
     let mut h = Harness::new("keys");
     let s = h.ed.settings.clone();
@@ -1196,5 +1278,102 @@ fn rebound_play_shortcut_uses_the_new_key() {
     assert!(h.ed.playing);
     h.key(Key::F8);
     assert!(!h.ed.playing);
+}
+
+
+#[test]
+fn renaming_an_asset_updates_every_reference() {
+    let mut h = Harness::new("rename_refs");
+    let res = h.ed.project.as_ref().unwrap().resources.clone();
+    // Another scene and a script that mention the file, plus an unsaved edit.
+    res.write_text("scenes/level2.kscene", &kit::gamesys::save_scene(h.ed.world()).to_json()).unwrap();
+    res.write_text("scripts/loader.x", "# uses \"scripts/spinner.x\"\nVOID CREATE Init()[\n    DISPLAY[\"scripts/spinner.x\"]\n]\n").unwrap();
+    let cube = kit::scene::find_by_name(h.ed.world(), "Cube").unwrap();
+    h.ed.app.world.get_mut::<kit::scene::Transform>(cube).unwrap().translation.x = 3.0;
+    h.frame(vec![]);
+
+    let (new, changed) = h.ed.rename_asset("scripts/spinner.x", "spin").unwrap();
+    assert_eq!(new, "scripts/spin.x");
+    assert!(h.dir.join("scripts/spin.x").is_file() && !h.dir.join("scripts/spinner.x").exists());
+    assert!(changed >= 4, "open scene, main.kscene, level2 and the script: {changed}");
+    let cube = kit::scene::find_by_name(h.ed.world(), "Cube").unwrap();
+    assert_eq!(h.ed.world().get::<kit::gamesys::Script>(cube).unwrap().path, "scripts/spin.x");
+    assert_eq!(h.ed.world().get::<kit::scene::Transform>(cube).unwrap().translation.x, 3.0, "unsaved edit kept");
+    for f in ["main.kscene", "scenes/level2.kscene"] {
+        let text = std::fs::read_to_string(h.dir.join(f)).unwrap();
+        assert!(text.contains("scripts/spin.x") && !text.contains("scripts/spinner.x"), "{f}");
+    }
+    assert_eq!(std::fs::read_to_string(h.dir.join("scripts/loader.x")).unwrap().matches("\"scripts/spin.x\"").count(), 2);
+    // Undo history was updated too: undoing never brings back the old name.
+    h.ed.undo();
+    let cube = kit::scene::find_by_name(h.ed.world(), "Cube").unwrap();
+    assert_eq!(h.ed.world().get::<kit::gamesys::Script>(cube).unwrap().path, "scripts/spin.x");
+
+    // Renaming the main scene updates the project and the open scene's name.
+    let (scene, _) = h.ed.rename_asset("main.kscene", "start").unwrap();
+    assert_eq!(scene, "start.kscene");
+    assert_eq!(h.ed.scene_path.as_deref(), Some("start.kscene"));
+    assert_eq!(h.ed.project.as_ref().unwrap().config.project.main_scene, "start.kscene");
+    assert!(std::fs::read_to_string(h.dir.join("kit.project")).unwrap().contains("start.kscene"));
+}
+
+#[test]
+fn renaming_a_diagram_keeps_objects_using_it() {
+    let mut h = Harness::new("rename_diagram");
+    let cube = kit::scene::find_by_name(h.ed.world(), "Cube").unwrap();
+    let path = crate::diagram_view::add_diagram(&mut h.ed, cube).unwrap();
+    h.frame(vec![]);
+    let (new, _) = h.ed.rename_asset(&path, "door_logic").unwrap();
+    assert_eq!(new, "diagrams/door_logic.kdiagram");
+    let cube = kit::scene::find_by_name(h.ed.world(), "Cube").unwrap();
+    assert_eq!(h.ed.world().get::<kit::gamesys::Diagram>(cube).unwrap().graph, new);
+}
+
+#[test]
+fn rename_refuses_bad_names_and_clashes() {
+    let mut h = Harness::new("rename_bad");
+    for bad in ["", "  ", "a/b", "x:y", ".hidden", "what?"] {
+        assert!(h.ed.rename_asset("scripts/spinner.x", bad).is_err(), "{bad:?}");
+    }
+    h.ed.project.as_ref().unwrap().resources.write_text("scripts/other.x", "").unwrap();
+    let err = h.ed.rename_asset("scripts/spinner.x", "other").unwrap_err().to_string();
+    assert!(err.contains("already a file"), "{err}");
+    assert!(h.dir.join("scripts/spinner.x").is_file(), "nothing changed");
+}
+
+#[test]
+fn rename_dialog_renames_on_enter() {
+    let mut h = Harness::new("rename_ui");
+    h.st.start_rename_for_test("scripts/spinner.x");
+    h.frame(vec![]);
+    h.frame(vec![]);
+    // The whole name is selected: typing replaces it.
+    h.frame(vec![Event::Text("wobble".into())]);
+    h.key(Key::Enter);
+    assert!(h.st.renaming_for_test().is_none(), "dialog closed");
+    assert!(h.dir.join("scripts/wobble.x").is_file());
+}
+
+#[test]
+fn opening_a_diagram_asset_shows_it_until_the_selection_changes() {
+    let mut h = Harness::new("diagram_asset");
+    let cube = kit::scene::find_by_name(h.ed.world(), "Cube").unwrap();
+    let path = crate::diagram_view::add_diagram(&mut h.ed, cube).unwrap();
+    // Detach it from the cube: the file is now used by no object.
+    h.ed.app.world.remove::<kit::gamesys::Diagram>(cube);
+    h.ed.selected = None;
+    h.st.diagram.open_path(&h.ed, &path);
+    h.ed.settings.diagram = true;
+    for _ in 0..3 {
+        h.frame(vec![]);
+    }
+    assert_eq!(h.st.diagram.path(), Some(path.as_str()));
+    assert_eq!(h.st.diagram.pinned(), Some(path.as_str()));
+    assert_eq!(h.st.diagram.graph.nodes.len(), 1, "the On Start node is shown and editable");
+    // Selecting an object goes back to that object's Diagram.
+    h.ed.selected = Some(cube);
+    h.frame(vec![]);
+    h.frame(vec![]);
+    assert!(h.st.diagram.pinned().is_none(), "selecting an object releases the opened file");
 }
 

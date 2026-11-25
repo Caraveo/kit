@@ -13,6 +13,10 @@ case "${TARGET:-$(uname -m)}" in
 esac
 MOLTENVK="${MOLTENVK:-$(brew --prefix molten-vk 2>/dev/null)/lib/libMoltenVK.dylib}"
 [ -f "$MOLTENVK" ] || { echo "MoltenVK not found at $MOLTENVK" >&2; exit 1; }
+if ! lipo -verify_arch "$ARCH" "$MOLTENVK"; then
+  echo "MoltenVK at $MOLTENVK does not support $ARCH. Set MOLTENVK to a dylib with that architecture." >&2
+  exit 1
+fi
 
 DIST=dist
 APP="$DIST/Kit.app"
@@ -30,6 +34,7 @@ cp packaging/icons/kit.icns LICENSE BRANDING.md "$APP/Contents/Resources/"
 sed "s/__VERSION__/$VERSION/g" packaging/macos/Info.plist > "$APP/Contents/Info.plist"
 # Ad-hoc signature so the bundle runs on Apple Silicon (not notarized).
 codesign --force --deep --sign - "$APP"
+codesign --verify --deep --strict "$APP"
 
 DMG="$DIST/kit-${VERSION}-macos-${ARCH}.dmg"
 rm -f "$DMG"

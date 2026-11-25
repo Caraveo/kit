@@ -279,8 +279,31 @@ else:
     if ranges:
         bake_clip("Default", min(start for start, _ in ranges), max(end for _, end in ranges))
 
+# Keep the existing display and clip frames at their original indices.
+# For skeletal and shape-key animation, bake a separate undeformed frame.
+rest = 0
+armatures = [obj for obj in scene.objects if obj.type == "ARMATURE"]
+shape_keys = {obj.data.shape_keys for obj in scene.objects
+              if obj.type == "MESH" and obj.data.shape_keys}
+if armatures or shape_keys:
+    for _, owner in animated:
+        owner.action = None
+        for track in owner.nla_tracks:
+            track.is_solo = False
+            track.mute = True
+    for obj in armatures:
+        obj.data.pose_position = "REST"
+    for keys in shape_keys:
+        if keys.use_relative:
+            for key in keys.key_blocks:
+                key.value = 0
+        else:
+            keys.eval_time = keys.reference_key.frame
+    rest = len(frames)
+    sample(scene.frame_start)
+
 if not materials or not any(frames):
     raise ValueError("The file contains no triangulated mesh geometry")
 manifest = dict(materials=materials, frames=[[frame.get(i) for i in range(len(materials))] for frame in frames],
-                clips=clips, bounds=[minimum, maximum], warnings=warnings)
+                clips=clips, rest=rest, bounds=[minimum, maximum], warnings=warnings)
 pathlib.Path(destination).write_text(json.dumps(manifest, allow_nan=False), encoding="utf-8")

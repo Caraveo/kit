@@ -39,6 +39,10 @@ pub struct ModelAsset {
     pub bounds: [[f32; 3]; 2],
     #[serde(default)]
     pub warnings: Vec<String>,
+    /// The frame holding the undeformed rest (bind) pose, when the importer
+    /// saved one (rigs deform this instead of an animation frame).
+    #[serde(default)]
+    pub rest: Option<usize>,
 }
 
 impl ModelAsset {
@@ -105,6 +109,7 @@ mod tests {
             ],
             bounds: [[0.0; 3]; 2],
             warnings: Vec::new(),
+            rest: None,
         };
         assert_eq!(asset.frame("", 0.0, 1.0, true), 1);
         assert_eq!(asset.frame("Run", 0.5, 1.0, true), 5);

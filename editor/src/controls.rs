@@ -41,6 +41,7 @@ shortcuts! {
     Volumes: "Toggle post-processing preview" => (Num6, M::NONE);
     Diagram: "Toggle Diagram" => (Num7, M::NONE);
     Rex: "Toggle Rex (AI puppy)" => (Num8, M::NONE);
+    Rig: "Toggle Rig mode" => (Num9, M::NONE);
     Rotate: "Toggle auto-rotate" => (R, M::NONE);
     Dimension: "Switch 2D / 3D" => (T, M::NONE);
     Console: "Toggle Console" => (Backtick, M::NONE);

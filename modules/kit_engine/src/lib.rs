@@ -56,6 +56,8 @@ pub fn add_default_modules(app: &mut App, project_root: std::path::PathBuf, conf
         // Game data, then visual graphs (after scripts, before physics).
         .add_module(kit_gamedata::GameDataModule)
         .add_module(kit_diagram::DiagramModule)
+        // Volume rigs: after scripts/diagrams pose them, before drawing.
+        .add_module(kit_rigg::RiggModule)
         // After scripts and paths, so physics sees this frame's changes.
         .add_module(kit_collider::ColliderModule)
         .add_module(kit_physics::PhysicsModule {

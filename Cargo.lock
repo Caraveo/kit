@@ -2126,6 +2126,7 @@ dependencies = [
  "kit_physics",
  "kit_render",
  "kit_resource",
+ "kit_rigg",
  "kit_scene",
  "kit_script",
  "kit_x",
@@ -2149,6 +2150,7 @@ dependencies = [
  "raw-window-handle",
  "rfd",
  "serde",
+ "serde_json",
  "tempfile",
  "toml 0.9.12+spec-1.1.0",
  "webbrowser",
@@ -2252,6 +2254,7 @@ dependencies = [
  "kit_physics",
  "kit_render",
  "kit_resource",
+ "kit_rigg",
  "kit_scene",
  "kit_script",
  "log",
@@ -2407,6 +2410,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "kit_rigg"
+version = "0.0.3"
+dependencies = [
+ "glam 0.34.3",
+ "kit_core",
+ "kit_ecs",
+ "kit_gamesys",
+ "kit_input",
+ "kit_render",
+ "kit_resource",
+ "kit_scene",
+ "log",
+]
+
+[[package]]
 name = "kit_scene"
 version = "0.0.3"
 dependencies = [
@@ -2451,6 +2469,7 @@ dependencies = [
  "kit_post",
  "kit_render",
  "kit_resource",
+ "kit_rigg",
  "kit_scene",
  "kit_script",
  "kit_x",

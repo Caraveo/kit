@@ -1,0 +1,19 @@
+[package]
+name = "kit_rigg"
+description = "Kit module: Rigg volume rigs (spheres, capsules, boxes inside a model deform its mesh; no bones), poses and animation clips."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+kit_ecs.workspace = true
+kit_core.workspace = true
+kit_scene.workspace = true
+kit_gamesys.workspace = true
+kit_resource.workspace = true
+kit_render = { workspace = true, default-features = false }
+glam.workspace = true
+log.workspace = true
+
+[dev-dependencies]
+kit_input.workspace = true

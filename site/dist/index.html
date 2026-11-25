@@ -32,13 +32,16 @@
         <nav aria-label="Main navigation">
           <a href="#editor">Editor</a><a href="#diagrams">Diagrams</a
           ><a href="#playground">Playground</a><a href="#assets">Assets</a
-          ><a class="nav-forge" href="https://forge.kitgameengine.com/"
+          ><a href="#rex">Rex AI</a>
+        </nav>
+        <div class="nav-actions">
+          <a class="outline" href="https://forge.kitgameengine.com/"
             >FORGE <span aria-hidden="true">↗</span></a
           >
-        </nav>
-        <a class="outline" href="https://github.com/caraveo/kit"
-          >GitHub <span aria-hidden="true">↗</span></a
-        >
+          <a class="outline" href="https://github.com/caraveo/kit"
+            >GitHub <span aria-hidden="true">↗</span></a
+          >
+        </div>
       </div>
     </header>
     <main id="main">
@@ -289,6 +292,78 @@
           </figure>
         </div>
       </section>
+      <section class="section wrap" id="rex" aria-labelledby="rex-title">
+        <div class="section-head">
+          <div>
+            <p class="kicker"><span></span> REX AI</p>
+            <h2 id="rex-title">Bring your game ideas to life with Rex.</h2>
+          </div>
+          <p>
+            Go from idea to playable faster. Rex is your AI game development
+            companion inside Kit. Create gameplay, build visual logic, and
+            tackle bugs right in the editor. Press <kbd>8</kbd> to get started.
+          </p>
+        </div>
+        <div class="rex-gallery">
+          <figure class="rex-feature">
+            <a href="assets/rex-fetch.webp">
+              <img src="assets/rex-fetch.webp" width="1924" height="1170"
+                loading="lazy"
+                alt="Kit editor with Moon selected and Rex Fetch showing a valid x script and the Add to Moon button"
+              />
+            </a>
+            <figcaption>
+              <h3>Fetch writes gameplay scripts</h3>
+              <p>
+                Imagine what you want an object to do and describe it in your
+                own words. Fetch writes the script, and one click attaches it
+                to your selected object.
+              </p>
+            </figcaption>
+          </figure>
+          <figure>
+            <a href="assets/rex-dig.webp">
+              <img src="assets/rex-dig.webp" width="1748" height="744"
+                loading="lazy"
+                alt="Rex Dig showing an On Start event connected to Set Visible, with the Use on Ring button"
+              />
+            </a>
+            <figcaption>
+              <h3>Dig builds Diagrams</h3>
+              <p>
+                Describe how your game should work and Dig turns it into a
+                visual blueprint. Connect events and actions on the Diagram
+                board, then tweak the nodes as your ideas evolve.
+              </p>
+            </figcaption>
+          </figure>
+          <figure>
+            <a href="assets/rex-sniff.webp">
+              <img src="assets/rex-sniff.webp" width="1748" height="744"
+                loading="lazy"
+                alt="Rex Sniff explaining how to fix an unknown delta_time name in the Rover script"
+              />
+            </a>
+            <figcaption>
+              <h3>Sniff helps you fix bugs</h3>
+              <p>
+                Get unstuck when gameplay goes sideways. Sniff explains
+                errors, helps you track down what went wrong, and suggests
+                fixes you can try right away.
+              </p>
+            </figcaption>
+          </figure>
+        </div>
+        <div class="actions">
+          <a class="button primary" href="https://login.kitgameengine.win/pricing"
+            >See AI credit plans <span aria-hidden="true">↗</span></a
+          >
+          <a class="button outline"
+            href="https://github.com/caraveo/kit/blob/main/documentation/src/content/docs/editor/rex.md"
+            >Read the Rex guide <span aria-hidden="true">↗</span></a
+          >
+        </div>
+      </section>
       <section class="wrap finish">
         <div>
           <p class="kicker"><span></span> START WITH THE EXAMPLE</p>
@@ -315,6 +390,7 @@
       <a class="brand" href="./"
         ><img src="assets/icon.png" width="28" height="28" alt="" />Kit</a
       >
+      <nav class="footer-links" aria-label="Legal"><a href="/terms">Terms</a><a href="/refunds">Refunds</a><a href="/policy">Privacy</a></nav>
       <a href="https://github.com/caraveo/kit">GitHub ↗</a>
     </footer>
   </body>

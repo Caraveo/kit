@@ -17,6 +17,7 @@ kit_resource.workspace = true
 kit_gamesys.workspace = true
 kit_gamedata.workspace = true
 kit_diagram.workspace = true
+kit_rigg.workspace = true
 kit_render = { workspace = true, default-features = false }
 kit_post.workspace = true
 kit_x.workspace = true

@@ -196,6 +196,7 @@ pub fn handle_input(
     ed: &mut Editor,
     rect: Rect,
     view: &View,
+    pose_rig: Option<Entity>,
 ) -> bool {
     let hover = resp.hover_pos().and_then(|p| handle_at(ed, view, rect, p));
     gizmo.hovered = gizmo.drag.map(|d| d.handle).or(hover);
@@ -268,7 +269,11 @@ pub fn handle_input(
                     }
                 }
             }
-            set_world_position(ed, drag.entity, world);
+            if let Some(rig) = pose_rig.filter(|_| ed.world().has::<kit::gamesys::RigVolume>(drag.entity)) {
+                kit::rigg::move_control(&mut ed.app.world, rig, drag.entity, world);
+            } else {
+                set_world_position(ed, drag.entity, world);
+            }
         }
     }
     true

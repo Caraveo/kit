@@ -58,6 +58,9 @@ pub struct DiagramView {
     new_var: String,
     /// Scene → screen transform of the canvas (last frame).
     to_global: Option<egui::emath::TSTransform>,
+    /// A Diagram opened from the asset list (shown until the selection changes).
+    pinned: Option<String>,
+    pinned_selection: Option<Entity>,
 }
 
 /// One row of a node: an input on the left and/or an output on the right.
@@ -314,6 +317,13 @@ pub fn show(ui: &mut Ui, ed: &mut Editor, view: &mut DiagramView) {
     let full = ui.max_rect();
     view.hovered = ui.ctx().pointer_hover_pos().is_some_and(|p| full.contains(p));
 
+    // A Diagram opened from Assets stays until another object is selected.
+    if view.pinned.is_some() && ed.selected != view.pinned_selection {
+        view.pinned = None;
+    }
+    if let Some(path) = view.pinned.clone() {
+        return show_pinned(ui, ed, view, &gd, &path);
+    }
     // Which graph: the selected object's.
     let Some(e) = ed.selected.filter(|e| ed.world().is_alive(*e)) else {
         empty(ui, "Select an object to see its Diagram.", None);
@@ -399,6 +409,90 @@ pub fn show(ui: &mut Ui, ed: &mut Editor, view: &mut DiagramView) {
 
     canvas(ui, ed, view, &gd, e, &diagnostics);
     picker(ui, ed, view, &gd, e);
+}
+
+impl DiagramView {
+    #[cfg(test)]
+    pub fn pinned(&self) -> Option<&str> {
+        self.pinned.as_deref()
+    }
+
+    /// Show a Diagram file (clicked in Assets), whether or not an object uses it.
+    pub fn open_path(&mut self, ed: &Editor, path: &str) {
+        // (Loading a different file resets the view, so mark it afterwards.)
+        self.load(ed, path);
+        self.pinned = Some(path.to_owned());
+        self.pinned_selection = ed.selected;
+    }
+}
+
+/// The objects whose Diagram is `path`.
+fn users_of(ed: &Editor, path: &str) -> Vec<Entity> {
+    let world = ed.world();
+    let mut out = Vec::new();
+    for r in kit::scene::roots(world) {
+        for e in kit::scene::descendants_and_self(world, r) {
+            if world.get::<kit::gamesys::Diagram>(e).is_some_and(|d| d.graph == path) {
+                out.push(e);
+            }
+        }
+    }
+    out
+}
+
+/// A Diagram opened from Assets: edit it; live debugging follows the first
+/// object that uses it, and the selected object can start using it.
+fn show_pinned(ui: &mut Ui, ed: &mut Editor, view: &mut DiagramView, gd: &GameData, path: &str) {
+    view.load(ed, path);
+    let users = users_of(ed, path);
+    let selected = ed.selected.filter(|e| ed.world().is_alive(*e));
+    // Any object works as the canvas's context (live view, script fields); prefer a user.
+    let context = users.first().copied().or(selected).or_else(|| kit::scene::roots(ed.world()).first().copied());
+    let diagnostics = validate(&view.graph, gd);
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("DIAGRAM").size(11.0).color(MUTED()));
+        ui.label(RichText::new(path).size(12.0).color(TEXT_STRONG()));
+        let used = match users.len() {
+            0 => "not used by any object".to_owned(),
+            1 => format!("used by {}", ed.entity_label(users[0])),
+            n => format!("used by {n} objects"),
+        };
+        ui.label(RichText::new(used).size(11.0).color(MUTED()));
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if ui.button("Frame all").clicked() {
+                view.scene_rect = None;
+            }
+            if ui.button("+ Node").clicked() {
+                let c = view.scene_rect.map_or(Pos2::ZERO, |r| r.center());
+                view.picker = Some(Picker { at: c, screen: ui.ctx().content_rect().center(), search: String::new(), wire: None, focus: true });
+            }
+            if let Some(e) = selected.filter(|e| !users.contains(e)) {
+                let name = ed.entity_label(e);
+                if ui.add_enabled(!ed.playing, egui::Button::new(format!("Use on {name}"))).clicked() {
+                    ed.app.world.insert(e, kit::gamesys::Diagram { graph: path.to_owned() });
+                }
+            }
+            let errors = diagnostics.iter().filter(|d| d.severity == Severity::Error).count();
+            if errors > 0 {
+                ui.label(RichText::new(format!("● {errors} error{}", if errors == 1 { "" } else { "s" })).color(ERROR()));
+            }
+        });
+    });
+    let Some(e) = context else {
+        empty(ui, "Add an object to the scene to edit this Diagram.", None);
+        return;
+    };
+    egui::Panel::bottom("diagram_details")
+        .default_size(96.0)
+        .size_range(60.0..=260.0)
+        .resizable(true)
+        .frame(egui::Frame::NONE.inner_margin(egui::Margin::symmetric(4, 6)))
+        .show_separator_line(true)
+        .show(ui, |ui| {
+            egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| details(ui, ed, view, gd, e));
+        });
+    canvas(ui, ed, view, gd, e, &diagnostics);
+    picker(ui, ed, view, gd, e);
 }
 
 /// A centered message with an optional button; returns true when clicked.

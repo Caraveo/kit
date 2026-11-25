@@ -102,6 +102,12 @@ pub struct Renderer {
     texture_root: Option<PathBuf>,
     /// Terrain meshes per entity, with the fingerprint they were built from.
     terrains: HashMap<Entity, (u64, GpuMesh)>,
+    /// CPU-deformed meshes per entity (revision, mesh, colored layout).
+    deformed: HashMap<Entity, (u64, GpuMesh, bool)>,
+    /// Replaced meshes, destroyed once the frames using them have finished.
+    retired: Vec<(u64, GpuMesh)>,
+    /// `prepare` calls so far (one per frame).
+    prepared: u64,
     white: Texture,
     textures: HashMap<String, Texture>,
     failed_textures: HashMap<String, Option<SystemTime>>,
@@ -235,6 +241,9 @@ impl Renderer {
                 pipelines: HashMap::new(),
                 meshes,
                 terrains: HashMap::new(),
+                deformed: HashMap::new(),
+                retired: Vec::new(),
+                prepared: 0,
                 imported_meshes: HashMap::new(),
                 texture_root: None,
                 white: Texture {
@@ -436,6 +445,7 @@ impl Renderer {
     /// command recording; uploads are synchronous.
     pub fn prepare(&mut self, gfx: &Gfx, world: &World) {
         self.prepare_terrains(gfx, world);
+        self.prepare_deformed(gfx, world);
         let Some(res) = world.try_resource::<Resources>().map(|r| r.clone()) else { return };
         self.prepare_imported_meshes(gfx, world, &res);
         if self.texture_root.as_deref() != Some(res.root()) {
@@ -529,6 +539,55 @@ impl Renderer {
                     }
                 }
             });
+        }
+    }
+
+    /// Upload CPU-deformed meshes whose revision changed. Replaced buffers are
+    /// kept until the frames that might still read them are done (no stall).
+    fn prepare_deformed(&mut self, gfx: &Gfx, world: &World) {
+        self.prepared += 1;
+        let now = self.prepared;
+        // Frames in flight + a margin.
+        let (old, keep): (Vec<_>, Vec<_>) = std::mem::take(&mut self.retired).into_iter().partition(|(at, _)| now >= at + 4);
+        self.retired = keep;
+        for (_, mut m) in old {
+            m.vertices.destroy(gfx);
+            m.indices.destroy(gfx);
+        }
+        let deformed = world.try_resource::<draw::Deformed>();
+        let live: HashMap<Entity, u64> = deformed.as_ref().map(|d| d.meshes.iter().map(|(e, m)| (*e, m.revision)).collect()).unwrap_or_default();
+        let gone: Vec<Entity> = self.deformed.keys().filter(|e| !live.contains_key(e)).copied().collect();
+        for e in gone {
+            if let Some((_, m, _)) = self.deformed.remove(&e) {
+                self.retired.push((now, m));
+            }
+        }
+        let Some(deformed) = deformed else { return };
+        for (e, mesh) in &deformed.meshes {
+            if self.deformed.get(e).is_some_and(|(rev, _, _)| *rev == mesh.revision) || mesh.vertices.is_empty() {
+                continue;
+            }
+            let indices: Vec<u32> = (0..mesh.vertices.len() as u32).collect();
+            let colored = mesh.colored_vertices();
+            let built = (|| -> Result<GpuMesh> {
+                let vertices = match &colored {
+                    Some(c) => Buffer::with_data(gfx, vk::BufferUsageFlags::VERTEX_BUFFER, c, "deformed")?,
+                    None => Buffer::with_data(gfx, vk::BufferUsageFlags::VERTEX_BUFFER, &mesh.vertices, "deformed")?,
+                };
+                Ok(GpuMesh {
+                    vertices,
+                    indices: Buffer::with_data(gfx, vk::BufferUsageFlags::INDEX_BUFFER, &indices, "deformed")?,
+                    count: indices.len() as u32,
+                })
+            })();
+            match built {
+                Ok(m) => {
+                    if let Some((_, old, _)) = self.deformed.insert(*e, (mesh.revision, m, colored.is_some())) {
+                        self.retired.push((now, old));
+                    }
+                }
+                Err(err) => log::error!("deformed mesh: {err:#}"),
+            }
         }
     }
 
@@ -760,6 +819,7 @@ impl Renderer {
                         let path = resources.as_ref()?.resolve(asset).ok()?;
                         self.imported_meshes.get(&path)?.as_ref().map(|m| &m.mesh)
                     }
+                    Geometry::Deformed(e) => self.deformed.get(e).map(|(_, m, _)| m),
                 }
             };
             let pipeline_for = |pass: Pass| match pass {
@@ -767,6 +827,8 @@ impl Renderer {
                 Pass::Opaque => p.mesh,
                 Pass::Blended => p.mesh_blend,
                 Pass::Sprite => p.sprite,
+                Pass::Colored if view.wireframe => p.terrain_wire.unwrap_or(p.terrain),
+                Pass::Colored => p.terrain,
             };
             let mut current = None;
             let mut draw = |item: &draw::DrawItem| {
@@ -859,6 +921,14 @@ impl Renderer {
                 }
             }
             for (_, (_, mut m)) in self.terrains.drain() {
+                m.vertices.destroy(gfx);
+                m.indices.destroy(gfx);
+            }
+            for (_, mut m, _) in self.deformed.drain().map(|(_, v)| v) {
+                m.vertices.destroy(gfx);
+                m.indices.destroy(gfx);
+            }
+            for (_, mut m) in self.retired.drain(..) {
                 m.vertices.destroy(gfx);
                 m.indices.destroy(gfx);
             }

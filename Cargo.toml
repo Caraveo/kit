@@ -27,6 +27,7 @@ kit_post = { path = "modules/kit_post" }
 kit_gamedata = { path = "modules/kit_gamedata" }
 kit_diagram = { path = "modules/kit_diagram" }
 kit_rex = { path = "modules/kit_rex" }
+kit_rigg = { path = "modules/kit_rigg" }
 kit_export_security = { path = "modules/kit_export_security", default-features = false }
 kit = { path = "kit" }
 

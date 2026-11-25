@@ -46,6 +46,10 @@ pub struct EntityData {
     pub post_volume: Option<PostVolume>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub diagram: Option<Diagram>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rig: Option<crate::Rig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rig_volume: Option<crate::RigVolume>,
     /// Fields this version of Kit does not know (from newer versions or plugins).
     /// Kept and written back so saving never drops them.
     #[serde(flatten)]
@@ -101,6 +105,8 @@ fn entity_data(world: &World, e: Entity, id: u32, parent: Option<u32>) -> Entity
         audio: world.get_cloned::<AudioSource>(e),
         post_volume: world.get_cloned::<PostVolume>(e),
         diagram: world.get_cloned::<Diagram>(e),
+        rig: world.get_cloned::<crate::Rig>(e),
+        rig_volume: world.get_cloned::<crate::RigVolume>(e),
         extra: world.get::<ExtraData>(e).map(|x| x.0.clone()).unwrap_or_default(),
     }
 }
@@ -174,6 +180,12 @@ pub fn load_scene(world: &mut World, scene: &SceneFile) -> Result<Vec<Entity>> {
         }
         if let Some(g) = &d.diagram {
             world.insert(e, g.clone());
+        }
+        if let Some(r) = &d.rig {
+            world.insert(e, r.clone());
+        }
+        if let Some(v) = &d.rig_volume {
+            world.insert(e, v.clone());
         }
         if !d.extra.is_empty() {
             world.insert(e, ExtraData(d.extra.clone()));

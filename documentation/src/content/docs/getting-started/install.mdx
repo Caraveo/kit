@@ -35,7 +35,7 @@ Download `kit-<version>-windows-x86_64.zip` (or `arm64`), extract it anywhere an
 
 Download `kit-<version>-macos-arm64.dmg` (Apple Silicon) or `-x86_64.dmg` (Intel). Open it and drag **Kit** into Applications.
 
-The app is not notarized yet, so the first time you open it, right-click **Kit** and choose **Open**.
+Kit is not notarized. If macOS says it cannot verify the developer and you trust the download, try opening Kit, then go to **System Settings → Privacy & Security** and choose **Open Anyway**. See [Apple’s instructions](https://support.apple.com/en-us/102445).
 
 </TabItem>
 </Tabs>
@@ -46,7 +46,7 @@ The app is not notarized yet, so the first time you open it, right-click **Kit**
   - **Linux:** Mesa (AMD/Intel) or the NVIDIA driver.
   - **Windows:** your GPU vendor's driver.
   - **macOS:** Vulkan runs through MoltenVK, which is bundled in the app.
-- 64-bit Linux, Windows 10/11, or macOS 11+.
+- 64-bit Linux, Windows 10/11, or macOS 12+.
 
 <Aside type="tip">
 Run `vulkaninfo --summary` (Linux) to check that your GPU supports Vulkan 1.3.

@@ -259,7 +259,7 @@
       "transform": {
         "translation": [
           0.20000005,
-          2.7000003,
+          7.692563,
           3.4
         ],
         "rotation": [
@@ -17076,82 +17076,6 @@
     },
     {
       "id": 9,
-      "name": "Banana_20261123_030458_675940",
-      "transform": {
-        "translation": [
-          -6.0,
-          5.8014517,
-          14.0
-        ],
-        "rotation": [
-          0.0,
-          0.0,
-          0.0,
-          1.0
-        ],
-        "scale": [
-          1.0,
-          1.0,
-          1.0
-        ]
-      },
-      "model": {
-        "mesh": "Cube",
-        "mesh_asset": "models/Banana_20261123_030458_675940/Banana_20261123_030458_675940.kmodel",
-        "animation_speed": 1.0,
-        "animation_loop": true,
-        "animation_enabled": true,
-        "color": [
-          1.0,
-          1.0,
-          1.0,
-          1.0
-        ],
-        "texture": "",
-        "unlit": false,
-        "visible": true
-      },
-      "path": {
-        "points": [
-          [
-            -6.0,
-            5.8014517,
-            14.0
-          ],
-          [
-            -2.8575134,
-            1.6124992,
-            4.1606026
-          ],
-          [
-            -0.22325134,
-            -1.4586525,
-            -7.461511
-          ]
-        ],
-        "speed": 3.0,
-        "mode": "Once",
-        "playing": true,
-        "face_direction": true,
-        "smooth": true
-      },
-      "audio": {
-        "clip": "sounds/Thunder.mp3",
-        "volume": 1.0,
-        "pitch": 1.0,
-        "looping": false,
-        "play_on_start": false,
-        "spatial": true,
-        "min_distance": 1.0,
-        "max_distance": 20.0,
-        "rolloff": "Smooth"
-      },
-      "diagram": {
-        "graph": "diagrams/banana_20261123_030458_675940.kdiagram"
-      }
-    },
-    {
-      "id": 10,
       "name": "Cube",
       "transform": {
         "translation": [
@@ -17191,13 +17115,13 @@
       }
     },
     {
-      "id": 11,
-      "name": "Pineapple_20261123_030943_913589",
+      "id": 10,
+      "name": "Banana",
       "transform": {
         "translation": [
-          -9.624706,
-          5.2306957,
-          26.1236
+          -2.3867767,
+          0.73982364,
+          11.450707
         ],
         "rotation": [
           0.0,
@@ -17213,7 +17137,7 @@
       },
       "model": {
         "mesh": "Cube",
-        "mesh_asset": "models/Pineapple_20261123_030943_913589/Pineapple_20261123_030943_913589.kmodel",
+        "mesh_asset": "models/Banana_20261123_030458_675940/Banana.kmodel",
         "animation_speed": 1.0,
         "animation_loop": true,
         "animation_enabled": true,
@@ -17227,59 +17151,17 @@
         "unlit": false,
         "visible": true
       },
-      "audio": {
-        "clip": "",
-        "volume": 1.0,
-        "pitch": 1.0,
-        "looping": false,
-        "play_on_start": true,
-        "spatial": true,
-        "min_distance": 1.0,
-        "max_distance": 20.0,
-        "rolloff": "Inverse"
-      },
-      "diagram": {
-        "graph": "diagrams/pineapple_20261123_030943_913589.kdiagram"
-      }
-    },
-    {
-      "id": 12,
-      "name": "Camera",
-      "transform": {
-        "translation": [
-          0.0,
-          2.0,
-          8.0
-        ],
-        "rotation": [
-          -0.12218326,
-          -0.0,
-          -0.0,
-          0.9925075
-        ],
-        "scale": [
-          1.0,
-          1.0,
-          1.0
+      "rig": {
+        "enabled": true,
+        "preserve_volume": true,
+        "clips": [
+          {
+            "name": "Jump",
+            "length": 2.0,
+            "looping": true,
+            "tracks": []
+          }
         ]
-      },
-      "camera": {
-        "projection": {
-          "kind": "Perspective",
-          "fov_y": 50.0,
-          "near": 0.05,
-          "far": 500.0
-        },
-        "clear_color": [
-          0.063,
-          0.063,
-          0.09,
-          1.0
-        ],
-        "active": true
-      },
-      "script": {
-        "path": "scripts/FreeCamera.x"
       }
     }
   ]

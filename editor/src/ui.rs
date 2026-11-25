@@ -11,7 +11,7 @@ use kit::gamesys::{Camera, Light, MeshKind, Model, Projection, Script, Sprite};
 use kit::math::{Vec3, Vec4};
 use kit::scene::{Name, Transform};
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 /// Things the UI asks the host loop to do (OS dialogs, quitting).
@@ -81,12 +81,16 @@ pub struct UiState {
     collapsed: HashSet<Entity>,
     new_asset: Option<(AssetKind, String)>,
     new_asset_focus: bool,
+    /// Renaming an asset: (its path, the new name being typed, focus the field).
+    rename_asset: Option<(String, String, bool)>,
+    rename_error: Option<String>,
     pub sketch: crate::canvas::Sketch,
     pub settings: crate::settings::SettingsWindow,
     pub brush: crate::terrain_tools::Brush,
     pub gizmo: crate::move_gizmo::MoveGizmo,
     pub export: crate::export_wizard::ExportWizard,
     pub diagram: crate::diagram_view::DiagramView,
+    pub rigg: crate::rigg_mode::RiggState,
     pub rex: crate::rex_panel::RexPanel,
     /// Camera preview (picture-in-picture): texture and desired pixel size; [0, 0] = hidden.
     pub preview_tex: Option<egui::TextureId>,
@@ -181,6 +185,17 @@ impl UiState {
         }
     }
 
+    /// Open the Rename dialog for an asset.
+    pub fn start_rename_for_test(&mut self, path: &str) {
+        let stem = Path::new(path).file_stem().unwrap().to_string_lossy().into_owned();
+        self.rename_asset = Some((path.to_owned(), stem, true));
+    }
+
+    #[cfg(test)]
+    pub fn renaming_for_test(&self) -> Option<&str> {
+        self.rename_asset.as_ref().map(|r| r.0.as_str())
+    }
+
     #[cfg(test)]
     pub fn errors_seen_for_test(&self) -> u64 {
         self.errors_seen
@@ -197,12 +212,15 @@ impl UiState {
             collapsed: HashSet::new(),
             new_asset: None,
             new_asset_focus: false,
+            rename_asset: None,
+            rename_error: None,
             sketch: Default::default(),
             settings: Default::default(),
             brush: Default::default(),
             gizmo: Default::default(),
             export: Default::default(),
             diagram: Default::default(),
+            rigg: Default::default(),
             rex: Default::default(),
             preview_tex: None,
             preview_px: [0, 0],
@@ -298,6 +316,7 @@ pub fn draw(root: &mut Ui, ed: &mut Editor, st: &mut UiState) {
     if st.new_project.is_none() && !st.settings.capturing() {
         shortcuts(&ctx, ed, st);
     }
+    let fit_before = crate::rigg_mode::fit_snapshot(ed, &st.rigg);
     // Files dropped from the system: sounds go to Assets → Sounds (and, dropped
     // on the viewport, into the scene); 3D models are imported.
     let drop_pos = ctx.input(|i| i.pointer.latest_pos());
@@ -392,7 +411,7 @@ pub fn draw(root: &mut Ui, ed: &mut Editor, st: &mut UiState) {
             .show_collapsible(root, &mut inspector_open, |ui| {
                 theme_card().show(ui, |ui| {
                     ui.set_min_size(ui.available_size());
-                    inspector(ui, ed);
+                    inspector(ui, ed, st.rigg.tool);
                 });
             });
         st.views.inspector = inspector_open;
@@ -472,6 +491,15 @@ pub fn draw(root: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                     ed.notify("Keep at least one view open.");
                 }
             }
+            if let Some(rig) = crate::rigg_mode::target(ed).filter(|_| {
+                ed.settings.rig && !ed.playing && st.rigg.timeline.open && st.rigg.tool == crate::rigg_mode::RigTool::Pose
+            }) {
+                egui::Panel::bottom("rig_animation")
+                    .default_size(170.0)
+                    .size_range(130.0..=360.0)
+                    .resizable(true)
+                    .show(ui, |ui| crate::rigg_timeline::show(ui, ed, &mut st.rigg.timeline, rig));
+            }
             let game_open_before = st.views.game;
             let mut game_open = game_open_before;
             egui::Panel::top("game_view")
@@ -493,11 +521,14 @@ pub fn draw(root: &mut Ui, ed: &mut Editor, st: &mut UiState) {
             }
         });
 
+    crate::rigg_mode::sync(ed, &mut st.rigg, fit_before, ctx.input(|i| i.pointer.any_down()));
+
     if std::mem::take(&mut ed.request_settings) {
         st.settings.open(ed);
     }
     code::script_window(&ctx, ed);
     new_asset_dialog(&ctx, ed, st);
+    rename_asset_dialog(&ctx, ed, st);
     crate::settings::window(&ctx, ed, &mut st.settings);
     let wizard = crate::export_wizard::window(&ctx, ed, &mut st.export);
     if wizard.pick_folder {
@@ -612,6 +643,7 @@ fn shortcuts(ctx: &egui::Context, ed: &mut Editor, st: &mut UiState) {
         Shortcut::Grid,
         Shortcut::Colliders,
         Shortcut::Canvas,
+        Shortcut::Rig,
         Shortcut::Volumes,
         Shortcut::Rotate,
         Shortcut::Dimension,
@@ -626,7 +658,13 @@ fn shortcuts(ctx: &egui::Context, ed: &mut Editor, st: &mut UiState) {
             Shortcut::Lighting => ed.settings.lighting = !ed.settings.lighting,
             Shortcut::Grid => ed.settings.grid = !ed.settings.grid,
             Shortcut::Colliders => ed.settings.colliders = !ed.settings.colliders,
-            Shortcut::Canvas if !ed.playing => ed.settings.canvas = !ed.settings.canvas,
+            Shortcut::Canvas if !ed.playing => {
+                ed.settings.canvas = !ed.settings.canvas;
+                if ed.settings.canvas {
+                    ed.settings.rig = false;
+                }
+            }
+            Shortcut::Rig if crate::rigg_mode::available(ed) => toggle_rig(ed),
             Shortcut::Volumes => ed.settings.volumes = !ed.settings.volumes,
             Shortcut::Rotate => ed.camera.auto_rotate = !ed.camera.auto_rotate,
             Shortcut::Dimension => ed.camera.set_two_d(!ed.camera.two_d),
@@ -1281,11 +1319,8 @@ fn assets(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                 }
                 for path in files {
                     let is_current = current_scene.as_deref() == Some(path.as_str());
-                    // File name first, folder dimmed after it.
-                    let (dir, file) = match path.rsplit_once('/') {
-                        Some((d, f)) => (format!("  {d}/"), f.to_string()),
-                        None => (String::new(), path.clone()),
-                    };
+                    // Just "name.ext" (the full path shows on hover).
+                    let file = path.rsplit_once('/').map_or(path.clone(), |(_, f)| f.to_string());
                     let mut job = egui::text::LayoutJob::default();
                     let importable = group.name == "Models"
                         && (crate::model_import::is_obj(std::path::Path::new(&path))
@@ -1301,15 +1336,6 @@ fn assets(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                         &file,
                         0.0,
                         egui::TextFormat { font_id: egui::FontId::proportional(12.0), color, ..Default::default() },
-                    );
-                    job.append(
-                        &dir,
-                        0.0,
-                        egui::TextFormat {
-                            font_id: egui::FontId::proportional(10.5),
-                            color: MUTED(),
-                            ..Default::default()
-                        },
                     );
                     let sound = group.name == "Sounds";
                     let previewing = sound && ed.preview_playing() == Some(path.as_str());
@@ -1351,9 +1377,30 @@ fn assets(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                     } else {
                         r.on_hover_text(format!("{path}\n{} import is coming in a later version", group.name))
                     };
+                    // Rename: right-click menu, or F2 while hovering.
+                    let start_rename = |st: &mut UiState| {
+                        let stem = Path::new(&path).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+                        st.rename_asset = Some((path.clone(), stem, true));
+                        st.rename_error = None;
+                    };
+                    if r.hovered() && !ed.playing && ui.input(|i| i.key_pressed(Key::F2)) {
+                        start_rename(st);
+                    }
+                    r.context_menu(|ui| {
+                        if ui.add_enabled(!ed.playing, egui::Button::new("Rename…")).on_disabled_hover_text("Stop the game first").clicked() {
+                            start_rename(st);
+                            ui.close();
+                        }
+                    });
                     if r.clicked() || r.double_clicked() {
                         match group.name {
                             "Scripts" => ed.open_script(&path),
+                            "Diagrams" => {
+                                st.diagram.open_path(ed, &path);
+                                if !ed.settings.diagram {
+                                    st.toggle_pane(ed, ViewPane::Diagram);
+                                }
+                            }
                             "Scenes" if !is_current => {
                                 let res = ed.save_if_dirty().and_then(|_| ed.open_scene(&path));
                                 ed.report(res);
@@ -1410,6 +1457,130 @@ pub(crate) fn begin_new_asset(ed: &mut Editor, st: &mut UiState, kind: AssetKind
 }
 
 /// Name dialog for a new script or scene: Enter or Create to confirm, Esc or Cancel to close.
+/// The Rename dialog for an asset (name only; the folder and extension stay).
+fn rename_asset_dialog(ctx: &egui::Context, ed: &mut Editor, st: &mut UiState) {
+    let Some((old, _, _)) = &st.rename_asset else { return };
+    let old = old.clone();
+    let id = Id::new("rename_asset_name");
+    let focused = ctx.memory(|m| m.has_focus(id));
+    let enter = focused && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Enter));
+    let mut rename = enter;
+    let mut cancel = false;
+    let ext = Path::new(&old).extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
+    let folder = old.rsplit_once('/').map(|(d, _)| format!("{d}/")).unwrap_or_default();
+    let resp = egui::Modal::new(Id::new("rename_asset_modal"))
+        .frame(
+            Frame::new()
+                .fill(DIALOG_BG())
+                .stroke(Stroke::new(1.0, DIALOG_BORDER()))
+                .corner_radius(CornerRadius::same(15))
+                .inner_margin(Margin::same(22)),
+        )
+        .show(ctx, |ui| {
+            ui.set_width(440.0);
+            ui.label(RichText::new("Rename").size(19.0).strong());
+            ui.add_space(2.0);
+            let place = if folder.is_empty() { "In the project folder".to_owned() } else { format!("In {folder}") };
+            ui.label(RichText::new(place).size(12.0).color(MUTED()));
+            ui.add_space(12.0);
+            let (_, name, focus) = st.rename_asset.as_mut().unwrap();
+            // Full-width name field with the extension as a fixed suffix.
+            Frame::new()
+                .fill(FIELD_BG())
+                .stroke(Stroke::new(1.0, ACCENT().gamma_multiply(0.6)))
+                .corner_radius(CornerRadius::same(10))
+                .inner_margin(Margin { left: 12, right: 6, top: 6, bottom: 6 })
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        let ext_w = if ext.is_empty() {
+                            0.0
+                        } else {
+                            ui.fonts_mut(|f| f.layout_no_wrap(ext.clone(), egui::FontId::proportional(14.0), MUTED()).size().x) + 22.0
+                        };
+                        let r = ui.add(
+                            egui::TextEdit::singleline(name)
+                                .id(id)
+                                .frame(egui::Frame::NONE)
+                                .font(egui::FontId::proportional(16.0))
+                                .desired_width((ui.available_width() - ext_w).max(120.0)),
+                        );
+                        if !ext.is_empty() {
+                            Frame::new()
+                                .fill(ACCENT().gamma_multiply(0.14))
+                                .corner_radius(CornerRadius::same(6))
+                                .inner_margin(Margin::symmetric(6, 2))
+                                .show(ui, |ui| {
+                                    ui.label(RichText::new(&ext).size(14.0).color(LABEL()));
+                                });
+                        }
+                        if std::mem::take(focus) {
+                            r.request_focus();
+                            // Select the whole name, ready to type over.
+                            if let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), id) {
+                                let range = egui::text::CCursorRange::two(
+                                    egui::text::CCursor::new(0),
+                                    egui::text::CCursor::new(name.chars().count()),
+                                );
+                                state.cursor.set_char_range(Some(range));
+                                state.store(ui.ctx(), id);
+                            }
+                        }
+                    });
+                });
+            ui.add_space(6.0);
+            ui.label(
+                RichText::new("Scenes, Diagrams and scripts that use it are updated too. Enter to rename · Esc to cancel.")
+                    .size(11.0)
+                    .color(MUTED()),
+            );
+            if let Some(err) = &st.rename_error {
+                ui.add_space(4.0);
+                ui.label(RichText::new(err).size(12.0).color(ERROR()));
+            }
+            ui.add_space(12.0);
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                let c = primary(ui, "Rename", None);
+                mark(ui, "rename_asset_ok", c.rect);
+                if c.clicked() {
+                    rename = true;
+                }
+                if ghost(ui, "Cancel").clicked() {
+                    cancel = true;
+                }
+            });
+        });
+    if resp.should_close() {
+        cancel = true;
+    }
+    if cancel {
+        st.rename_asset = None;
+        st.rename_error = None;
+        return;
+    }
+    if !rename {
+        return;
+    }
+    let name = st.rename_asset.as_ref().unwrap().1.clone();
+    match ed.rename_asset(&old, &name) {
+        Ok((new, changed)) => {
+            st.rename_asset = None;
+            st.rename_error = None;
+            let refs = match changed {
+                0 => String::new(),
+                1 => " · 1 reference updated".into(),
+                n => format!(" · {n} references updated"),
+            };
+            ed.notify(format!("Renamed to {}{refs}", Path::new(&new).file_name().unwrap_or_default().to_string_lossy()));
+        }
+        Err(e) => {
+            st.rename_error = Some(format!("{e:#}"));
+            if let Some(r) = st.rename_asset.as_mut() {
+                r.2 = true;
+            }
+        }
+    }
+}
+
 fn new_asset_dialog(ctx: &egui::Context, ed: &mut Editor, st: &mut UiState) {
     let Some((kind, _)) = &st.new_asset else { return };
     let kind = *kind;
@@ -1630,7 +1801,7 @@ fn delayed_scroll_bar(ui: &Ui, id: &str) -> egui::scroll_area::ScrollBarVisibili
     }
 }
 
-fn inspector(ui: &mut Ui, ed: &mut Editor) {
+fn inspector(ui: &mut Ui, ed: &mut Editor, rig_tool: crate::rigg_mode::RigTool) {
     widgets::section_label(ui, "INSPECTOR");
     ui.add_space(6.0);
     let Some(e) = ed.selected.filter(|e| ed.world().is_alive(*e)) else {
@@ -1649,7 +1820,26 @@ fn inspector(ui: &mut Ui, ed: &mut Editor) {
         |ui| {
             // Keep content clear of the scroll bar so it never covers buttons.
             ui.set_max_width(ui.available_width() - SCROLL_BAR_ROOM);
-            components(ui, ed, e, &images, &models);
+            if crate::rigg_mode::available(ed) && ed.world().has::<kit::gamesys::RigVolume>(e) {
+                components(ui, ed, e, &images, &models, rig_tool);
+                crate::rigg_mode::volume_section(ui, ed, e, rig_tool, |ui, body| {
+                    section(ui, "rig_volume", "Rig volume", "◇", true, body)
+                });
+                return;
+            }
+            if crate::rigg_mode::available(ed) && crate::rigg_mode::target(ed) == Some(e) {
+                crate::rigg_mode::rig_section(ui, ed, e, |ui, body| {
+                    section(ui, "rig", "Rig", "◇", true, body)
+                });
+            } else if !ed.playing && crate::rigg_mode::rigging_candidate(ed) == Some(e) {
+                let create = ui.button("Create rig");
+                mark(ui, "create_rig", create.rect);
+                if create.clicked() {
+                    crate::rigg_mode::add_rig(ed, e);
+                    enter_rig(ed);
+                }
+            }
+            components(ui, ed, e, &images, &models, rig_tool);
             physics_sections(ui, ed, e);
             // Script section needs &mut Editor (opening files), so it is drawn separately.
             audio_section(ui, ed, e);
@@ -1661,7 +1851,18 @@ fn inspector(ui: &mut Ui, ed: &mut Editor) {
     );
 }
 
-fn components(ui: &mut Ui, ed: &mut Editor, e: Entity, images: &[String], models: &[String]) {
+fn components(
+    ui: &mut Ui,
+    ed: &mut Editor,
+    e: Entity,
+    images: &[String],
+    models: &[String],
+    rig_tool: crate::rigg_mode::RigTool,
+) {
+    let pose_rig = (ed.settings.rig && !ed.playing && rig_tool == crate::rigg_mode::RigTool::Pose
+        && ed.world().has::<kit::gamesys::RigVolume>(e))
+        .then(|| crate::rigg_mode::target(ed))
+        .flatten();
     {
         let w = &mut ed.app.world;
         // Name
@@ -1679,8 +1880,9 @@ fn components(ui: &mut Ui, ed: &mut Editor, e: Entity, images: &[String], models
         if w.has::<Transform>(e) {
             section(ui, "transform", "Transform", "⛶", false, |ui| {
                 let mut t = *w.get::<Transform>(e).unwrap();
-                let mut changed = false;
-                changed |= vec3_row(ui, "Position", &mut t.translation, 0.02);
+                let previous_position = t.translation;
+                let moved = vec3_row(ui, "Position", &mut t.translation, 0.02);
+                let mut changed = moved;
                 let mut euler = t.euler_degrees();
                 let euler_before = euler;
                 if vec3_row(ui, "Rotation", &mut euler, 0.5) && euler != euler_before {
@@ -1688,7 +1890,15 @@ fn components(ui: &mut Ui, ed: &mut Editor, e: Entity, images: &[String], models
                     changed = true;
                 }
                 changed |= vec3_row(ui, "Scale", &mut t.scale, 0.01);
-                if changed {
+                if let Some(rig) = pose_rig.filter(|_| moved && t.translation != previous_position) {
+                    let parent = w.get::<kit::scene::Parent>(e)
+                        .and_then(|p| w.get::<kit::scene::GlobalTransform>(p.0))
+                        .map_or(kit::math::Mat4::IDENTITY, |g| g.0);
+                    let position = parent.transform_point3(t.translation);
+                    t.translation = previous_position;
+                    *w.get_mut::<Transform>(e).unwrap() = t;
+                    kit::rigg::move_control(w, rig, e, position);
+                } else if changed {
                     *w.get_mut::<Transform>(e).unwrap() = t;
                 }
             });
@@ -2793,6 +3003,21 @@ fn add_component_menu_body(ui: &mut Ui, ed: &mut Editor, e: Entity, sketch_now: 
 
 // ------------------------------------------------------------------ viewport
 
+pub(crate) fn enter_rig(ed: &mut Editor) {
+    ed.settings.rig = true;
+    ed.settings.canvas = false;
+    ed.settings.sculpt = None;
+    ed.camera.set_two_d(false);
+}
+
+fn toggle_rig(ed: &mut Editor) {
+    if ed.settings.rig {
+        ed.settings.rig = false;
+    } else {
+        enter_rig(ed);
+    }
+}
+
 fn viewport(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
     let rect = ui.available_rect_before_wrap();
     let resp = ui.allocate_rect(rect, Sense::click_and_drag());
@@ -2849,7 +3074,13 @@ fn viewport(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
         st.pointer_moved = 0.0;
     }
     // Move gizmo: drag the colored arrows to move the selection along X / Y / Z.
-    let moving = !using_game_cam && crate::move_gizmo::handle_input(&mut st.gizmo, &resp, ui, ed, rect, &editor_view);
+    let pose_rig = if ed.settings.rig && !ed.playing && st.rigg.tool == crate::rigg_mode::RigTool::Pose {
+        crate::rigg_mode::target(ed)
+    } else {
+        None
+    };
+    let moving = !using_game_cam
+        && crate::move_gizmo::handle_input(&mut st.gizmo, &resp, ui, ed, rect, &editor_view, pose_rig);
     // Terrain sculpting: left-drag on a selected terrain; right-drag orbits.
     let sculpting_mode = ed.settings.sculpt.is_some()
         && !ed.playing
@@ -2890,7 +3121,9 @@ fn viewport(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                 (pos.y - rect.top()) / rect.height() * 2.0 - 1.0,
             );
             let ray = kit::render::pick::Ray::from_ndc(editor_view.view_proj(), ndc);
-            ed.selected = kit::render::pick::pick(ed.world(), &ray);
+            ed.selected = crate::rigg_mode::pick(ed, &ray)
+                .or_else(|| kit::render::pick::pick(ed.world(), &ray))
+                .or_else(|| ed.settings.rig.then(|| crate::rigg_mode::target(ed)).flatten());
         }
     }
     if resp.double_clicked_by(select_button) && !ed.playing && ed.selected.is_some() {
@@ -2979,6 +3212,9 @@ fn viewport(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
             });
     }
 
+    crate::rigg_mode::paint_connections(ui, ed, editor_view.view_proj(), rect);
+    crate::rigg_mode::toolbar(ui, ed, &mut st.rigg, rect);
+
     // Top-right actions.
     egui::Area::new(Id::new("viewport_actions"))
         .fixed_pos(rect.right_top() + Vec2::new(-16.0, 14.0))
@@ -3010,6 +3246,7 @@ fn viewport(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
         });
 
     // Bottom dock.
+    let rig_available = crate::rigg_mode::available(ed);
     egui::Area::new(Id::new("viewport_dock"))
         .fixed_pos(rect.center_bottom() - Vec2::new(0.0, 20.0))
         .pivot(Align2::CENTER_BOTTOM)
@@ -3062,7 +3299,19 @@ fn viewport(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                                 .clicked()
                         {
                             s.canvas = !s.canvas;
+                            if s.canvas {
+                                s.rig = false;
+                            }
                         }
+                        if rig_available {
+                            let rig = dock_toggle(ui, "◇", "Rig", s.rig)
+                                .on_hover_text(format!("Edit character rigs ({})", ed.controls.label(Shortcut::Rig)));
+                            mark(ui, "toggle_rig", rig.rect);
+                            if rig.clicked() {
+                                toggle_rig(ed);
+                            }
+                        }
+                        let s = &mut ed.settings;
                         let r = dock_toggle(ui, "✨", "Volumes", s.volumes).on_hover_text(format!(
                             "Preview post-processing volumes ({})",
                             ed.controls.label(Shortcut::Volumes)

@@ -27,6 +27,7 @@ Choose **Reset all controls** to restore the bindings below.
 | Volumes preview ([post-processing](/editor/post-processing/)) | <kbd>6</kbd> |
 | [Diagram view](/editor/diagrams/) (visual logic for the selected object) | <kbd>7</kbd> |
 | [Rex](/editor/rex/), the AI puppy | <kbd>8</kbd> |
+| [Rig mode](/editor/rigg/) for the selected model | <kbd>9</kbd> |
 | In the Diagram view: add a node / delete / duplicate / undo | Right-click · <kbd>Del</kbd> · <kbd>Ctrl</kbd> + <kbd>D</kbd> · <kbd>Ctrl</kbd> + <kbd>Z</kbd> |
 | Auto-rotate | <kbd>R</kbd> |
 | Rename | <kbd>F2</kbd> or double-click in the object list |

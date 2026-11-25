@@ -12,6 +12,8 @@ mod controls;
 mod diagram_view;
 mod markdown;
 mod rex_panel;
+mod rigg_mode;
+mod rigg_timeline;
 mod export;
 mod export_wizard;
 mod gizmos;
@@ -214,6 +216,10 @@ struct Automation {
     diagram: bool,
     /// Open Rex.
     rex: bool,
+    /// Rig mode for the selection ("fit", "pose" or "weights").
+    rig: Option<String>,
+    /// Open the Rename dialog for this asset (screenshots).
+    rename: Option<String>,
     /// Ask Rex this (in `rex_mode`) once connected.
     rex_ask: Option<String>,
     rex_mode: Option<String>,
@@ -419,6 +425,14 @@ impl EditorApp {
         self.editor.settings.canvas |= self.auto.canvas;
         self.editor.settings.diagram |= self.auto.diagram;
         self.editor.settings.rex |= self.auto.rex || self.auto.rex_ask.is_some();
+        if let Some(how) = self.auto.rig.clone() {
+            self.editor.settings.rig = true;
+            self.ui.rigg.tool = if how == "fit" { rigg_mode::RigTool::Fit } else { rigg_mode::RigTool::Pose };
+            self.ui.rigg.weights = how == "weights";
+        }
+        if let Some(p) = self.auto.rename.clone() {
+            self.ui.start_rename_for_test(&p);
+        }
         if let Some(m) = self.auto.rex_mode.clone() {
             self.ui.rex.mode = m;
             self.editor.settings.rex = true;
@@ -671,6 +685,7 @@ impl EditorApp {
                     v.post = ed.settings.volumes;
                     v
                 };
+                rigg_mode::decorate_view(ed, &mut view);
                 view.lighting = ed.settings.lighting;
                 view.wireframe = ed.settings.wireframe;
                 view.time = ed.app.world.resource::<kit::core::Time>().elapsed as f32;
@@ -904,6 +919,8 @@ fn main() {
             "--canvas" => auto.canvas = true,
             "--diagram" => auto.diagram = true,
             "--rex" => auto.rex = true,
+            "--rig" => auto.rig = args.next(),
+            "--rename" => auto.rename = args.next(),
             "--rex-ask" => auto.rex_ask = args.next(),
             "--rex-mode" => auto.rex_mode = args.next(),
             "--settings" => auto.settings = true,

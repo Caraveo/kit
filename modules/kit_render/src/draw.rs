@@ -142,6 +142,51 @@ pub enum Geometry {
     Builtin(MeshKind),
     /// An imported model, by its project path.
     Imported(String),
+    /// A mesh deformed on the CPU for this entity (see [`Deformed`]).
+    Deformed(Entity),
+}
+
+/// A mesh a module deformed on the CPU (e.g. a volume rig), drawn instead of
+/// the model's imported mesh. Triangle soup: vertices 0..n are the corners.
+#[derive(Clone, Debug, Default)]
+pub struct DeformedMesh {
+    /// Bumped whenever `vertices` (or `colors`) change, so renderers re-upload.
+    pub revision: u64,
+    pub vertices: Vec<crate::Vertex>,
+    /// Per-material ranges, as in the imported model's frame.
+    pub parts: Vec<MeshPart>,
+    /// Per-vertex colors: when set, the mesh is drawn as a lit colored surface
+    /// instead of with its materials (influence previews).
+    pub colors: Option<Vec<[f32; 3]>>,
+}
+
+impl DeformedMesh {
+    /// Vertices in the colored (terrain) layout, when `colors` is set.
+    pub fn colored_vertices(&self) -> Option<Vec<crate::TerrainVertex>> {
+        let colors = self.colors.as_ref()?;
+        Some(
+            self.vertices
+                .iter()
+                .zip(colors)
+                .map(|(v, c)| crate::TerrainVertex { pos: v.pos, normal: v.normal, uv: v.uv, color: *c })
+                .collect(),
+        )
+    }
+}
+
+/// Deformed meshes by entity (a world resource; modules fill it).
+#[derive(Default)]
+pub struct Deformed {
+    pub meshes: std::collections::HashMap<Entity, DeformedMesh>,
+}
+
+/// An editor helper shape, drawn see-through over the scene.
+#[derive(Clone, Debug)]
+pub struct Overlay {
+    pub mesh: MeshKind,
+    pub transform: Mat4,
+    /// sRGB color with alpha.
+    pub color: Vec4,
 }
 
 /// Which pipeline a draw uses.
@@ -153,6 +198,8 @@ pub enum Pass {
     Blended,
     /// Unlit sprite, alpha-blended.
     Sprite,
+    /// Lit surface with per-vertex colors (terrain shader; influence previews).
+    Colored,
 }
 
 #[derive(Clone, Debug)]
@@ -192,14 +239,20 @@ pub fn draw_list<'a>(world: &World, view: &View, imported: impl Fn(&str) -> Opti
     let mut list = DrawList::default();
     let mut blended: Vec<(f32, DrawItem)> = Vec::new();
     let elapsed = world.try_resource::<kit_core::Time>().map_or(0.0, |time| time.elapsed);
+    let deformed = world.try_resource::<Deformed>();
+    let deformed = deformed.as_deref();
     if let Some(models) = world.storage::<Model>() {
         for (e, model) in models.iter().filter(|(_, model)| model.visible) {
             let Some(transform) = world.get::<GlobalTransform>(e).map(|g| g.0) else { continue };
             let selected = view.selected.contains(&e) as u32 as f32;
+            let ghost = view.ghosts.contains(&e);
             let mut part = |geometry: Geometry, first, count, material: Option<&Material>| {
                 let mut color = srgb_to_linear(model.color);
                 let mut texture = model.texture.clone();
                 let mut unlit = model.unlit;
+                if ghost {
+                    color.w *= 0.32;
+                }
                 let mut blend = color.w < 0.999;
                 let mut cutoff = 0.0;
                 let mut double_sided = view.wireframe;
@@ -235,7 +288,24 @@ pub fn draw_list<'a>(world: &World, view: &View, imported: impl Fn(&str) -> Opti
                     list.opaque.push(item);
                 }
             };
-            if model.mesh_asset.is_empty() {
+            if let Some(mesh) = deformed.and_then(|d| d.meshes.get(&e)) {
+                if mesh.colors.is_some() {
+                    list.opaque.push(DrawItem {
+                        geometry: Geometry::Deformed(e),
+                        first: 0,
+                        count: None,
+                        pass: Pass::Colored,
+                        texture: String::new(),
+                        uniforms: uniforms(transform, Vec4::ONE, [0.0, 0.0, selected, 0.0], [0.0; 4], [0.0; 4]),
+                    });
+                } else {
+                    let asset = imported(&model.mesh_asset).and_then(|g| g.asset.as_ref());
+                    for range in &mesh.parts {
+                        let material = asset.and_then(|a| a.materials.get(range.material));
+                        part(Geometry::Deformed(e), range.first, Some(range.count), material);
+                    }
+                }
+            } else if model.mesh_asset.is_empty() {
                 part(Geometry::Builtin(model.mesh), 0, None, None);
             } else if let Some(geometry) = imported(&model.mesh_asset) {
                 let frame = geometry.asset.as_ref().filter(|_| model.animation_enabled).map_or(0, |asset| {
@@ -281,6 +351,17 @@ pub fn draw_list<'a>(world: &World, view: &View, imported: impl Fn(&str) -> Opti
     }
     blended.sort_by(|a, b| a.0.total_cmp(&b.0));
     list.blended = blended.into_iter().map(|(_, item)| item).collect();
+    // Editor helpers last, so they show through the (ghosted) scene.
+    for o in &view.overlay {
+        list.blended.push(DrawItem {
+            geometry: Geometry::Builtin(o.mesh),
+            first: 0,
+            count: None,
+            pass: Pass::Blended,
+            texture: String::new(),
+            uniforms: uniforms(o.transform, srgb_to_linear(o.color), [-1.0, 0.0, 0.0, 1.0], [0.0; 4], [0.0; 4]),
+        });
+    }
     list
 }
 

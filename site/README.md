@@ -8,7 +8,17 @@ The static site lives in `dist/` and has no build step. The editor gallery uses 
 python3 -m http.server 4178 --directory site/dist
 ```
 
-## Deploy to Cloudflare Pages
+## Deploy kitgameengine.win
+
+From the repository root, with Wrangler signed in to the Cloudflare account that owns the domain:
+
+```sh
+npx wrangler deploy --config site/wrangler.jsonc
+```
+
+The homepage links to the Kit AI Worker for pricing and account management.
+
+## Deploy to the existing Cloudflare Pages project
 
 Run from the repository root with Wrangler signed in to the Cloudflare account that owns the `kit-game-engine` Pages project.
 

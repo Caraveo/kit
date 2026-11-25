@@ -49,6 +49,8 @@ fn pass_id(pass: Pass) -> u32 {
         Pass::Opaque => 0,
         Pass::Blended => 1,
         Pass::Sprite => 2,
+        // Colored meshes use the terrain pipeline (per-vertex color).
+        Pass::Colored => PASS_TERRAIN,
     }
 }
 const PASS_TERRAIN: u32 = 3;
@@ -68,6 +70,8 @@ pub struct WebPlayer {
     builtin: HashMap<MeshKind, u32>,
     imported: HashMap<String, Option<(u32, ImportedGeometry)>>,
     terrains: HashMap<Entity, (u64, u32)>,
+    /// CPU-deformed meshes (e.g. volume rigs): (revision, geometry id, colored).
+    deformed: HashMap<Entity, (u64, u32, bool)>,
     /// Texture path → id (None = failed to load, don't retry).
     textures: HashMap<String, Option<u32>>,
 }
@@ -88,6 +92,7 @@ impl WebPlayer {
             .add_module(kit_path::PathModule)
             .add_module(kit_gamedata::GameDataModule)
             .add_module(kit_diagram::DiagramModule)
+            .add_module(kit_rigg::RiggModule)
             .add_module(kit_collider::ColliderModule)
             .add_module(kit_physics::PhysicsModule {
                 gravity: Vec3::from_array(physics.gravity),
@@ -112,6 +117,7 @@ impl WebPlayer {
             builtin: HashMap::new(),
             imported: HashMap::new(),
             terrains: HashMap::new(),
+            deformed: HashMap::new(),
             textures: HashMap::new(),
         })
     }
@@ -200,6 +206,45 @@ impl WebPlayer {
             self.geometry(id, 1, bytemuck::cast_slice(&vertices), vertices.len(), &indices);
             self.terrains.insert(e, (fp, id));
         }
+        // Deformed meshes: re-send when their revision changes.
+        let live: Vec<(Entity, u64)> = self
+            .app
+            .world
+            .try_resource::<draw::Deformed>()
+            .map(|d| d.meshes.iter().map(|(e, m)| (*e, m.revision)).collect())
+            .unwrap_or_default();
+        let stale: Vec<Entity> = self
+            .deformed
+            .iter()
+            .filter(|(e, (rev, _, _))| !live.iter().any(|(le, lr)| le == *e && lr == rev))
+            .map(|(e, _)| *e)
+            .collect();
+        for e in stale {
+            if let Some((_, id, _)) = self.deformed.remove(&e) {
+                self.u32(op::FREE_GEOMETRY);
+                self.u32(id);
+            }
+        }
+        for (e, rev) in live {
+            if self.deformed.contains_key(&e) {
+                continue;
+            }
+            let (data, colored, count): (Vec<f32>, bool, usize) = {
+                let d = self.app.world.resource::<draw::Deformed>();
+                let mesh = &d.meshes[&e];
+                match mesh.colored_vertices() {
+                    Some(c) => (bytemuck::cast_slice(&c).to_vec(), true, c.len()),
+                    None => (bytemuck::cast_slice(&mesh.vertices).to_vec(), false, mesh.vertices.len()),
+                }
+            };
+            if count == 0 {
+                continue;
+            }
+            let indices: Vec<u32> = (0..count as u32).collect();
+            let id = self.id();
+            self.geometry(id, if colored { 1 } else { 0 }, &data, count, &indices);
+            self.deformed.insert(e, (rev, id, colored));
+        }
         let wanted = draw::wanted_textures(&self.app.world, |asset| {
             self.imported.get(asset).and_then(|m| m.as_ref()).map(|(_, g)| g)
         });
@@ -236,6 +281,7 @@ impl WebPlayer {
         match g {
             Geometry::Builtin(kind) => self.builtin.get(kind).copied(),
             Geometry::Imported(asset) => self.imported.get(asset)?.as_ref().map(|(id, _)| *id),
+            Geometry::Deformed(e) => self.deformed.get(e).map(|(_, id, _)| *id),
         }
     }
 
@@ -661,10 +707,18 @@ mod tests {
         let models = world.storage::<kit_gamesys::Model>().map_or(0, |s| s.iter().filter(|(_, m)| m.visible).count());
         let terrains = world.storage::<Terrain>().map_or(0, |s| s.iter().count());
         // Later frames only draw (everything is uploaded once).
+        let static_meshes = (p.builtin.len(), p.imported.len(), p.terrains.len(), p.textures.len());
+        let deformed_before: Vec<(Entity, u64)> = p.deformed.iter().map(|(e, (r, _, _))| (*e, *r)).collect();
         let ops = commands(p.frame(1.0 / 60.0, 1280.0, 720.0));
         let draws = ops.iter().filter(|o| **o == op::DRAW).count();
         assert!(draws >= models + terrains, "{draws} draws for {models} models + {terrains} terrains");
-        assert!(!ops.contains(&op::GEOMETRY) && !ops.contains(&op::TEXTURE));
+        // Static meshes and textures upload once; only rigs whose pose changed
+        // (e.g. volumes following Canvas paths) send their mesh again.
+        assert!(!ops.contains(&op::TEXTURE));
+        assert_eq!((p.builtin.len(), p.imported.len(), p.terrains.len(), p.textures.len()), static_meshes);
+        let reposed = p.deformed.iter().filter(|(e, (r, _, _))| !deformed_before.contains(&(**e, *r))).count();
+        let geometry_ops = ops.iter().filter(|o| **o == op::GEOMETRY).count();
+        assert_eq!(geometry_ops, reposed, "only re-posed rigs re-upload");
         // Imported models and their textures made it in.
         assert!(p.imported.values().all(Option::is_some), "imported models load from the pack");
         assert!(p.textures.values().all(Option::is_some), "textures load from the pack");

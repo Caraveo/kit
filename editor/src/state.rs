@@ -92,6 +92,7 @@ pub struct ViewSettings {
     pub game_camera: bool,
     /// Canvas mode: drag in the viewport to sketch a path for the selection.
     pub canvas: bool,
+    pub rig: bool,
     /// Canvas draws on the ground/terrain instead of the camera-facing plane.
     pub canvas_ground: bool,
     /// Draw collider outlines.
@@ -118,6 +119,7 @@ impl Default for ViewSettings {
             console: false,
             game_camera: true,
             canvas: false,
+            rig: false,
             canvas_ground: false,
             colliders: true,
             volumes: true,
@@ -593,6 +595,133 @@ impl Editor {
         Ok(())
     }
 
+    /// Rename an asset file in place (same folder, same extension) and update
+    /// every reference to it: the open scene (and its undo history), every
+    /// scene and Diagram file, quoted paths in x scripts, open script tabs and
+    /// the project's main scene. Returns the new path and how many references
+    /// changed.
+    pub fn rename_asset(&mut self, old: &str, new_stem: &str) -> Result<(String, usize)> {
+        if self.playing {
+            bail!("Stop the game before renaming files");
+        }
+        let project = self.project.as_ref().context("no project open")?;
+        let root = project.root().to_path_buf();
+        let stem = new_stem.trim();
+        if stem.is_empty() {
+            bail!("Give it a name");
+        }
+        if stem.chars().any(|c| matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|') || c.is_control()) || stem.starts_with('.') {
+            bail!("Names can't contain / \\ : * ? \" < > | or start with a dot");
+        }
+        let ext = Path::new(old).extension().and_then(|e| e.to_str()).map(|e| format!(".{e}")).unwrap_or_default();
+        let file = format!("{stem}{ext}");
+        let new = match old.rsplit_once('/') {
+            Some((dir, _)) => format!("{dir}/{file}"),
+            None => file,
+        };
+        if new == old {
+            return Ok((new, 0));
+        }
+        let (from, to) = (root.join(old), root.join(&new));
+        if !from.is_file() {
+            bail!("{old} no longer exists");
+        }
+        // Allow changing only the letter case on case-insensitive disks.
+        if to.exists() && !new.eq_ignore_ascii_case(old) {
+            bail!("There's already a file called {}", Path::new(&new).file_name().unwrap().to_string_lossy());
+        }
+        std::fs::rename(&from, &to).with_context(|| format!("renaming {old}"))?;
+        let changed = self.update_references(old, &new)?;
+        self.refresh_assets(true);
+        Ok((new, changed))
+    }
+
+    /// Point everything that used `old` at `new`. Returns how many places changed.
+    fn update_references(&mut self, old: &str, new: &str) -> Result<usize> {
+        let mut changed = 0;
+        let rewrite = |scene: &SceneFile| -> Option<(SceneFile, usize)> {
+            let mut v = serde_json::to_value(scene).ok()?;
+            let n = rewrite_paths(&mut v, old, new);
+            if n == 0 {
+                return None;
+            }
+            Some((serde_json::from_value(v).ok()?, n))
+        };
+        // The open scene (unsaved edits kept), its saved copy and undo history.
+        let live = kit::gamesys::save_scene(&self.app.world);
+        let mut live_changed = false;
+        if let Some((scene, n)) = rewrite(&live) {
+            let idx = self.selected_index();
+            let spawned = self.replace_scene(&scene)?;
+            self.selected = idx.and_then(|i| spawned.get(i).copied());
+            self.baseline = kit::gamesys::save_scene(&self.app.world);
+            changed += n;
+            live_changed = true;
+        }
+        if let Some((s, _)) = rewrite(&self.saved) {
+            self.saved = s;
+        }
+        for snapshot in self.undo.iter_mut().chain(self.redo.iter_mut()) {
+            if let Some((s, _)) = rewrite(snapshot) {
+                *snapshot = s;
+            }
+        }
+        if self.scene_path.as_deref() == Some(old) {
+            self.scene_path = Some(new.to_owned());
+        }
+        // Scene and Diagram files on disk.
+        let project = self.project.as_ref().context("no project open")?;
+        let mut files = project.resources.list("kscene");
+        files.extend(project.resources.list("kdiagram"));
+        for f in files {
+            let Ok(text) = project.resources.read_text(&f) else { continue };
+            let Ok(mut v) = serde_json::from_str::<serde_json::Value>(&text) else { continue };
+            let n = rewrite_paths(&mut v, old, new);
+            if n == 0 {
+                continue;
+            }
+            let out = if f.ends_with(".kscene") {
+                match serde_json::from_value::<SceneFile>(v) {
+                    Ok(s) => s.to_json(),
+                    Err(_) => continue,
+                }
+            } else {
+                serde_json::to_string_pretty(&v).unwrap_or_default() + "\n"
+            };
+            project.resources.write_text(&f, &out)?;
+            // The open scene's file was already counted live.
+            if !(live_changed && self.scene_path.as_deref() == Some(f.as_str())) {
+                changed += n;
+            }
+        }
+        // Quoted paths in scripts ("sounds/jump.wav"), including open tabs.
+        let (from_q, to_q) = (format!("\"{old}\""), format!("\"{new}\""));
+        for f in project.resources.list("x") {
+            let Ok(text) = project.resources.read_text(&f) else { continue };
+            let n = text.matches(&from_q).count();
+            if n > 0 {
+                project.resources.write_text(&f, &text.replace(&from_q, &to_q))?;
+                changed += n;
+                for doc in self.scripts.iter_mut().filter(|d| d.path == f) {
+                    doc.text = doc.text.replace(&from_q, &to_q);
+                    doc.saved = doc.saved.replace(&from_q, &to_q);
+                }
+            }
+        }
+        for doc in self.scripts.iter_mut().filter(|d| d.path == old) {
+            doc.path = new.to_owned();
+        }
+        // The project's main scene.
+        if let Some(p) = self.project.as_mut() {
+            if p.config.project.main_scene == old {
+                p.config.project.main_scene = new.to_owned();
+                p.save_config()?;
+                changed += 1;
+            }
+        }
+        Ok(changed)
+    }
+
     /// Save the scene if it has unsaved changes.
     pub fn save_if_dirty(&mut self) -> Result<()> {
         if self.scene_dirty() { self.save_scene() } else { Ok(()) }
@@ -935,6 +1064,7 @@ impl Editor {
         kit::path::reset(&mut self.app.world);
         kit::audio::reset(&mut self.app.world);
         kit::diagram::reset(&mut self.app.world);
+        kit::rigg::reset(&mut self.app.world);
         self.app.mode = RunMode::Edit;
         self.app.world.resource_mut::<kit::core::Time>().elapsed = 0.0;
         self.playing = false;
@@ -1226,4 +1356,17 @@ fn copy_into_project(root: &Path, folder: &str, name: &str, bytes: &[u8]) -> Res
         rel = format!("{folder}/{stem}-{n}.{ext}");
     }
     Ok(rel)
+}
+
+/// Replace every JSON string equal to `old` with `new`; returns how many.
+pub fn rewrite_paths(v: &mut serde_json::Value, old: &str, new: &str) -> usize {
+    match v {
+        serde_json::Value::String(s) if s == old => {
+            *s = new.to_owned();
+            1
+        }
+        serde_json::Value::Array(items) => items.iter_mut().map(|i| rewrite_paths(i, old, new)).sum(),
+        serde_json::Value::Object(map) => map.values_mut().map(|i| rewrite_paths(i, old, new)).sum(),
+        _ => 0,
+    }
 }

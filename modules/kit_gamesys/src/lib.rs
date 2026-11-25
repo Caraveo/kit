@@ -11,6 +11,7 @@ pub mod audio;
 pub mod bridge;
 mod physics;
 pub mod post;
+pub mod rig;
 mod scene_file;
 mod terrain;
 
@@ -25,6 +26,7 @@ pub use audio::{
     AudioCommand, AudioCommands, AudioSource, AudioState, Rolloff, SOUND_EXTENSIONS, is_sound, stereo_pan,
 };
 pub use bridge::{BridgeValue, Diagram, GraphEvent, GraphEvents, ScriptCall, ScriptCalls};
+pub use rig::{Rig, RigClip, RigKey, RigPose, RigShape, RigTrack, RigVolume};
 pub use post::{
     AmbientFx, AoQuality, ColorFx, ExposureFx, FocusFx, GlowFx, ImageFx, Override, PostEffects, PostVolume, Tonemap,
     VolumeAffect, VolumeShape,
