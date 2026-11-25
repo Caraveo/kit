@@ -4,7 +4,7 @@ use crate::code;
 use crate::controls::Shortcut;
 use crate::state::{Editor, Preset};
 use crate::theme::*;
-use crate::widgets::{self, badge, dock_toggle, ghost, ghost_kbd, primary};
+use crate::widgets::{self, badge, dock_toggle, ghost, primary};
 use anyhow::Context;
 use egui::{Align, Align2, Color32, CornerRadius, Frame, Id, Key, Layout, Margin, RichText, Sense, Stroke, Ui, Vec2};
 use kit::ecs::Entity;
@@ -1066,6 +1066,19 @@ fn header(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
             if ed.scene_dirty() {
                 ui.label(RichText::new("●").size(9.0).color(ACCENT())).on_hover_text("Unsaved changes");
             }
+            // Save sits with the scene it saves (the shortcut still works).
+            ui.add_space(10.0);
+            ui.separator();
+            ui.add_space(4.0);
+            let save = ghost(ui, "Save").on_hover_text(format!("Save ({})", ed.controls.label(Shortcut::Save)));
+            mark(ui, "header_save", save.rect);
+            if save.clicked() {
+                let result = match st.interface.as_mut() {
+                    Some(interface) => interface.save(ed),
+                    None => ed.save_scene(),
+                };
+                ed.report(result);
+            }
         }
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             let play_label = if ed.playing { "■  Stop" } else { "▶  Play" };
@@ -1094,13 +1107,6 @@ fn header(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                 mark(ui, "header_export", export.rect);
                 if export.clicked() {
                     st.export.show(ed);
-                }
-                if ghost_kbd(ui, "Save", &ed.controls.label(Shortcut::Save)).clicked() {
-                    let result = match st.interface.as_mut() {
-                        Some(interface) => interface.save(ed),
-                        None => ed.save_scene(),
-                    };
-                    ed.report(result);
                 }
             }
             let new_menu = ui.menu_button(RichText::new("+  New").color(TEXT()), |ui| {

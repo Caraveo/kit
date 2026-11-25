@@ -14,6 +14,7 @@ pub fn ghost(ui: &mut Ui, text: impl Into<String>) -> Response {
 }
 
 /// Ghost button with a keyboard hint on the right.
+#[allow(dead_code)] // kept for buttons that show their shortcut
 pub fn ghost_kbd(ui: &mut Ui, text: &str, kbd: &str) -> Response {
     let mut job = egui::text::LayoutJob::default();
     job.append(
