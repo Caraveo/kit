@@ -8,6 +8,8 @@ Kit is a free, open-source **2D and 3D game engine** with its own editor. You bu
 
 Kit runs on **Linux, Windows and macOS** and is written in Rust (Vulkan on desktop, WebGPU in the browser). It's MIT-licensed, so you can make and sell games with no royalties.
 
+[![CI](https://github.com/caraveo/kit/actions/workflows/ci.yml/badge.svg)](https://github.com/caraveo/kit/actions/workflows/ci.yml) [![Release](https://github.com/caraveo/kit/actions/workflows/release.yml/badge.svg)](https://github.com/caraveo/kit/actions/workflows/release.yml) [![Circuit release](https://github.com/caraveo/kit/actions/workflows/circuit-release.yml/badge.svg)](https://github.com/caraveo/kit/actions/workflows/circuit-release.yml) [![Latest release](https://img.shields.io/github/v/release/caraveo/kit?label=Kit)](https://github.com/caraveo/kit/releases/latest)
+
 **[⬇ Download Kit v0.0.5](https://github.com/caraveo/kit/releases/latest)** · [Website](https://kitgameengine.win) · [Docs](documentation/src/content/docs) · [Changelog](CHANGELOG.md) · [Report a problem](https://github.com/caraveo/kit/issues)
 
 ![The Kit editor: the object list and assets on the left, a 3D terrain scene in the viewport with the Rover selected, and the inspector on the right](docs/images/editor.webp)
@@ -75,8 +77,7 @@ Get the file for your computer from the **[latest release](https://github.com/ca
 
 | Your computer | Download | Then |
 |---|---|---|
-| Mac with Apple Silicon (M1–M4) | `kit-0.0.5-macos-arm64.dmg` | Open it and drag **Kit** into **Applications**. |
-| Mac with an Intel chip | `kit-0.0.5-macos-x86_64.dmg` | Same as above. |
+| Mac (Apple Silicon or Intel) | v0.0.5 is coming soon (being signed). Meanwhile: [`kit-0.0.4-macos-arm64.dmg`](https://github.com/caraveo/kit/releases/download/v0.0.4/kit-0.0.4-macos-arm64.dmg) or [`kit-0.0.4-macos-x86_64.dmg`](https://github.com/caraveo/kit/releases/download/v0.0.4/kit-0.0.4-macos-x86_64.dmg) | Open it and drag **Kit** into **Applications**. |
 | Windows 10/11 (most PCs) | `kit-0.0.5-windows-x86_64.zip` | Right-click → **Extract All**, then run **kit-editor.exe**. |
 | Windows 11 on ARM | `kit-0.0.5-windows-arm64.zip` | Same as above. |
 | Ubuntu / Debian | `kit_0.0.5_amd64.deb` (or `_arm64.deb`) | `sudo apt install ./kit_0.0.5_amd64.deb`, then open **Kit** from your apps. |

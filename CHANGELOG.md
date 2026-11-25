@@ -31,8 +31,7 @@ The easiest multiplayer in game development: install it, tick **Realtime Sync** 
 
 | Platform | File |
 |---|---|
-| Mac (Apple Silicon) | `kit-0.0.5-macos-arm64.dmg` |
-| Mac (Intel) | `kit-0.0.5-macos-x86_64.dmg` |
+| Mac (Apple Silicon and Intel) | Coming soon: the Mac builds are being signed. Until then, use [v0.0.4 for Mac](https://github.com/caraveo/kit/releases/tag/v0.0.4). |
 | Windows 10/11 (x64) | `kit-0.0.5-windows-x86_64.zip` |
 | Windows 11 (ARM64) | `kit-0.0.5-windows-arm64.zip` |
 | Ubuntu / Debian (x64) | `kit_0.0.5_amd64.deb` |
