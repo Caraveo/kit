@@ -1377,3 +1377,110 @@ fn opening_a_diagram_asset_shows_it_until_the_selection_changes() {
     assert!(h.st.diagram.pinned().is_none(), "selecting an object releases the opened file");
 }
 
+
+/// Builds the release showcase project (not a regular test):
+/// KIT_SHOWCASE_DIR=/path KIT_SHOWCASE_MODEL=/path/model.glb cargo test -p kit-editor zz_make_showcase -- --ignored
+#[test]
+#[ignore]
+fn zz_make_showcase() {
+    use kit::math::{Quat, Vec3};
+    let (Ok(dir), Ok(model)) = (std::env::var("KIT_SHOWCASE_DIR"), std::env::var("KIT_SHOWCASE_MODEL")) else { return };
+    let dir = std::path::PathBuf::from(dir);
+    let _ = std::fs::remove_dir_all(&dir);
+    crate::templates::create_from(
+        &dir,
+        &crate::templates::NewProject { title: "Kit Showcase".into(), template: crate::templates::Template::Empty3D, ..Default::default() },
+    )
+    .unwrap();
+    let mut h = Harness::new("showcase");
+    h.ed.open_project(&dir).unwrap();
+    // A floor.
+    let floor = h.ed.spawn(crate::state::Preset::Mesh(kit::gamesys::MeshKind::Plane), None);
+    h.ed.app.world.insert(floor, kit::scene::Name("Floor".into()));
+    {
+        let mut t = h.ed.app.world.get_mut::<kit::scene::Transform>(floor).unwrap();
+        t.translation = Vec3::ZERO;
+        t.scale = Vec3::new(12.0, 1.0, 12.0);
+        let mut m = h.ed.app.world.get_mut::<kit::gamesys::Model>(floor).unwrap();
+        m.color = kit::math::Vec4::new(0.20, 0.17, 0.27, 1.0);
+    }
+    // Import the character with Kit's real importer (Blender in the background).
+    h.ed.import_asset(std::path::Path::new(&model)).unwrap();
+    let start = std::time::Instant::now();
+    while h.ed.poll_model_imports() && start.elapsed().as_secs() < 300 {
+        std::thread::sleep(std::time::Duration::from_millis(250));
+    }
+    h.ed.refresh_assets(true);
+    let asset = h.ed.assets_with(&["kmodel"]).into_iter().next().expect("imported");
+    h.ed.place_model(&asset).unwrap();
+    let hero = h.ed.selected.unwrap();
+    h.ed.app.world.insert(hero, kit::scene::Name("Hero".into()));
+    h.ed.app.world.get_mut::<kit::scene::Transform>(hero).unwrap().translation = Vec3::ZERO;
+    for _ in 0..3 {
+        h.ed.app.update(1.0 / 60.0);
+        h.frame(vec![]);
+    }
+    // Rig it: humanoid preset fitted to the mesh.
+    crate::rigg_mode::add_rig(&mut h.ed, hero);
+    for _ in 0..3 {
+        h.ed.app.update(1.0 / 60.0);
+        h.frame(vec![]);
+    }
+    crate::rigg_mode::add_humanoid(&mut h.ed, hero);
+    for _ in 0..3 {
+        h.ed.app.update(1.0 / 60.0);
+        h.frame(vec![]);
+    }
+    let find = |h: &Harness, n: &str| kit::scene::find_by_name(h.ed.world(), n).unwrap();
+    // A short Wave clip: rest, arm up, rest.
+    let rig = hero;
+    h.ed.app.world.get_mut::<kit::gamesys::Rig>(rig).unwrap().clips.push(kit::gamesys::RigClip {
+        name: "Wave".into(),
+        length: 1.5,
+        looping: true,
+        tracks: Vec::new(),
+    });
+    kit::rigg::key_pose(&mut h.ed.app.world, rig, "Wave", 0.0);
+    let shoulder = find(&h, "R_Shoulder");
+    let elbow = find(&h, "R_Elbow");
+    let wave = |h: &mut Harness, up: f32, bend: f32| {
+        h.ed.app.world.get_mut::<kit::scene::Transform>(shoulder).unwrap().rotation = Quat::from_rotation_z(up);
+        h.ed.app.world.get_mut::<kit::scene::Transform>(elbow).unwrap().rotation = Quat::from_rotation_z(bend);
+    };
+    wave(&mut h, 1.15, 0.9);
+    kit::rigg::key_pose(&mut h.ed.app.world, rig, "Wave", 0.5);
+    wave(&mut h, 1.15, 0.35);
+    kit::rigg::key_pose(&mut h.ed.app.world, rig, "Wave", 1.0);
+    wave(&mut h, 0.0, 0.0);
+    kit::rigg::key_pose(&mut h.ed.app.world, rig, "Wave", 1.5);
+    // Leave it posed mid-wave.
+    wave(&mut h, 1.15, 0.9);
+    kit::rigg::save_pose(&mut h.ed.app.world, rig, "Wave");
+    h.ed.app.world.get_mut::<kit::gamesys::Rig>(rig).unwrap().autoplay = "Wave".into();
+    for _ in 0..3 {
+        h.ed.app.update(1.0 / 60.0);
+        h.frame(vec![]);
+    }
+    h.ed.save_scene().unwrap();
+    eprintln!("SHOWCASE {} volumes, model {asset}", kit::rigg::volumes_of(h.ed.world(), rig).len());
+}
+
+#[test]
+fn inspecting_a_rig_volume_does_not_change_the_scene() {
+    let mut h = Harness::new("rig_inspect");
+    let cube = kit::scene::find_by_name(h.ed.world(), "Cube").unwrap();
+    crate::rigg_mode::add_rig(&mut h.ed, cube);
+    let v = kit::rigg::preset::add_volume(&mut h.ed.app.world, cube, "Joint", kit::gamesys::RigShape::Sphere { radius: 0.3 }, kit::scene::Transform::IDENTITY);
+    // A value the 2-decimal slider would round.
+    h.ed.app.world.get_mut::<kit::gamesys::RigVolume>(v).unwrap().falloff = 0.15706;
+    h.ed.app.update(1.0 / 60.0);
+    h.ed.save_scene().unwrap();
+    h.ed.selected = Some(v);
+    h.ed.settings.rig = true;
+    for _ in 0..5 {
+        h.ed.app.update(1.0 / 60.0);
+        h.frame(vec![]);
+    }
+    assert_eq!(h.ed.world().get::<kit::gamesys::RigVolume>(v).unwrap().falloff, 0.15706, "not rounded by the Inspector");
+    assert!(!h.ed.scene_dirty(), "just looking doesn't count as an edit");
+}

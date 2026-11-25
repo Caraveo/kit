@@ -424,6 +424,22 @@ fn shape_diagram(ui: &mut Ui, shape: &RigShape) {
     }
 }
 
+/// A 0–1 slider that only writes back when the user drags or types in it
+/// (egui rounds the shown value, which must not count as an edit).
+fn slider(ui: &mut Ui, value: &mut f32, suffix: &str, tip: Option<&str>) -> bool {
+    let mut shown = *value;
+    let mut r = ui.add(egui::Slider::new(&mut shown, 0.0..=1.0).fixed_decimals(2).suffix(suffix));
+    if let Some(t) = tip {
+        r = r.on_hover_text(t);
+    }
+    let by_user = r.dragged() || r.drag_stopped() || r.clicked() || r.has_focus() || r.lost_focus();
+    if r.changed() && by_user && shown != *value {
+        *value = shown;
+        return true;
+    }
+    false
+}
+
 /// Inspector section for a volume.
 pub fn volume_section(
     ui: &mut Ui,
@@ -436,6 +452,9 @@ pub fn volume_section(
     let rig = target(ed);
     let mut mirror = false;
     let mut new_parent = None;
+    // Only save what the user changed (sliders round values for display).
+    let original = v.clone();
+    let mut edited = false;
     let keep = section(ui, &mut |ui: &mut Ui| {
         row(ui, "Shape", |ui| {
             let current = v.shape.label();
@@ -447,6 +466,7 @@ pub fn volume_section(
                     RigShape::Box { size: Vec3::splat(size * 2.0) },
                 ] {
                     if ui.selectable_label(s.label() == current, s.label()).clicked() && s.label() != current {
+                        edited = true;
                         v.shape = s;
                     }
                 }
@@ -455,28 +475,27 @@ pub fn volume_section(
         shape_diagram(ui, &v.shape);
         match &mut v.shape {
             RigShape::Sphere { radius } => row(ui, "Radius", |ui| {
-                ui.add(egui::DragValue::new(radius).speed(0.005).range(0.005..=100.0).suffix(" m"));
+                edited |= ui.add(egui::DragValue::new(radius).speed(0.005).range(0.005..=100.0).suffix(" m")).changed();
             }),
             RigShape::Capsule { radius, length } => {
                 row(ui, "Radius", |ui| {
-                    ui.add(egui::DragValue::new(radius).speed(0.005).range(0.005..=100.0).suffix(" m"));
+                    edited |= ui.add(egui::DragValue::new(radius).speed(0.005).range(0.005..=100.0).suffix(" m")).changed();
                 });
                 row(ui, "Length", |ui| {
-                    ui.add(egui::DragValue::new(length).speed(0.01).range(0.0..=100.0).suffix(" m"));
+                    edited |= ui.add(egui::DragValue::new(length).speed(0.01).range(0.0..=100.0).suffix(" m")).changed();
                 });
             }
             RigShape::Box { size } => row(ui, "Size", |ui| {
                 for (i, a) in ["X ", "Y ", "Z "].iter().enumerate() {
-                    ui.add(egui::DragValue::new(&mut size[i]).speed(0.01).range(0.01..=100.0).prefix(*a));
+                    edited |= ui.add(egui::DragValue::new(&mut size[i]).speed(0.01).range(0.01..=100.0).prefix(*a)).changed();
                 }
             }),
         }
         row(ui, "Influence", |ui| {
-            ui.add(egui::Slider::new(&mut v.influence, 0.0..=1.0).fixed_decimals(2));
+            edited |= slider(ui, &mut v.influence, "", None);
         });
         row(ui, "Falloff", |ui| {
-            ui.add(egui::Slider::new(&mut v.falloff, 0.0..=1.0).fixed_decimals(2).suffix(" m"))
-                .on_hover_text("How far past its surface the volume still pulls the mesh");
+            edited |= slider(ui, &mut v.falloff, " m", Some("How far past its surface the volume still pulls the mesh"));
         });
         ui.add_space(4.0);
         ui.label(RichText::new("CONNECTED TO").size(10.5).color(MUTED()));
@@ -521,7 +540,7 @@ pub fn volume_section(
         ed.selected = rig;
         return;
     }
-    if ed.world().get::<RigVolume>(e).is_some_and(|cur| *cur != v) {
+    if edited && v != original && ed.world().has::<RigVolume>(e) {
         *ed.app.world.get_mut::<RigVolume>(e).unwrap() = v;
     }
     if let (Some(parent), Some(rig)) = (new_parent, rig) {
@@ -544,6 +563,8 @@ pub fn rig_section(
     section: impl FnOnce(&mut Ui, &mut dyn FnMut(&mut Ui)) -> bool,
 ) {
     let Some(mut r) = ed.world().get_cloned::<Rig>(e) else { return };
+    let original = r.clone();
+    let mut edited = false;
     let volumes = kit::rigg::volumes_of(ed.world(), e).len();
     let mut open_mode = false;
     let mut preset = false;
@@ -560,16 +581,18 @@ pub fn rig_section(
             }
         });
         row(ui, "", |ui| {
-            ui.checkbox(&mut r.enabled, "Deform mesh");
-            ui.checkbox(&mut r.preserve_volume, "Preserve volume")
-                .on_hover_text("Smoother bends and twists (dual-quaternion blending)");
+            edited |= ui.checkbox(&mut r.enabled, "Deform mesh").changed();
+            edited |= ui
+                .checkbox(&mut r.preserve_volume, "Preserve volume")
+                .on_hover_text("Smoother bends and twists (dual-quaternion blending)")
+                .changed();
         });
         row(ui, "Play on start", |ui| {
             let shown = if r.autoplay.is_empty() { "None".to_owned() } else { r.autoplay.clone() };
             egui::ComboBox::from_id_salt("rig_autoplay").selected_text(shown).show_ui(ui, |ui| {
-                ui.selectable_value(&mut r.autoplay, String::new(), "None");
+                edited |= ui.selectable_value(&mut r.autoplay, String::new(), "None").changed();
                 for c in &r.clips {
-                    ui.selectable_value(&mut r.autoplay, c.name.clone(), &c.name);
+                    edited |= ui.selectable_value(&mut r.autoplay, c.name.clone(), &c.name).changed();
                 }
             });
         });
@@ -595,7 +618,7 @@ pub fn rig_section(
         ed.app.world.remove::<Rig>(e);
         return;
     }
-    if ed.world().get::<Rig>(e).is_some_and(|cur| *cur != r) {
+    if edited && r != original && ed.world().has::<Rig>(e) {
         *ed.app.world.get_mut::<Rig>(e).unwrap() = r;
     }
     if open_mode {

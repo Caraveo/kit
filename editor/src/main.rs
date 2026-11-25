@@ -429,6 +429,7 @@ impl EditorApp {
             self.editor.settings.rig = true;
             self.ui.rigg.tool = if how == "fit" { rigg_mode::RigTool::Fit } else { rigg_mode::RigTool::Pose };
             self.ui.rigg.weights = how == "weights";
+            self.ui.rigg.timeline.open = how == "animate";
         }
         if let Some(p) = self.auto.rename.clone() {
             self.ui.start_rename_for_test(&p);

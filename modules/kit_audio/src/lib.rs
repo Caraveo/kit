@@ -294,7 +294,10 @@ mod tests {
     use kit_scene::Transform;
 
     fn project() -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("kit_audio_test_{}", std::process::id()));
+        // A folder per call: tests run in parallel and must not delete each other's files.
+        static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!("kit_audio_test_{}_{n}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(dir.join("sounds")).unwrap();
         let tone: Vec<i16> = (0..24_000).map(|i| ((i as f32 * 0.05).sin() * 10_000.0) as i16).collect();
