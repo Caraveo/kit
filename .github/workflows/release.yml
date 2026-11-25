@@ -41,7 +41,14 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev libwayland-dev libvulkan-dev
       - name: MoltenVK
         if: runner.os == 'macOS'
-        run: brew install molten-vk
+        # Khronos's official build is universal (x86_64 + arm64); Homebrew's
+        # only has the runner's architecture, which breaks the Intel package.
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/moltenvk.tar" https://github.com/KhronosGroup/MoltenVK/releases/download/v1.4.2/MoltenVK-macos.tar
+          tar -xf "$RUNNER_TEMP/moltenvk.tar" -C "$RUNNER_TEMP" MoltenVK/MoltenVK/dynamic/dylib/macOS/libMoltenVK.dylib
+          dylib="$RUNNER_TEMP/MoltenVK/MoltenVK/dynamic/dylib/macOS/libMoltenVK.dylib"
+          lipo -verify_arch x86_64 arm64 "$dylib"
+          echo "MOLTENVK=$dylib" >> "$GITHUB_ENV"
 
       - name: Test
         run: cargo test --workspace --locked --target ${{ matrix.target }}
