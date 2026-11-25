@@ -4,6 +4,8 @@
 //!   kit-circuit pack <source-dir> [--out <dir>]   → <id>-<version>.kitcircuit + circuit.json
 //!   kit-circuit check <source-dir>                → validate circuit.toml
 //!   kit-circuit verify <package> <circuit.json>   → checksum (and signature) check
+//!   kit-circuit install <source-dir> <project>     → pack and install a local build into a project
+//!                                                    (for testing before publishing; same checks)
 //!
 //! Set `KIT_CIRCUIT_SIGNING_KEY` (base64 Ed25519 secret, from a CI secret, never
 //! a file in the repo) and `KIT_CIRCUIT_KEY_ID` to sign while packing.
@@ -58,7 +60,18 @@ fn run() -> Result<()> {
             package::verify(&bytes, &release, &[])?;
             println!("ok: sha256 {}", release.package.sha256);
         }
-        _ => bail!("usage: kit-circuit pack <dir> [--out <dir>] | check <dir> | verify <package> <circuit.json>"),
+        Some("install") => {
+            let src = PathBuf::from(args.get(1).context("install <source-dir> <project>")?);
+            let project = PathBuf::from(args.get(2).context("install <source-dir> <project>")?);
+            if !project.join("kit.project").is_file() {
+                bail!("{} is not a Kit project (no kit.project)", project.display());
+            }
+            let (manifest, bytes) = package::pack(&src)?;
+            let release = package::release_manifest(&manifest, &bytes, package::read_notes(&src, &manifest), None);
+            kit_circuit::install::install(&project, &release, &bytes, &[], &format!("local build of {}", src.display()))?;
+            println!("installed {} {} into {} (sha256 {})", manifest.circuit.id, manifest.circuit.version, project.display(), release.package.sha256);
+        }
+        _ => bail!("usage: kit-circuit pack <dir> [--out <dir>] | check <dir> | verify <package> <circuit.json> | install <dir> <project>"),
     }
     Ok(())
 }
