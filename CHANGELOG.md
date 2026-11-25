@@ -2,7 +2,58 @@
 
 ## v0.0.4: Rex and Rigg
 
-(Release notes in progress.)
+Two big additions: **Rex**, an AI companion inside the editor, and **Rigg**, which lets you pose and animate characters with simple shapes, no bones.
+
+![Rigg's weight view: a character's rig volumes shown inside the model, colored by influence](https://raw.githubusercontent.com/caraveo/kit/v0.0.4/docs/releases/v0.0.4-rigg-weights.webp)
+
+### Rex, your AI companion (new)
+Press **8** (or **Rex** in the viewport bar). Sign in once with a code shown in the editor; a free Kit account comes with monthly credits.
+- **Fetch** writes x gameplay scripts. Kit checks each one with its own parser, and **Add to (object)** saves it and attaches it to the selected object in one click.
+- **Dig** builds **Diagrams** (Kit's visual blueprints for game logic). They're validated before use and shown as a summary card; **Use on (object)** attaches the Diagram and opens it in the Diagram view.
+- **Sniff** explains errors and helps track down bugs. Errors in the console get an **Ask Rex** button.
+- Also: **Buddy** (questions), **Zoomies** (game ideas), **Sit & Learn** (step-by-step lessons).
+- **Share scene** gives Rex a summary of your scene, the selected object's script and recent errors, so answers fit your game.
+
+### Rigg: character rigs without bones (new)
+![Rig mode with the Animation timeline: volumes inside a character and keys for a Wave clip](https://raw.githubusercontent.com/caraveo/kit/v0.0.4/docs/releases/v0.0.4-rigg-animation.webp)
+- Select a model and press **9** for **Rig mode**. **Humanoid preset** adds about 30 volumes (spheres for joints, capsules for limbs, a box for the chest) fitted to the model.
+- **Fit** places volumes without bending the mesh; **Pose** bends the mesh with them. **Weights** colors the mesh by influence. **Mirror L↔R** copies a side.
+- **Rig Volume** settings: shape, radius/length/size, influence and falloff. **Preserve volume** keeps limbs from thinning in bends and twists.
+- **Poses**: save and apply named poses; **Reset pose** returns to rest.
+- **Animation timeline**: clips (Idle, Walk…), keys, auto-key, scrubbing and preview. **Play on start** plays a clip in the game.
+- Rigs are saved in the scene and work in every export, including web. Animated models keep their true rest pose when imported, so they can be rigged too.
+
+### Editor
+- **Diagrams:** clicking a Diagram in Assets opens it in the Diagram view.
+- **Assets:** rename with right-click → **Rename…** or **F2**; scenes, Diagrams and scripts that use the file are updated automatically. The list shows file names only.
+- **Views:** Project → View shows or hides each panel, and Default restores the layout. **Rebindable controls** in Project Settings. A **New Project wizard** with six templates.
+- **Viewport:** drag to pan, right-drag (or Shift-drag) to orbit; W/S zoom and A/D pan; keys 1–9 toggle the viewport bar and modes.
+- Console starts collapsed with a badge for new errors; the inspector scroll bar no longer covers buttons.
+
+### Fixes
+- Inspecting a rig volume no longer rounds its values and marks the scene as edited.
+- A spinning rigged model no longer re-deforms its mesh every frame.
+- Audio tests no longer fail randomly when run in parallel.
+
+### Known limitations
+- Scripts and Diagrams can't start or switch rig clips yet; only **Play on start** plays one.
+- Rig deformation runs on the CPU; on the web, a character whose pose is changing re-sends its mesh each frame (fine for typical characters, heavy for very dense meshes).
+- Rex needs an internet connection and a Kit account.
+- The Mac apps aren't notarized: open them the first time with right-click → **Open**.
+
+### Downloads
+| System | File |
+|---|---|
+| Mac (Apple Silicon) | `kit-0.0.4-macos-arm64.dmg` |
+| Mac (Intel) | `kit-0.0.4-macos-x86_64.dmg` |
+| Windows 10/11 (x64) | `kit-0.0.4-windows-x86_64.zip` |
+| Windows 11 (ARM64) | `kit-0.0.4-windows-arm64.zip` |
+| Ubuntu / Debian (x64) | `kit_0.0.4_amd64.deb` |
+| Ubuntu / Debian (ARM64) | `kit_0.0.4_arm64.deb` |
+| Linux (x64, any distribution) | `kit-0.0.4-linux-x86_64.tar.gz` |
+| Linux (ARM64, any distribution) | `kit-0.0.4-linux-aarch64.tar.gz` |
+
+Every package includes the editor, the game players for Linux, Windows, Mac and the web, and the Hello Kit example.
 
 ## v0.0.3 — Kit logo and editor polish
 

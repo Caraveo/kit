@@ -10,6 +10,15 @@ Kit is a 2D and 3D game engine for making playable prototypes and building on th
 
 ![Kit’s native editor with a scene hierarchy, 3D viewport, and inspector](docs/editor.png)
 
+## New in v0.0.4
+
+- **Rex, your AI companion.** Press **8**: **Fetch** writes gameplay scripts and attaches them to the selected object in one click, **Dig** builds Diagrams (visual game logic), and **Sniff** explains errors.
+- **Rigg: rigs without bones.** Press **9** on a model, add the humanoid preset, then pose and animate it by moving spheres, capsules and boxes inside it.
+
+![Rig mode with the Animation timeline: rig volumes inside a character and keys for a Wave clip](docs/releases/v0.0.4-rigg-animation.webp)
+
+[Download v0.0.4](https://github.com/caraveo/kit/releases/latest) · [Rex docs](documentation/src/content/docs/editor/rex.md) · [Rigg docs](documentation/src/content/docs/editor/rigg.md) · [Changelog](CHANGELOG.md)
+
 ## New in v0.0.2
 
 - **Diagrams: visual logic, no code.** Press **7** to open the Diagram view under the viewport. Wire events like *On Start*, *On Interact*, *On Trigger* and *On Timer* to actions: move, tint, show or hide objects, change gravity, play sounds, run timers and branches. Diagrams run directly in the engine (in the editor, the desktop player and the browser) and light up live while you play. [Read more](documentation/src/content/docs/editor/diagrams.md)
