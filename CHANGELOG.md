@@ -1,5 +1,45 @@
 # Changelog
 
+## v0.0.5: Super Multiplayer and Circuits
+
+The easiest multiplayer in game development: install it, tick **Realtime Sync** on your player, and press Play. No game server to write or run.
+
+### Super Multiplayer (new, as a Circuit)
+- **Project → Circuit Manager → Multiplayer → Install**, then **Project → Multiplayer…** for your environment and world.
+- **+ Add component → Circuits → Realtime Sync** on anything players should share. **One per player** for player characters: each game controls its own and sees everyone else's copy. Shared objects (a ball, a door) belong to whoever got there first, and the next player takes over when they leave.
+- **👥 +1 player** next to Play opens another game window that joins the same world.
+- **Worlds and rooms:** each scene is a room, a full room opens a new instance automatically (up to 300 players per room by default), and parties stay together.
+- **Fast and small:** a moving player is about 22 bytes; nearby players stream at full rate and distant ones less often; in crowds each player sees the closest 64. Rendering, terrain and physics shapes stay local. Physics is best effort: everyone else follows the owner.
+- **Seed + diff worlds:** a world seed plus a world hash that changes with each modification. Latecomers rebuild the world locally and fetch only what changed.
+- **Shared state** with revisions, presence, and reconnects that keep your objects. Players don't need accounts.
+- **Your Kit account → Circuits → Multiplayer:** projects, backend keys, live scopes and state, worlds, usage, diagnostics, settings, billing, and deleting a project.
+- **Plans** measured in Sync Time (player time, data and busy rooms): Starter $5, Indie $19, Studio $99, Enterprise by contact. See [pricing](https://login.kitgameengine.win/pricing#multiplayer).
+
+### Circuits (new)
+- Installable extensions that connect a project to services: **Project → Circuit Manager** with Available, Installed and Updates tabs, release history, and install, update, downgrade, disable and uninstall.
+- Every download is checked before it's unpacked, a failed install changes nothing, and installs never touch your scenes or scripts. `circuits.lock` pins exact versions.
+- Circuits can add components and their own Project menu item. Anyone can make one: see `circuit/README.md`.
+
+### Editor
+- **Scene View**, between Game View and Preview: the editor's free camera, selection and gizmos, also while the game runs. Play switches to Game View and Stop returns to Scene View.
+- **Preview:** look at images, models, sounds, videos and text in the center view without changing the scene.
+
+### Engine
+- **`Scene.Load("scenes/level2")`**, `Scene.LoadAdditive`, `Scene.Unload` and `Scene.Current` switch scenes while the game runs. A scene that's missing or broken leaves the current one running.
+
+### Downloads
+
+| Platform | File |
+|---|---|
+| Mac (Apple Silicon) | `kit-0.0.5-macos-arm64.dmg` |
+| Mac (Intel) | `kit-0.0.5-macos-x86_64.dmg` |
+| Windows 10/11 (x64) | `kit-0.0.5-windows-x86_64.zip` |
+| Windows 11 (ARM64) | `kit-0.0.5-windows-arm64.zip` |
+| Ubuntu / Debian (x64) | `kit_0.0.5_amd64.deb` |
+| Ubuntu / Debian (ARM64) | `kit_0.0.5_arm64.deb` |
+| Linux (x64, any distribution) | `kit-0.0.5-linux-x86_64.tar.gz` |
+| Linux (ARM64, any distribution) | `kit-0.0.5-linux-aarch64.tar.gz` |
+
 ## v0.0.4: Rex and Rigg
 
 Two big additions: **Rex**, an AI companion inside the editor, and **Rigg**, which lets you pose and animate characters with simple shapes, no bones.

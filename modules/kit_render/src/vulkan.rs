@@ -16,6 +16,8 @@ use std::time::{Duration, Instant, SystemTime};
 
 #[path = "vulkan_post.rs"]
 mod post;
+#[path = "vulkan_ui.rs"]
+mod ui;
 
 const MAX_VIEWS_PER_FRAME: usize = 4;
 const FRAMES: usize = kit_graphics::FRAMES_IN_FLIGHT;
@@ -88,6 +90,8 @@ struct Attachments {
 pub struct Renderer {
     /// Post-processing resources (created the first time a volume is active).
     post: Option<post::PostGpu>,
+    /// Interface drawing (created the first time a game shows one).
+    ui: Option<ui::UiGpu>,
     shader: ShaderModule,
     set0_layout: vk::DescriptorSetLayout,
     set1_layout: vk::DescriptorSetLayout,
@@ -230,6 +234,7 @@ impl Renderer {
 
             let mut r = Self {
                 post: None,
+                ui: None,
                 shader,
                 set0_layout,
                 set1_layout,
@@ -456,7 +461,17 @@ impl Renderer {
             self.failed_textures.clear();
             self.texture_root = Some(res.root().to_path_buf());
         }
-        let wanted = draw::wanted_textures(world, |asset| self.imported(&res, asset));
+        let mut wanted = draw::wanted_textures(world, |asset| self.imported(&res, asset));
+        if let Some(frame) = world.try_resource::<kit_xui::runtime::UiFrame>() {
+            for m in &frame.meshes {
+                if let kit_xui::runtime::UiTexture::Image(path) = &m.texture {
+                    if !wanted.contains(path) {
+                        wanted.push(path.clone());
+                    }
+                }
+            }
+        }
+        self.prepare_ui(gfx, world);
 
         let check = self.last_reload_check.elapsed() > Duration::from_millis(700);
         if check {
@@ -902,6 +917,7 @@ impl Renderer {
         if let Some(mut post) = self.post.take() {
             post.destroy(gfx);
         }
+        self.destroy_ui(gfx);
         unsafe {
             for (_, p) in self.pipelines.drain() {
                 for pl in [

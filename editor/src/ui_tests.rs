@@ -73,6 +73,11 @@ impl Harness {
         self.frame(vec![]);
     }
 
+    fn assets_tab(&mut self) {
+        let tab = ui::marked(&self.ctx, "assets_tab").expect("Assets tab").center();
+        self.click(tab);
+    }
+
     fn key(&mut self, key: Key) {
         let ev = |pressed| Event::Key { key, physical_key: None, pressed, repeat: false, modifiers: Modifiers::NONE };
         self.frame(vec![ev(true)]);
@@ -284,6 +289,7 @@ fn physics_is_a_component_and_settings_apply_live() {
 #[test]
 fn new_script_through_the_plus_menu() {
     let mut h = Harness::new("plusmenu");
+    h.assets_tab();
     let plus = ui::marked(&h.ctx, "assets_plus").expect("+ drawn").center();
     h.click(plus);
     let item = ui::marked(&h.ctx, "new_script_item").expect("menu opened").center();
@@ -298,6 +304,7 @@ fn new_script_through_the_plus_menu() {
 #[test]
 fn new_scene_through_the_plus_menu() {
     let mut h = Harness::new("plusscene");
+    h.assets_tab();
     let plus = ui::marked(&h.ctx, "assets_plus").unwrap().center();
     h.click(plus);
     let item = ui::marked(&h.ctx, "new_scene_item").expect("menu opened").center();
@@ -348,6 +355,7 @@ fn assets_grouped_with_per_group_new_buttons() {
     h.frame(vec![]);
     assert!(h.ed.assets.iter().any(|a| a == "art/ship.glb"));
     assert!(!h.ed.assets.iter().any(|a| a == "kit.project"));
+    h.assets_tab();
     h.click(ui::marked(&h.ctx, "group_new_script").expect("Scripts group has +").center());
     h.frame(vec![Event::Text("door".into())]);
     h.key(Key::Enter);
@@ -373,6 +381,67 @@ fn drag(h: &mut Harness, from: Pos2, to: Pos2) {
         modifiers: Modifiers::NONE,
     }]);
     h.frame(vec![]);
+}
+
+#[test]
+fn interface_canvas_moves_and_resizes_without_reparenting() {
+    let mut h = Harness::new("interface_geometry");
+    let path = h.ed.new_interface("geometry").unwrap();
+    let source = r#"<interface>
+        <panel id="left" width="50%">
+            <button id="duplicate" position="absolute" x="16" y="16" width="100" height="50"/>
+            <label id="sibling" position="absolute" x="20" y="240"/>
+        </panel>
+        <panel id="right" x="50%" width="50%"><label id="duplicate"/></panel>
+    </interface>"#;
+    h.ed.project.as_ref().unwrap().resources.write_text(&path, source).unwrap();
+    h.st.interface = Some(ui::InterfaceEditor::open(&h.ed, &path).unwrap());
+    h.frame(vec![]);
+    h.frame(vec![]);
+
+    let button = ui::marked(&h.ctx, "interface_test_node").unwrap();
+    h.click(button.center());
+    let handle = ui::marked(&h.ctx, "interface_test_resize").unwrap();
+    drag(&mut h, handle.center(), handle.center() + Vec2::new(32.0, 20.0));
+
+    let button = ui::marked(&h.ctx, "interface_test_node").unwrap();
+    let shift = Vec2::new(h.st.viewport_rect.center().x - button.center().x + 30.0, 24.0);
+    drag(&mut h, button.center(), button.center() + shift);
+
+    let interface = h.st.interface.as_ref().unwrap();
+    let mut actual = kit::xui::Document::parse(&interface.source).unwrap();
+    let target = &mut actual.root.children[0].children[0];
+    assert_eq!(target.attr("width"), Some("132.0"));
+    assert_eq!(target.attr("height"), Some("70.0"));
+    assert!((target.attr("x").unwrap().parse::<f32>().unwrap() - (16.0 + shift.x)).abs() < 0.2);
+    for (name, value) in [("x", "16"), ("y", "16"), ("width", "100"), ("height", "50")] {
+        target.set_attr(name, value);
+    }
+    assert_eq!(actual, kit::xui::Document::parse(source).unwrap());
+    let undo = ui::marked(&h.ctx, "interface_undo").unwrap().center();
+    h.click(undo);
+    let doc = kit::xui::Document::parse(&h.st.interface.as_ref().unwrap().source).unwrap();
+    let target = &doc.root.children[0].children[0];
+    assert_eq!(target.attr("x"), Some("16"));
+    assert_eq!(target.attr("width"), Some("132.0"));
+    h.wait(0.4);
+    h.click(undo);
+    let doc = kit::xui::Document::parse(&h.st.interface.as_ref().unwrap().source).unwrap();
+    assert_eq!(doc, kit::xui::Document::parse(source).unwrap());
+}
+
+#[test]
+fn interface_save_preserves_external_changes_and_keeps_the_draft() {
+    let mut h = Harness::new("interface_save");
+    let path = h.ed.new_interface("conflict").unwrap();
+    let mut interface = ui::InterfaceEditor::open(&h.ed, &path).unwrap();
+    interface.source = "<interface><label text=\"draft\" /></interface>".into();
+    let external = "<interface><label text=\"external edit\" /></interface>";
+    h.ed.project.as_ref().unwrap().resources.write_text(&path, external).unwrap();
+
+    assert!(interface.save(&mut h.ed).unwrap_err().to_string().contains("changed on disk"));
+    assert!(interface.source.contains("draft"));
+    assert_eq!(h.ed.project.as_ref().unwrap().resources.read_text(&path).unwrap(), external);
 }
 
 fn select(h: &mut Harness, name: &str) -> kit::ecs::Entity {
@@ -510,6 +579,7 @@ fn dropping_a_sound_file_on_the_viewport_imports_and_places_it() {
 #[test]
 fn dragging_a_sound_onto_an_object_or_the_viewport() {
     let mut h = Harness::new("sound_drag");
+    h.assets_tab();
     let source = beep(&h, "hum.wav");
     let clip = h.ed.import_sound(&source).unwrap();
     assert_eq!(clip, "sounds/hum.wav");
@@ -518,14 +588,26 @@ fn dragging_a_sound_onto_an_object_or_the_viewport() {
 
     // Onto the Cube in the hierarchy: it gets an Audio Source.
     let row = ui::marked(&h.ctx, "sound_asset").expect("Sounds group lists the file").center();
+    let objects = ui::marked(&h.ctx, "objects_tab").unwrap().center();
+    h.frame(vec![Event::PointerMoved(row), Event::PointerButton {
+        pos: row, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE,
+    }]);
+    h.frame(vec![Event::PointerMoved(row + Vec2::new(10.0, 0.0))]);
+    h.frame(vec![Event::PointerMoved(objects)]);
+    h.frame(vec![]);
     let cube_row = h.row("Cube").center();
-    drag(&mut h, row, cube_row);
+    h.frame(vec![Event::PointerMoved(cube_row)]);
+    h.frame(vec![Event::PointerButton {
+        pos: cube_row, button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE,
+    }]);
+    h.frame(vec![]);
     let cube = kit::scene::find_by_name(h.ed.world(), "Cube").unwrap();
     let source = h.ed.world().get::<kit::gamesys::AudioSource>(cube).map(|a| a.clip.clone());
     assert_eq!(source.as_deref(), Some("sounds/hum.wav"));
     assert_eq!(sound_objects(&h).len(), 1, "no extra object");
 
     // Onto the viewport: a new sound object where it was dropped.
+    h.assets_tab();
     let row = ui::marked(&h.ctx, "sound_asset").unwrap().center();
     let target = h.st.viewport_rect.center();
     drag(&mut h, row, target);
@@ -720,6 +802,7 @@ fn theme_toggle_switches_light_and_dark() {
 #[test]
 fn models_panel_offers_import_without_a_file_drop() {
     let mut h = Harness::new("model_picker");
+    h.assets_tab();
     let import = ui::marked(&h.ctx, "import_models").expect("Models panel offers an import button");
     h.click(import.center());
     assert!(matches!(h.st.requests.as_slice(), [ui::Request::ImportModels]));
@@ -754,6 +837,8 @@ fn dropped_obj_can_be_placed_picked_and_saved() {
     assert_eq!(h.ed.world().entity_count(), initial_count);
     assert!(h.ed.assets.iter().any(|asset| asset == path));
 
+    h.assets_tab();
+    h.wait(0.4);
     let row = ui::marked(&h.ctx, "model_asset").unwrap();
     double_click(&mut h, row.center());
     let selected = h.ed.selected.unwrap();
@@ -1355,6 +1440,138 @@ fn rename_dialog_renames_on_enter() {
 }
 
 #[test]
+fn rex_settings_save_plain_mode_and_disable_entry_points() {
+    let mut h = Harness::new("rex_visibility");
+    let mut config = h.ed.project.as_ref().unwrap().config.clone();
+    config.rex.friendly = false;
+    crate::settings::apply(&mut h.ed, config.clone()).unwrap();
+    h.frame(vec![]);
+    assert!(h.ed.rex_enabled());
+    assert_eq!(h.ed.rex_label(), "Editor Assistant");
+    assert!(ui::marked(&h.ctx, "toggle_rex").is_some());
+
+    h.ed.settings.rex = true;
+    config.rex.enabled = false;
+    crate::settings::apply(&mut h.ed, config).unwrap();
+    h.ctx.data_mut(|data| data.remove::<Rect>(egui::Id::new(("kit_mark", "toggle_rex"))));
+    h.frame(vec![]);
+    assert!(!h.ed.settings.rex);
+    assert!(ui::marked(&h.ctx, "toggle_rex").is_none());
+    let saved = kit::resource::ProjectConfig::load(&h.dir.join(kit::resource::PROJECT_FILE)).unwrap();
+    assert!(!saved.rex.enabled);
+    assert!(!saved.rex.friendly);
+}
+
+#[test]
+fn project_search_filters_objects_and_assets_with_one_query() {
+    let mut h = Harness::new("project_filter");
+    let cube = kit::scene::find_by_name(h.ed.world(), "Cube").unwrap();
+    let camera = kit::scene::find_by_name(h.ed.world(), "Camera").unwrap();
+    let sun = kit::scene::find_by_name(h.ed.world(), "Sun").unwrap();
+    h.ed.reparent(cube, Some(camera), 0);
+    let resources = &h.ed.project.as_ref().unwrap().resources;
+    resources.write_text("data/cube-notes.md", "# Cube").unwrap();
+    resources.write_text("data/sun-notes.md", "# Sun").unwrap();
+    h.ed.refresh_assets(true);
+    let search = ui::marked(&h.ctx, "project_filter").unwrap().center();
+    h.click(search);
+    h.ctx.data_mut(|data| data.remove::<Vec<(kit::ecs::Entity, Rect)>>(egui::Id::new("kit_row_rects")));
+    h.frame(vec![Event::Text("CuBe".into())]);
+    let visible: Vec<_> = ui::row_rects(&h.ctx).into_iter().map(|(entity, _)| entity).collect();
+    assert!(visible.contains(&cube) && visible.contains(&camera));
+    assert!(!visible.contains(&sun));
+
+    h.assets_tab();
+    let rendered = |path: &str| h.ctx.data(|data| {
+        data.get_temp::<Rect>(egui::Id::new(("asset_preview_row", path))).is_some()
+    });
+    assert!(rendered("data/cube-notes.md"));
+    assert!(!rendered("data/sun-notes.md"));
+}
+
+#[test]
+fn asset_clicks_preview_in_center_and_double_click_places_a_sprite() {
+    let mut h = Harness::new("asset_preview");
+    h.assets_tab();
+    let project = h.ed.project.as_ref().unwrap();
+    let sprite = "sprites/preview.png";
+    let notes = "notes.md";
+    let graph = "example.kdiagram";
+    let scene = "scenes/second.kscene";
+    let diagram_pointer = h.st.viewport_rect.center();
+    project.resources.write_text(scene, &kit::gamesys::save_scene(h.ed.world()).to_json()).unwrap();
+    std::fs::create_dir_all(h.dir.join("sprites")).unwrap();
+    image::RgbaImage::new(4, 4).save(h.dir.join(sprite)).unwrap();
+    project.resources.write_text(notes, "# Preview me\n").unwrap();
+    project.resources.write_text(graph, &kit::diagram::Graph::default().to_json()).unwrap();
+    h.ed.refresh_assets(true);
+    h.frame(vec![]);
+    let asset_rect = |h: &Harness, path: &str| -> Rect {
+        h.ctx.data(|data| data.get_temp(egui::Id::new(("asset_preview_row", path)))).unwrap()
+    };
+    let initial = h.ed.world().entity_count();
+    let row = asset_rect(&h, sprite);
+    h.click(row.center());
+    assert_eq!(h.st.asset_preview.as_ref().map(|asset| asset.path.as_str()), Some(sprite));
+    assert_eq!(h.st.viewport_px, [0, 0]);
+    assert_eq!(h.ed.world().entity_count(), initial);
+    let back = ui::marked(&h.ctx, "return_game_view").unwrap();
+    h.click(back.center());
+    assert!(h.st.asset_preview.is_none());
+    assert!(h.st.viewport_px[0] > 0);
+
+    let preview = ui::marked(&h.ctx, "open_preview").unwrap();
+    h.click(preview.center());
+    assert_eq!(h.st.asset_preview.as_ref().map(|asset| asset.path.as_str()), Some(sprite));
+    assert_eq!(h.st.viewport_px, [0, 0]);
+    h.click(back.center());
+
+    h.wait(0.5);
+    let row = asset_rect(&h, sprite);
+    double_click(&mut h, row.center());
+    assert_eq!(h.ed.world().entity_count(), initial + 1);
+    let placed = h.ed.world().get::<kit::gamesys::Sprite>(h.ed.selected.unwrap()).unwrap();
+    assert_eq!(placed.texture, sprite);
+    drop(placed);
+    assert!(h.st.asset_preview.is_none());
+
+    let row = asset_rect(&h, notes);
+    h.click(row.center());
+    assert_eq!(h.st.asset_preview.as_ref().map(|asset| asset.path.as_str()), Some(notes));
+    assert_eq!(crate::state::asset_group(notes).unwrap().name, "Data");
+
+    let row = asset_rect(&h, graph);
+    h.click(row.center());
+    assert!(h.st.asset_preview.is_none());
+    assert!(h.st.center_diagram.is_some());
+    assert_eq!(h.st.diagram.path(), Some(graph));
+    let zoom = h.st.diagram.canvas_zoom().unwrap();
+    let wheel = |delta| Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Line,
+        delta: Vec2::new(0.0, delta),
+        phase: egui::TouchPhase::Move,
+        modifiers: Modifiers::NONE,
+    };
+    h.frame(vec![Event::PointerMoved(diagram_pointer), wheel(2.0)]);
+    for _ in 0..4 { h.frame(vec![]); }
+    let zoomed_in = h.st.diagram.canvas_zoom().unwrap();
+    assert!(zoomed_in > zoom, "{zoomed_in} must be greater than {zoom}");
+    h.frame(vec![wheel(-5.0)]);
+    for _ in 0..4 { h.frame(vec![]); }
+    assert!(h.st.diagram.canvas_zoom().unwrap() < zoomed_in);
+    let back = ui::marked(&h.ctx, "return_game_view").unwrap();
+    h.click(back.center());
+    assert!(h.st.center_diagram.is_none());
+    assert!(h.st.viewport_px[0] > 0);
+
+    let row = asset_rect(&h, scene);
+    h.click(row.center());
+    assert_eq!(h.ed.scene_path.as_deref(), Some(scene));
+    assert!(h.st.asset_preview.is_none());
+    assert!(h.st.viewport_px[0] > 0);
+}
+
+#[test]
 fn opening_a_diagram_asset_shows_it_until_the_selection_changes() {
     let mut h = Harness::new("diagram_asset");
     let cube = kit::scene::find_by_name(h.ed.world(), "Cube").unwrap();
@@ -1521,4 +1738,28 @@ fn installed_circuits_add_components_and_settings() {
     kit_circuit::install::uninstall(&h.dir, "kit.multiplayer").unwrap();
     h.frame(vec![]);
     assert!(h.ed.world().get::<kit::gamesys::ExtraData>(cube).unwrap().0.contains_key("realtime"));
+}
+
+/// Game View | Scene View | Preview: Play looks through the game camera, Stop
+/// returns to the editor's Scene View, and the tabs switch any time.
+#[test]
+fn scene_view_and_game_view_tabs() {
+    let mut h = Harness::new("scene_view");
+    assert!(!h.ed.settings.game_camera, "editing starts in Scene View");
+    h.ed.play();
+    h.frame(vec![]);
+    assert!(h.ed.settings.game_camera, "Play shows the Game View");
+    let scene = ui::marked(&h.ctx, "scene_view").expect("Scene View tab");
+    h.click(scene.center());
+    assert!(!h.ed.settings.game_camera, "Scene View while playing: the editor camera");
+    assert!(h.ed.playing, "switching views doesn't stop the game");
+    let game = ui::marked(&h.ctx, "return_game_view").unwrap();
+    h.click(game.center());
+    assert!(h.ed.settings.game_camera);
+    h.ed.stop();
+    h.frame(vec![]);
+    assert!(!h.ed.settings.game_camera, "Stop returns to Scene View");
+    // The tabs sit in order: Game View, Scene View, Preview.
+    let (g, s, p) = (ui::marked(&h.ctx, "return_game_view").unwrap(), ui::marked(&h.ctx, "scene_view").unwrap(), ui::marked(&h.ctx, "open_preview").unwrap());
+    assert!(g.left() < s.left() && s.left() < p.left());
 }

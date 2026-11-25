@@ -3,7 +3,7 @@ resolver = "3"
 members = ["modules/*", "kit", "player", "editor", "web/player", "circuit/multiplayer/sdk", "circuit/multiplayer/runtime"]
 
 [workspace.package]
-version = "0.0.4"
+version = "0.0.5"
 edition = "2024"
 rust-version = "1.85"
 
@@ -30,6 +30,8 @@ kit_rex = { path = "modules/kit_rex" }
 kit_rigg = { path = "modules/kit_rigg" }
 kit_circuit = { path = "modules/kit_circuit" }
 kit_export_security = { path = "modules/kit_export_security", default-features = false }
+kit_xui = { path = "modules/kit_xui" }
+kit_preview = { path = "modules/kit_preview" }
 kit = { path = "kit" }
 
 ash = "0.38"
@@ -41,6 +43,7 @@ naga = { version = "30", features = ["wgsl-in", "spv-out"] }
 glam = { version = "0.34", features = ["serde", "bytemuck"] }
 bytemuck = { version = "1", features = ["derive"] }
 egui = "0.36"
+epaint = "0.36"
 egui-winit = "0.36"
 egui-ash-renderer = { version = "0.13", features = ["gpu-allocator"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }

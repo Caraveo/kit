@@ -38,6 +38,14 @@ use glam::{Mat4, Vec2, Vec3, Vec4};
 use kit_core::{App, Module};
 use serde::{Deserialize, Serialize};
 
+/// A reusable `.xui` asset attached to a camera. Runtime UI state lives in
+/// `kit_xui` and is keyed by the owning camera.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct InterfaceAttachment {
+    pub asset: String,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum Projection {

@@ -1,0 +1,80 @@
+<interface>
+  <panel id="settings-screen" style="position: absolute; x: 0; y: 0; width: 100%; height: 100%; background: #353535dd; border-radius: 0;">
+    <panel id="topbar" style="position: absolute; x: 0; y: 0; width: 100%; height: 8em; padding: 1.2em 3em; background: #3b7c88e8; border-bottom: 1px solid #d5f3f455; border-radius: 0; box-shadow: 0 8px 18px #00000044;">
+      <row id="profile" style="display: flex; flex-direction: row; gap: 1em; height: 5em;">
+        <image id="profile-icon" src="sprites/player-emblem.png" style="width: 4em; height: 4em; border-radius: 50%; border: 1px solid #ffffff99;" />
+        <panel id="profile-copy" style="width: 18em; height: 4em; padding: 0.1em; background: #00000000; border-radius: 0;">
+          <label id="profile-name" text="CHERWOOD" style="color: #f2fbfb; font-size: 1.4em;" />
+          <label id="profile-level" text="// LEVEL 1 / 100" style="color: #b7d5d8; font-size: 0.8em;" />
+        </panel>
+        <row id="navigation" style="display: flex; flex-direction: row; gap: 0.7em; width: 60%; height: 4em; padding: 0.5em;">
+          <button id="nav-clan" text="CLAN" style="width: 7em; height: 2.5em; background: #00000000; hover-background: #ffffff22; color: #b7d5d8; border-radius: 3px;" />
+          <button id="nav-collections" text="COLLECTIONS" style="width: 11em; height: 2.5em; background: #00000000; hover-background: #ffffff22; color: #b7d5d8; border-radius: 3px;" />
+          <button id="nav-triumphs" text="TRIUMPHS" style="width: 9em; height: 2.5em; background: #00000000; hover-background: #ffffff22; color: #b7d5d8; border-radius: 3px;" />
+          <button id="nav-character" text="CHARACTER" style="width: 11em; height: 2.5em; background: #00000000; hover-background: #ffffff22; color: #b7d5d8; border-radius: 3px;" />
+          <button id="nav-inventory" text="INVENTORY" style="width: 10em; height: 2.5em; background: #00000000; hover-background: #ffffff22; color: #b7d5d8; border-radius: 3px;" />
+          <button id="nav-settings" text="SETTINGS" style="width: 9em; height: 2.5em; background: #ffffff1f; hover-background: #ffffff35; color: #ffffff; border: 1px solid #ffffff88; border-radius: 3px;" />
+        </row>
+      </row>
+    </panel>
+
+    <panel id="side-menu" style="position: absolute; x: 7%; y: 24%; width: 18%; height: 58%; padding: 1em; background: #16161655; border: 1px solid #ffffff55; border-radius: 3px; box-shadow: 0 10px 24px #00000033;">
+      <button id="controls" text="CONTROLS" style="width: 100%; height: 3.5em; margin: 0.4em; background: #343434bb; hover-background: #668087bb; color: #f4f4f4; border: 1px solid #ffffff77; border-radius: 2px;" />
+      <button id="key-mapping" text="KEY MAPPING" style="width: 100%; height: 3.5em; margin: 0.4em; background: #7d7d7dcc; hover-background: #9daeb1dd; color: #ffffff; border: 1px solid #ffffffcc; border-radius: 2px;" />
+      <button id="video" text="VIDEO" style="width: 100%; height: 3.5em; margin: 0.4em; background: #343434bb; hover-background: #668087bb; color: #f4f4f4; border: 1px solid #ffffff77; border-radius: 2px;" />
+      <button id="sound" text="SOUND" style="width: 100%; height: 3.5em; margin: 0.4em; background: #343434bb; hover-background: #668087bb; color: #f4f4f4; border: 1px solid #ffffff77; border-radius: 2px;" />
+      <button id="gameplay" text="GAMEPLAY" style="width: 100%; height: 3.5em; margin: 0.4em; background: #343434bb; hover-background: #668087bb; color: #f4f4f4; border: 1px solid #ffffff77; border-radius: 2px;" />
+      <button id="accessibility" text="ACCESSIBILITY" style="width: 100%; height: 3.5em; margin: 0.4em; background: #343434bb; hover-background: #668087bb; color: #f4f4f4; border: 1px solid #ffffff77; border-radius: 2px;" />
+    </panel>
+
+    <panel id="content" style="position: absolute; x: 29%; y: 18%; width: 66%; height: 70%; padding: 1.5em; background: #55534fcc; border: 1px solid #ffffff44; border-radius: 3px; box-shadow: 0 14px 28px #00000055;">
+      <label id="global-heading" text="◉  GLOBAL" style="width: 100%; height: 2em; color: #e6e6e6; font-size: 1em;" />
+      <row id="storage" style="display: flex; flex-direction: row; gap: 1em; width: 100%; height: 3.2em; padding: 0.4em;">
+        <label id="storage-label" text="Key Binding Storage" style="width: 60%; color: #eeeeee; font-size: 1em;" />
+        <button id="storage-value" text="‹  Account (Default)  ›" style="width: 30%; height: 2.4em; background: #66645fbb; hover-background: #7e8f91cc; color: #eeeeee; border: 1px solid #ffffff55; border-radius: 2px;" />
+      </row>
+      <label id="common-heading" text="◇  COMMON                         Click box and select key to bind." style="width: 100%; height: 2em; color: #e6e6e6; font-size: 1em;" />
+      <panel id="bindings" style="width: 100%; height: 28em; padding: 0.3em; background: #25252533; border-radius: 2px;">
+        <row id="bind-forward" style="display: flex; flex-direction: row; gap: 0.5em; width: 100%; height: 2.8em; padding: 0.2em;">
+          <label id="forward-label" text="Move Forward" style="width: 52%; color: #eeeeee; font-size: 1em;" />
+          <button id="forward-key" text="Z" style="width: 18%; height: 2.4em; background: #3d3d3daa; hover-background: #546d72cc; color: #ffffff; border: 1px solid #ffffff99; border-radius: 2px;" />
+          <button id="forward-set" text="Set Binding" style="width: 25%; height: 2.4em; background: #5a5a58aa; hover-background: #789094bb; color: #eeeeee; border: 1px solid #ffffff66; border-radius: 2px;" />
+        </row>
+        <row id="bind-left" style="display: flex; flex-direction: row; gap: 0.5em; width: 100%; height: 2.8em; padding: 0.2em;">
+          <label id="left-label" text="Move Left" style="width: 52%; color: #eeeeee; font-size: 1em;" />
+          <button id="left-key" text="Q" style="width: 18%; height: 2.4em; background: #3d3d3daa; hover-background: #546d72cc; color: #ffffff; border: 1px solid #ffffff99; border-radius: 2px;" />
+          <button id="left-set" text="Set Binding" style="width: 25%; height: 2.4em; background: #5a5a58aa; hover-background: #789094bb; color: #eeeeee; border: 1px solid #ffffff66; border-radius: 2px;" />
+        </row>
+        <row id="bind-back" style="display: flex; flex-direction: row; gap: 0.5em; width: 100%; height: 2.8em; padding: 0.2em;">
+          <label id="back-label" text="Move Backward" style="width: 52%; color: #eeeeee; font-size: 1em;" />
+          <button id="back-key" text="S" style="width: 18%; height: 2.4em; background: #3d3d3daa; hover-background: #546d72cc; color: #ffffff; border: 1px solid #ffffff99; border-radius: 2px;" />
+          <button id="back-set" text="Set Binding" style="width: 25%; height: 2.4em; background: #5a5a58aa; hover-background: #789094bb; color: #eeeeee; border: 1px solid #ffffff66; border-radius: 2px;" />
+        </row>
+        <row id="bind-right" style="display: flex; flex-direction: row; gap: 0.5em; width: 100%; height: 2.8em; padding: 0.2em;">
+          <label id="right-label" text="Move Right" style="width: 52%; color: #eeeeee; font-size: 1em;" />
+          <button id="right-key" text="D" style="width: 18%; height: 2.4em; background: #3d3d3daa; hover-background: #546d72cc; color: #ffffff; border: 1px solid #ffffff99; border-radius: 2px;" />
+          <button id="right-set" text="Set Binding" style="width: 25%; height: 2.4em; background: #5a5a58aa; hover-background: #789094bb; color: #eeeeee; border: 1px solid #ffffff66; border-radius: 2px;" />
+        </row>
+        <row id="bind-highlight" style="display: flex; flex-direction: row; gap: 0.5em; width: 100%; height: 2.8em; padding: 0.2em;">
+          <label id="highlight-label" text="Highlight Player" style="width: 52%; color: #eeeeee; font-size: 1em;" />
+          <button id="highlight-key" text="G" style="width: 18%; height: 2.4em; background: #3d3d3daa; hover-background: #546d72cc; color: #ffffff; border: 1px solid #ffffff99; border-radius: 2px;" />
+          <button id="highlight-set" text="Set Binding" style="width: 25%; height: 2.4em; background: #5a5a58aa; hover-background: #789094bb; color: #eeeeee; border: 1px solid #ffffff66; border-radius: 2px;" />
+        </row>
+        <row id="bind-emote" style="display: flex; flex-direction: row; gap: 0.5em; width: 100%; height: 2.8em; padding: 0.2em;">
+          <label id="emote-label" text="Emote 1" style="width: 52%; color: #eeeeee; font-size: 1em;" />
+          <button id="emote-key" text="↑" style="width: 18%; height: 2.4em; background: #3d3d3daa; hover-background: #546d72cc; color: #ffffff; border: 1px solid #ffffff99; border-radius: 2px;" />
+          <button id="emote-set" text="Set Binding" style="width: 25%; height: 2.4em; background: #5a5a58aa; hover-background: #789094bb; color: #eeeeee; border: 1px solid #ffffff66; border-radius: 2px;" />
+        </row>
+        <row id="bind-talk" style="display: flex; flex-direction: row; gap: 0.5em; width: 100%; height: 2.8em; padding: 0.2em;">
+          <label id="talk-label" text="Push-To-Talk" style="width: 52%; color: #eeeeee; font-size: 1em;" />
+          <button id="talk-key" text="T" style="width: 18%; height: 2.4em; background: #3d3d3daa; hover-background: #546d72cc; color: #ffffff; border: 1px solid #ffffff99; border-radius: 2px;" />
+          <button id="talk-set" text="Set Binding" style="width: 25%; height: 2.4em; background: #5a5a58aa; hover-background: #789094bb; color: #eeeeee; border: 1px solid #ffffff66; border-radius: 2px;" />
+        </row>
+      </panel>
+    </panel>
+    <row id="footer" style="display: flex; flex-direction: row; gap: 1em; position: absolute; x: 78%; y: 93%; width: 20%; height: 3em;">
+      <button id="reset" text="F  RESET TO DEFAULTS" style="width: 15em; height: 2.2em; background: #00000000; hover-background: #ffffff18; color: #f4f4f4; border-radius: 2px;" />
+      <button id="dismiss" text="ESC  DISMISS" script="Resume.x" style="width: 12em; height: 2.2em; background: #00000000; hover-background: #ffffff18; color: #f4f4f4; border-radius: 2px;" />
+    </row>
+  </panel>
+</interface>

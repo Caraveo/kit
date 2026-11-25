@@ -22,6 +22,7 @@ kit_render = { workspace = true, default-features = false }
 kit_post.workspace = true
 kit_x.workspace = true
 kit_script.workspace = true
+kit_xui.workspace = true
 kit_collider.workspace = true
 kit_physics.workspace = true
 kit_path.workspace = true

@@ -1,0 +1,6 @@
+<interface>
+  <label id="title" text="Pause Menu" color="#f4efff">
+    <button id="button-2" class="pressed" text="Jon" x="" y="100" opacity="0.200" script="banana_spinner.x"/>
+  </label>
+  <button id="resume" text="Resume" script="Resume.x" color="#ffffffff" width="192.0" height="48.0" x="3.5" y="3.5" background="#0000ffff" opacity="0.130" class="pressed" />
+</interface>

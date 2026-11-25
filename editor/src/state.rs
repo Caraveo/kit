@@ -21,15 +21,17 @@ pub struct AssetGroup {
     pub supported: bool,
 }
 
-pub const ASSET_GROUPS: [AssetGroup; 8] = [
+pub const ASSET_GROUPS: [AssetGroup; 10] = [
     AssetGroup { name: "Scenes", icon: "◈", extensions: &["kscene"], supported: true },
     AssetGroup { name: "Scripts", icon: "✏", extensions: &["x"], supported: true },
     AssetGroup { name: "Diagrams", icon: "◫", extensions: &["kdiagram"], supported: true },
-    AssetGroup { name: "Sprites", icon: "🖼", extensions: &["png", "jpg", "jpeg"], supported: true },
+    AssetGroup { name: "Interface", icon: "▤", extensions: &["xui"], supported: true },
+    AssetGroup { name: "Sprites", icon: "🖼", extensions: kit::preview::IMAGES, supported: true },
     AssetGroup { name: "Models", icon: "◆", extensions: crate::model_import::EXTENSIONS, supported: false },
     AssetGroup { name: "Sounds", icon: "♪", extensions: kit::gamesys::SOUND_EXTENSIONS, supported: true },
+    AssetGroup { name: "Videos", icon: "▶", extensions: kit::preview::VIDEOS, supported: true },
     AssetGroup { name: "Fonts", icon: "🔤", extensions: &["ttf", "otf"], supported: false },
-    AssetGroup { name: "Data", icon: "📄", extensions: &["json", "toml", "csv", "txt"], supported: false },
+    AssetGroup { name: "Data", icon: "📄", extensions: kit::preview::TEXT, supported: true },
 ];
 
 /// Which group a file belongs to.
@@ -88,7 +90,9 @@ pub struct ViewSettings {
     pub lighting: bool,
     pub grid: bool,
     pub console: bool,
-    /// While playing, look through the game camera (otherwise the editor camera).
+    /// Game View (look through the game's camera, read-only) vs Scene View
+    /// (the editor's free camera with selection and gizmos). Play switches to
+    /// Game View and Stop back to Scene View; either can be picked any time.
     pub game_camera: bool,
     /// Canvas mode: drag in the viewport to sketch a path for the selection.
     pub canvas: bool,
@@ -117,7 +121,7 @@ impl Default for ViewSettings {
             lighting: true,
             grid: true,
             console: false,
-            game_camera: true,
+            game_camera: false,
             canvas: false,
             rig: false,
             canvas_ground: false,
@@ -304,6 +308,18 @@ impl Editor {
         Ok(())
     }
 
+    pub fn rex_enabled(&self) -> bool {
+        self.project.as_ref().is_none_or(|project| project.config.rex.enabled)
+    }
+
+    pub fn rex_friendly(&self) -> bool {
+        self.project.as_ref().is_none_or(|project| project.config.rex.friendly)
+    }
+
+    pub fn rex_label(&self) -> &'static str {
+        if self.rex_friendly() { "Rex" } else { "Editor Assistant" }
+    }
+
     pub fn project_title(&self) -> &str {
         self.project.as_ref().map(|p| p.config.project.title.as_str()).unwrap_or("No project")
     }
@@ -315,11 +331,7 @@ impl Editor {
         self.assets_refreshed = Some(Instant::now());
         self.assets.clear();
         if let Some(p) = &self.project {
-            for group in &ASSET_GROUPS {
-                for ext in group.extensions {
-                    self.assets.extend(p.resources.list(ext));
-                }
-            }
+            self.assets = p.resources.list_all().into_iter().filter(|path| asset_group(path).is_some()).collect();
             // The project file itself is edited through Project Settings.
             self.assets.retain(|a| a != kit::resource::PROJECT_FILE);
             self.assets.sort();
@@ -369,10 +381,12 @@ impl Editor {
         let bytes = std::fs::read(source).with_context(|| format!("reading {}", source.display()))?;
         let text = || String::from_utf8(bytes.clone()).with_context(|| format!("{name} isn't a text file"));
         let (folder, group) = match ext.as_str() {
-            "png" | "jpg" | "jpeg" => {
-                image::load_from_memory(&bytes).with_context(|| format!("{name} isn't an image Kit can read"))?;
+            image if kit::preview::IMAGES.contains(&image) => {
+                kit::preview::image(&bytes, image).with_context(|| format!("{name} isn't an image Kit can read"))?;
                 ("sprites", "Sprites")
             }
+            video if kit::preview::VIDEOS.contains(&video) => ("videos", "Videos"),
+            data if kit::preview::TEXT.contains(&data) => ("data", "Data"),
             "x" => {
                 if let Err(e) = kit::x::parse(&text()?) {
                     self.console().warn("import", format!("{name} has a script error (imported anyway): {e}"));
@@ -387,8 +401,12 @@ impl Editor {
                 kit::diagram::Graph::from_json(&text()?).with_context(|| format!("{name} isn't a Kit diagram"))?;
                 ("diagrams", "Diagrams")
             }
+            "xui" => {
+                kit::xui::InterfaceFile::parse(&text()?).with_context(|| format!("{name} isn't a Kit interface"))?;
+                ("interfaces", "Interface")
+            }
             _ => bail!(
-                "Kit can't use .{ext} files. It imports sounds (WAV, MP3, Ogg, FLAC, AAC), sprites (PNG, JPEG), 3D models ({}), scripts (.x), scenes (.kscene) and diagrams (.kdiagram).",
+                "Kit can't use .{ext} files. It imports sounds (WAV, MP3, Ogg, FLAC, AAC), sprites (PNG, JPEG), 3D models ({}), scripts (.x), scenes (.kscene), diagrams (.kdiagram) and interfaces (.xui).",
                 crate::model_import::SOURCE_EXTENSIONS.iter().map(|e| e.to_uppercase()).collect::<Vec<_>>().join(", ")
             ),
         };
@@ -405,6 +423,22 @@ impl Editor {
         Ok(Some(rel))
     }
 
+    /// Create a starter Interface asset.
+    pub fn new_interface(&mut self, name: &str) -> Result<String> {
+        let project = self.project.as_ref().context("open or create a project first")?;
+        let stem: String = name
+            .trim_end_matches(".xui")
+            .chars()
+            .map(|c| if c.is_alphanumeric() || c == '_' || c == '-' { c.to_ascii_lowercase() } else { '_' })
+            .collect();
+        anyhow::ensure!(!stem.is_empty(), "Give the interface a name");
+        let rel = format!("interfaces/{stem}.xui");
+        anyhow::ensure!(!project.resources.exists(&rel), "{rel} already exists");
+        project.resources.write_text(&rel, kit::xui::STARTER_TEMPLATE)?;
+        self.refresh_assets(true);
+        Ok(rel)
+    }
+
     /// Add a sprite object showing `texture` (at `at`, or near the view).
     pub fn place_sprite(&mut self, texture: &str, at: Option<Vec3>) -> Entity {
         let e = self.spawn(Preset::Empty, None);
@@ -416,6 +450,24 @@ impl Editor {
         }
         self.selected = Some(e);
         e
+    }
+
+    pub fn place_image_asset(&mut self, asset: &str) -> Result<()> {
+        anyhow::ensure!(!self.playing, "Stop play mode before placing a sprite");
+        let texture = if kit::preview::extension(asset) == "svg" {
+            let resources = &self.project.as_ref().context("No project open")?.resources;
+            let image = kit::preview::read_image(resources, asset)?;
+            let mut bytes = std::io::Cursor::new(Vec::new());
+            image.write_to(&mut bytes, image::ImageFormat::Png)?;
+            let name = Path::new(asset).file_stem().and_then(|stem| stem.to_str()).unwrap_or("sprite");
+            let path = copy_into_project(resources.root(), "sprites", &format!("{name}.png"), &bytes.into_inner())?;
+            self.refresh_assets(true);
+            path
+        } else {
+            asset.to_owned()
+        };
+        self.place_sprite(&texture, None);
+        Ok(())
     }
 
     /// Add a sound object playing `clip` (at `at`, or near the view).
@@ -471,6 +523,13 @@ impl Editor {
         }
     }
 
+    pub fn stop_preview(&mut self) {
+        if let Some(mut audio) = self.app.world.try_resource_mut::<kit::audio::Audio>() {
+            audio.stop_preview();
+        }
+        self.previewing = None;
+    }
+
     /// The sound being previewed, if it's still playing.
     pub fn preview_playing(&self) -> Option<&str> {
         let playing = self.app.world.try_resource::<kit::audio::Audio>().is_some_and(|a| a.previewing());
@@ -478,6 +537,19 @@ impl Editor {
     }
 
     pub fn import_model(&mut self, source: &Path) -> Result<()> {
+        self.queue_model_import(source, false)
+    }
+
+    pub fn place_model_asset(&mut self, path: &str) -> Result<()> {
+        anyhow::ensure!(!self.playing, "Stop play mode before placing a model");
+        if crate::model_import::EDITABLE_EXTENSIONS.contains(&kit::preview::extension(path).as_str()) {
+            return self.place_model(path);
+        }
+        let source = self.project.as_ref().context("No project open")?.resources.resolve(path)?;
+        self.queue_model_import(&source, true)
+    }
+
+    fn queue_model_import(&mut self, source: &Path, place: bool) -> Result<()> {
         let project = self.project.as_ref().context("Open a project before importing a model")?;
         let root = project.root().canonicalize()?;
         crate::model_import::validate_extension(source)?;
@@ -488,7 +560,7 @@ impl Editor {
             if self.model_imports.is_none() {
                 self.model_imports = Some(crate::model_import::ImportQueue::new()?);
             }
-            self.model_imports.as_mut().unwrap().submit(source, root)?;
+            self.model_imports.as_mut().unwrap().submit(source, root, place.then(|| self.scene_path.clone()))?;
             self.notify(format!("Importing {}…", source.file_name().unwrap_or_default().to_string_lossy()));
         }
         Ok(())
@@ -497,9 +569,16 @@ impl Editor {
     pub fn poll_model_imports(&mut self) -> bool {
         let Some(queue) = self.model_imports.as_mut() else { return false };
         let (finished, pending) = queue.poll();
-        for result in finished {
+        for (root, scene, result) in finished {
             match result {
-                Ok(imported) => self.model_imported(&imported),
+                Ok(imported) if self.project.as_ref().and_then(|p| p.root().canonicalize().ok()).as_ref() == Some(&root) => {
+                    self.model_imported(&imported);
+                    if scene.is_some_and(|scene| scene == self.scene_path) && !self.playing {
+                        let result = self.place_model(&imported);
+                        self.report(result);
+                    }
+                }
+                Ok(_) => {}
                 Err(error) => self.report(Err(error)),
             }
         }
@@ -634,6 +713,23 @@ impl Editor {
         let changed = self.update_references(old, &new)?;
         self.refresh_assets(true);
         Ok((new, changed))
+    }
+
+    pub fn delete_asset(&mut self, path: &str) -> Result<()> {
+        if self.playing {
+            bail!("Stop the game before deleting files");
+        }
+        if self.scene_path.as_deref() == Some(path) {
+            bail!("The active scene cannot be deleted");
+        }
+        let project = self.project.as_ref().context("no project open")?;
+        let target = project.root().join(path);
+        if !target.is_file() {
+            bail!("{path} no longer exists");
+        }
+        std::fs::remove_file(&target).with_context(|| format!("deleting {path}"))?;
+        self.refresh_assets(true);
+        Ok(())
     }
 
     /// Point everything that used `old` at `new`. Returns how many places changed.
@@ -1052,6 +1148,7 @@ impl Editor {
         self.app.world.resource_mut::<kit::core::Time>().elapsed = 0.0;
         self.app.reset_startup();
         self.playing = true;
+        self.settings.game_camera = true;
         self.console().info("editor", "▶ play");
     }
 
@@ -1068,6 +1165,7 @@ impl Editor {
         self.app.mode = RunMode::Edit;
         self.app.world.resource_mut::<kit::core::Time>().elapsed = 0.0;
         self.playing = false;
+        self.settings.game_camera = false;
         if let Some((scene, idx)) = self.play_snapshot.take() {
             match self.replace_scene(&scene) {
                 Ok(spawned) => self.selected = idx.and_then(|i| spawned.get(i).copied()),

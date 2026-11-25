@@ -52,6 +52,7 @@ pub fn add_default_modules(app: &mut App, project_root: std::path::PathBuf, conf
         .add_module(kit_input::InputModule)
         .add_module(kit_gamesys::GameSysModule)
         .add_module(kit_script::ScriptModule)
+        .add_module(kit_xui::XuiModule)
         .add_module(kit_path::PathModule)
         // Game data, then visual graphs (after scripts, before physics).
         .add_module(kit_gamedata::GameDataModule)
@@ -109,6 +110,7 @@ pub fn screenshot_project(project: Project, out: &std::path::Path, frames: u32, 
     use kit_graphics::{Image, vk};
     let mut app = project_app(&project)?;
     kit_scene::propagate_transforms(&mut app.world);
+    app.world.insert_resource(kit_xui::runtime::UiScreen::window([width, height], 1.0));
     for _ in 0..frames {
         app.update(1.0 / 60.0);
     }
@@ -140,7 +142,9 @@ pub fn screenshot_project(project: Project, out: &std::path::Path, frames: u32, 
             (vk::PipelineStageFlags::TOP_OF_PIPE, vk::AccessFlags::empty()),
             (vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT, vk::AccessFlags::COLOR_ATTACHMENT_WRITE),
         );
-        result = renderer.render(&gfx, cmd, 0, &target, &view, &app.world);
+        result = renderer
+            .render(&gfx, cmd, 0, &target, &view, &app.world)
+            .and_then(|_| renderer.draw_ui(&gfx, cmd, 0, &target, &app.world));
     })?;
     result?;
     let pixels = image.read_back(&gfx, vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)?;
@@ -192,6 +196,11 @@ impl Runner {
         let now = Instant::now();
         let dt = (now - self.last).as_secs_f32();
         self.last = now;
+        if let Some(gpu) = &self.gpu {
+            let size = gpu.window.inner_size();
+            let screen = kit_xui::runtime::UiScreen::window([size.width, size.height], gpu.window.scale_factor() as f32);
+            self.app.world.insert_resource(screen);
+        }
         self.app.update(dt);
 
         let Some(gpu) = self.gpu.as_mut() else { return Ok(()) };
@@ -202,6 +211,7 @@ impl Runner {
         view.time = self.app.world.resource::<kit_core::Time>().elapsed as f32;
         let target = Target { image: frame.image, view: frame.view, extent: frame.extent, format: frame.format };
         gpu.renderer.render(&gpu.gfx, frame.cmd, frame.frame_index, &target, &view, &self.app.world)?;
+        gpu.renderer.draw_ui(&gpu.gfx, frame.cmd, frame.frame_index, &target, &self.app.world)?;
         gpu.presenter.end_frame(&gpu.gfx, frame)?;
         Ok(())
     }

@@ -42,6 +42,8 @@ pub enum Blend {
     None,
     /// Premultiplied-style "over" blending with straight alpha.
     Alpha,
+    /// "Over" blending for colors that are already premultiplied by alpha (UI).
+    Premultiplied,
 }
 
 /// Vertex buffer layout: one interleaved binding.
@@ -122,6 +124,15 @@ pub fn create_pipeline(gfx: &Gfx, d: &PipelineDesc) -> Result<vk::Pipeline> {
             .color_write_mask(vk::ColorComponentFlags::RGBA)
             .blend_enable(true)
             .src_color_blend_factor(vk::BlendFactor::SRC_ALPHA)
+            .dst_color_blend_factor(vk::BlendFactor::ONE_MINUS_SRC_ALPHA)
+            .color_blend_op(vk::BlendOp::ADD)
+            .src_alpha_blend_factor(vk::BlendFactor::ONE)
+            .dst_alpha_blend_factor(vk::BlendFactor::ONE_MINUS_SRC_ALPHA)
+            .alpha_blend_op(vk::BlendOp::ADD),
+        Blend::Premultiplied => vk::PipelineColorBlendAttachmentState::default()
+            .color_write_mask(vk::ColorComponentFlags::RGBA)
+            .blend_enable(true)
+            .src_color_blend_factor(vk::BlendFactor::ONE)
             .dst_color_blend_factor(vk::BlendFactor::ONE_MINUS_SRC_ALPHA)
             .color_blend_op(vk::BlendOp::ADD)
             .src_alpha_blend_factor(vk::BlendFactor::ONE)

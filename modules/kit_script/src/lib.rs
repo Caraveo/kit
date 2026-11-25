@@ -273,6 +273,7 @@ fn call_hook(
     if state.failed {
         return;
     }
+
     let mut commands = Vec::new();
     let result = {
         let mut host = EntityHost::new(world, e, res.clone(), &mut commands);
@@ -290,6 +291,19 @@ fn call_hook(
         state.failed = true;
         report(world, &state.path, &err);
     }
+}
+
+/// Run one X file hook immediately for an event owned by `entity`.
+///
+/// Interface buttons use this for local UI actions without attaching a
+/// permanent gameplay script component to the camera.
+pub fn call_file_hook(world: &mut World, entity: Entity, path: &str, hook: &str) {
+    let res = world.try_resource::<Resources>().map(|r| r.clone());
+    let mut state = load_state(world, entity, path, &res);
+    if state.failed {
+        return;
+    }
+    call_hook(world, entity, &mut state, hook, Vec::new(), &res);
 }
 
 fn apply_commands(world: &mut World, commands: Vec<Command>) {

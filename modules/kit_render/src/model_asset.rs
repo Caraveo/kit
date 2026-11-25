@@ -87,6 +87,23 @@ impl ModelAsset {
     }
 }
 
+/// Decode one triangle-list frame from a portable model bundle.
+pub fn read_frame_vertices(resources: &Resources, asset: &str, file: &str) -> Result<Vec<crate::Vertex>> {
+    let bytes = resources.read_bytes(&sibling(asset, file))?;
+    ensure!(!bytes.is_empty() && bytes.len() % (3 * 32) == 0, "invalid triangle data in {file}");
+    bytes.chunks_exact(32).map(|vertex| {
+        let values: [f32; 8] = std::array::from_fn(|i| {
+            f32::from_le_bytes(vertex[i * 4..i * 4 + 4].try_into().unwrap())
+        });
+        ensure!(values.iter().all(|v| v.is_finite()), "invalid vertex in {file}");
+        Ok(crate::Vertex {
+            pos: [values[0], values[1], values[2]],
+            normal: [values[3], values[4], values[5]],
+            uv: [values[6], values[7]],
+        })
+    }).collect()
+}
+
 pub fn sibling(asset: &str, name: &str) -> String {
     match asset.rsplit_once('/') {
         Some((directory, _)) => format!("{directory}/{name}"),

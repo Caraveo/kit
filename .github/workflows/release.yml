@@ -63,6 +63,20 @@ jobs:
       - name: Package (macOS)
         if: runner.os == 'macOS'
         run: packaging/macos/package.sh ${{ matrix.target }}
+      - name: FFmpeg toolchain (Windows)
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{ matrix.target == 'aarch64-pc-windows-msvc' && 'CLANGARM64' || 'CLANG64' }}
+          install: >-
+            make curl tar xz
+            ${{ matrix.target == 'aarch64-pc-windows-msvc' && 'mingw-w64-clang-aarch64-clang mingw-w64-clang-aarch64-llvm' || 'mingw-w64-clang-x86_64-clang mingw-w64-clang-x86_64-llvm' }}
+
+      - name: Build FFmpeg (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: packaging/ffmpeg/build.sh ${{ matrix.target }}
+
       - name: Package (Windows)
         if: runner.os == 'Windows'
         shell: pwsh

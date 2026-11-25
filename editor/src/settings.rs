@@ -45,6 +45,7 @@ pub fn apply(ed: &mut Editor, config: ProjectConfig) -> anyhow::Result<()> {
     let Some(project) = ed.project.as_mut() else { anyhow::bail!("no project open") };
     config.save(&project.root().join(kit::resource::PROJECT_FILE))?;
     project.config = config.clone();
+    if !config.rex.enabled { ed.settings.rex = false; }
     let p = &config.physics;
     kit::physics::apply_settings(
         &mut ed.app.world,
@@ -148,6 +149,12 @@ pub fn window(ctx: &egui::Context, ed: &mut Editor, win: &mut SettingsWindow) {
                 ui.label(
                     RichText::new("Physics changes apply immediately, even while playing.").size(11.0).color(MUTED()),
                 );
+                ui.separator();
+                ui.checkbox(&mut draft.rex.enabled, "Rex");
+                if draft.rex.enabled {
+                    ui.checkbox(&mut draft.rex.friendly, "Friendly Rex")
+                        .on_hover_text("Use puppy artwork, emoji, and playful labels");
+                }
             }
             ui.add_space(10.0);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {

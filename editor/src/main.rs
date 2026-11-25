@@ -22,6 +22,7 @@ mod gizmos;
 mod hooks;
 mod model_import;
 mod move_gizmo;
+mod preview;
 mod new_project;
 mod settings;
 mod state;
@@ -455,8 +456,16 @@ impl EditorApp {
     }
 
     fn open(&mut self, path: &Path) {
+        if self.ui.has_unsaved_interface() {
+            self.editor.notify("Save or revert the current interface before switching projects.");
+            return;
+        }
         match self.editor.open_project(path) {
-            Ok(()) => remember(&mut self.ui.recent, path),
+            Ok(()) => {
+                self.ui.close_interface();
+                self.ui.reset_asset_preview(&mut self.editor);
+                remember(&mut self.ui.recent, path);
+            }
             Err(e) => self.editor.report(Err(e)),
         }
     }
@@ -483,6 +492,7 @@ impl EditorApp {
                 }
                 Request::CreateProject(path, options) => {
                     let result = (|| -> Result<()> {
+                        anyhow::ensure!(!self.ui.has_unsaved_interface(), "Save or revert the current interface before switching projects.");
                         self.editor.save_if_dirty()?;
                         for index in 0..self.editor.scripts.len() {
                             if self.editor.scripts[index].dirty() {
@@ -498,6 +508,8 @@ impl EditorApp {
                     })();
                     match result {
                         Ok(()) => {
+                            self.ui.close_interface();
+                            self.ui.reset_asset_preview(&mut self.editor);
                             remember(&mut self.ui.recent, &path);
                             self.ui.new_project = None;
                             self.ui.ensure_visible(&mut self.editor);
@@ -528,7 +540,10 @@ impl EditorApp {
                 },
                 Request::ImportModels => {
                     let Some(project) = &self.editor.project else { continue };
-                    let mut all: Vec<&str> = vec!["png", "jpg", "jpeg", "x", "kscene", "kdiagram"];
+                    let mut all: Vec<&str> = vec!["x", "kscene", "kdiagram", "xui"];
+                    all.extend(kit::preview::IMAGES);
+                    all.extend(kit::preview::VIDEOS);
+                    all.extend(kit::preview::TEXT);
                     all.extend(kit::gamesys::SOUND_EXTENSIONS);
                     all.extend(model_import::SOURCE_EXTENSIONS);
                     if let Some(files) = rfd::FileDialog::new()
@@ -536,7 +551,9 @@ impl EditorApp {
                         .set_directory(project.root())
                         .add_filter("Everything Kit can use", &all)
                         .add_filter("Sounds", kit::gamesys::SOUND_EXTENSIONS)
-                        .add_filter("Sprites", &["png", "jpg", "jpeg"])
+                        .add_filter("Images", kit::preview::IMAGES)
+                        .add_filter("Videos", kit::preview::VIDEOS)
+                        .add_filter("Data and Markdown", kit::preview::TEXT)
                         .add_filter("3D models", model_import::SOURCE_EXTENSIONS)
                         .add_filter("Scripts, scenes and diagrams", &["x", "kscene", "kdiagram"])
                         .pick_files()
@@ -671,7 +688,7 @@ impl EditorApp {
                 gpu.viewport_fresh = false;
                 let extent = image.extent;
                 let aspect = extent.width as f32 / extent.height.max(1) as f32;
-                let mut view = if ed.playing && ed.settings.game_camera {
+                let mut view = if ed.settings.game_camera {
                     View::from_camera(&ed.app.world, aspect).unwrap_or_else(|| ed.camera.view(aspect))
                 } else {
                     let mut v = ed.camera.view(aspect);
@@ -848,6 +865,16 @@ impl ApplicationHandler for EditorApp {
         }
         match event {
             WindowEvent::CloseRequested => {
+                if self.ui.has_unsaved_interface() {
+                    if let Some(interface) = self.ui.interface.as_mut() {
+                        if let Err(error) = interface.save(&mut self.editor) {
+                            self.editor.report(Err(error));
+                            self.editor.notify("Fix or revert the interface draft before closing.");
+                            gpu.window.request_redraw();
+                            return;
+                        }
+                    }
+                }
                 if self.editor.scene_dirty() {
                     let r = self.editor.save_scene();
                     self.editor.report(r);

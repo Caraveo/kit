@@ -38,20 +38,23 @@ pub fn validate_extension(source: &Path) -> Result<()> {
     Ok(())
 }
 
+type Placement = Option<Option<String>>;
+type ImportResult = (PathBuf, Placement, Result<String>);
+
 pub struct ImportQueue {
-    jobs: mpsc::Sender<(PathBuf, PathBuf)>,
-    results: mpsc::Receiver<Result<String>>,
+    jobs: mpsc::Sender<(PathBuf, PathBuf, Placement)>,
+    results: mpsc::Receiver<ImportResult>,
     pending: usize,
 }
 
 impl ImportQueue {
     pub fn new() -> Result<Self> {
-        let (jobs, requests) = mpsc::channel::<(PathBuf, PathBuf)>();
+        let (jobs, requests) = mpsc::channel::<(PathBuf, PathBuf, Placement)>();
         let (results, completed) = mpsc::channel();
         std::thread::Builder::new().name("kit-model-import".into()).spawn(move || {
-            for (source, root) in requests {
+            for (source, root, placement) in requests {
                 let result = import(&source, &root).with_context(|| format!("importing {}", source.display()));
-                if results.send(result).is_err() {
+                if results.send((root, placement, result)).is_err() {
                     break;
                 }
             }
@@ -59,13 +62,13 @@ impl ImportQueue {
         Ok(Self { jobs, results: completed, pending: 0 })
     }
 
-    pub fn submit(&mut self, source: &Path, root: PathBuf) -> Result<()> {
-        self.jobs.send((source.to_path_buf(), root)).context("the model import worker stopped")?;
+    pub fn submit(&mut self, source: &Path, root: PathBuf, place: Placement) -> Result<()> {
+        self.jobs.send((source.to_path_buf(), root, place)).context("the model import worker stopped")?;
         self.pending += 1;
         Ok(())
     }
 
-    pub fn poll(&mut self) -> (Vec<Result<String>>, bool) {
+    pub fn poll(&mut self) -> (Vec<ImportResult>, bool) {
         let results: Vec<_> = self.results.try_iter().collect();
         self.pending -= results.len();
         (results, self.pending > 0)
@@ -90,7 +93,7 @@ pub fn import(source: &Path, root: &Path) -> Result<String> {
             })
         {
             kit::render::load_obj(&source)?;
-            return Ok(source.file_name().unwrap_or_default().to_string_lossy().into_owned());
+            return Ok(source.strip_prefix(root)?.to_string_lossy().replace('\\', "/"));
         }
         kit::render::load_obj(&source)?;
     }
@@ -140,7 +143,7 @@ pub fn import(source: &Path, root: &Path) -> Result<String> {
                         let _ = std::fs::remove_dir_all(&destination);
                         return Err(error).with_context(|| format!("saving {}", destination.display()));
                     }
-                    return Ok(filename);
+                    return Ok(format!("models/{stem}/{filename}"));
                 }
                 Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
                 Err(error) => return Err(error).with_context(|| format!("creating {}", destination.display())),
@@ -155,7 +158,7 @@ pub fn import(source: &Path, root: &Path) -> Result<String> {
         let filename = if suffix == 1 { format!("{name}.obj") } else { format!("{name}-{suffix}.obj") };
         let destination = dir.join(&filename);
         match staged.persist_noclobber(&destination) {
-            Ok(_) => return Ok(filename),
+            Ok(_) => return Ok(format!("models/{filename}")),
             Err(error) if error.error.kind() == std::io::ErrorKind::AlreadyExists => staged = error.file,
             Err(error) => return Err(error.error).with_context(|| format!("saving {}", destination.display())),
         }
@@ -163,7 +166,7 @@ pub fn import(source: &Path, root: &Path) -> Result<String> {
     unreachable!()
 }
 
-fn convert(source: &Path, scratch: &Path) -> Result<PathBuf> {
+pub(crate) fn convert(source: &Path, scratch: &Path) -> Result<PathBuf> {
     let script = scratch.join("import.py");
     let destination = scratch.join("geometry.kmodel");
     std::fs::write(&script, include_str!("model_import.py"))?;

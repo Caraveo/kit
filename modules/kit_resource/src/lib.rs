@@ -64,6 +64,20 @@ impl Default for PhysicsSection {
     }
 }
 
+/// Controls access to Rex in the editor.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct RexSection {
+    pub enabled: bool,
+    pub friendly: bool,
+}
+
+impl Default for RexSection {
+    fn default() -> Self {
+        Self { enabled: true, friendly: true }
+    }
+}
+
 /// Contents of `kit.project`.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
@@ -71,6 +85,7 @@ pub struct ProjectConfig {
     pub project: ProjectSection,
     pub display: DisplaySection,
     pub physics: PhysicsSection,
+    pub rex: RexSection,
 }
 
 impl ProjectConfig {
@@ -196,10 +211,20 @@ impl Resources {
 
     /// All files under the project with the given extension (project-relative, sorted).
     pub fn list(&self, ext: &str) -> Vec<String> {
+        self.list_matching(Some(ext))
+    }
+
+    /// Files available in the project, excluding hidden files and nested projects.
+    pub fn list_all(&self) -> Vec<String> {
+        self.list_matching(None)
+    }
+
+    fn list_matching(&self, ext: Option<&str>) -> Vec<String> {
+        let matches = |path: &Path| ext.is_none_or(|ext| path.extension().is_some_and(|value| value.eq_ignore_ascii_case(ext)));
         if let Some(files) = &self.memory {
             let mut out: Vec<String> = files
                 .keys()
-                .filter(|k| Path::new(k).extension().is_some_and(|x| x.eq_ignore_ascii_case(ext)))
+                .filter(|k| matches(Path::new(k)))
                 .cloned()
                 .collect();
             out.sort();
@@ -215,13 +240,14 @@ impl Resources {
                 if name.starts_with('.') || name == "target" || name == "build" {
                     continue;
                 }
-                if p.is_dir() {
+                let Ok(kind) = e.file_type() else { continue };
+                if kind.is_dir() {
                     // A folder with its own project file is another game (an
                     // export, or a nested project), not this project's assets.
                     if !p.join(PROJECT_FILE).is_file() {
                         stack.push(p);
                     }
-                } else if p.extension().is_some_and(|x| x.eq_ignore_ascii_case(ext)) {
+                } else if kind.is_file() && matches(&p) {
                     if let Some(r) = self.relative(&p) {
                         out.push(r);
                     }

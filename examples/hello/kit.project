@@ -17,3 +17,7 @@ gravity = [
     0.0,
 ]
 rate = 60
+
+[rex]
+enabled = true
+friendly = true

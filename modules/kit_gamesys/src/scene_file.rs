@@ -1,7 +1,8 @@
 //! `.kscene` files: a JSON list of entities with their components.
 
 use crate::{
-    AudioSource, Camera, Collider, Diagram, Light, Model, PathFollow, PostVolume, RigidBody, Script, Sprite, Terrain,
+    AudioSource, Camera, Collider, Diagram, InterfaceAttachment, Light, Model, PathFollow, PostVolume, RigidBody, Script,
+    Sprite, Terrain,
 };
 use anyhow::{Context, Result, bail};
 use kit_ecs::{Entity, World};
@@ -24,6 +25,8 @@ pub struct EntityData {
     pub transform: Transform,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub camera: Option<Camera>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interface: Option<InterfaceAttachment>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<Model>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -94,6 +97,7 @@ fn entity_data(world: &World, e: Entity, id: u32, parent: Option<u32>) -> Entity
         parent,
         transform: world.get_cloned::<Transform>(e).unwrap_or_default(),
         camera: world.get_cloned::<Camera>(e),
+        interface: world.get_cloned::<InterfaceAttachment>(e),
         model: world.get_cloned::<Model>(e),
         sprite: world.get_cloned::<Sprite>(e),
         light: world.get_cloned::<Light>(e),
@@ -145,6 +149,9 @@ pub fn load_scene(world: &mut World, scene: &SceneFile) -> Result<Vec<Entity>> {
         }
         if let Some(c) = d.camera {
             world.insert(e, c);
+        }
+        if let Some(i) = &d.interface {
+            world.insert(e, i.clone());
         }
         if let Some(m) = &d.model {
             world.insert(e, m.clone());
@@ -245,6 +252,7 @@ mod tests {
         let mut w = World::new();
         let cam = kit_scene::spawn_node(&mut w, "Camera", Transform::from_xyz(0.0, 2.0, 8.0));
         w.insert(cam, Camera::perspective());
+        w.insert(cam, InterfaceAttachment { asset: "interfaces/pause-menu.xui".into() });
         let root = kit_scene::spawn_node(&mut w, "Root", Transform::IDENTITY);
         let child = kit_scene::spawn_node(&mut w, "Child", Transform::from_xyz(1.0, 0.0, 0.0));
         w.insert(child, Model { mesh: MeshKind::Sphere, ..Default::default() });
@@ -266,6 +274,11 @@ mod tests {
         assert_eq!(save_scene(&w2), file);
         let c = kit_scene::find_by_name(&w2, "Child").unwrap();
         assert_eq!(w2.get::<Model>(c).unwrap().mesh, MeshKind::Sphere);
+        let loaded_cam = kit_scene::find_by_name(&w2, "Camera").unwrap();
+        assert_eq!(
+            w2.get::<InterfaceAttachment>(loaded_cam).unwrap().asset,
+            "interfaces/pause-menu.xui"
+        );
         let g = w2.get::<kit_scene::GlobalTransform>(c).unwrap().translation();
         assert!((g - Vec3::new(1.0, 0.0, 0.0)).length() < 1e-5);
     }

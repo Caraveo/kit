@@ -30,6 +30,7 @@ kit_circuit.workspace = true
 semver = "1"
 webbrowser = "1"
 image.workspace = true
+ab_glyph = "0.2"
 tempfile = "3"
 
 [target.'cfg(windows)'.build-dependencies]

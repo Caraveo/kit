@@ -413,6 +413,11 @@ pub fn show(ui: &mut Ui, ed: &mut Editor, view: &mut DiagramView) {
 
 impl DiagramView {
     #[cfg(test)]
+    pub fn canvas_zoom(&self) -> Option<f32> {
+        self.to_global.map(|transform| transform.scaling)
+    }
+
+    #[cfg(test)]
     pub fn pinned(&self) -> Option<&str> {
         self.pinned.as_deref()
     }
@@ -546,6 +551,22 @@ fn canvas(
         let size = painter_rect.size();
         if r.width() <= size.x && r.height() <= size.y { Rect::from_min_size(r.min, size) } else { r }
     });
+    let zoom_range = egui::Rangef::new(0.2, 1.6);
+    let scene_layer = egui::LayerId::new(ui.layer_id().order, ui.id().with("scene_area"));
+    let wheel = ui.ctx().pointer_hover_pos()
+        .filter(|&pointer| painter_rect.contains(pointer) && ui.clip_rect().contains(pointer))
+        .filter(|&pointer| ui.ctx().layer_id_at(pointer).is_none_or(|layer| layer == ui.layer_id() || layer == scene_layer))
+        .and_then(|pointer| {
+            let scroll = ui.input_mut(|input| std::mem::take(&mut input.smooth_scroll_delta)).y;
+            (scroll != 0.0).then_some((pointer, scroll))
+        });
+    if let Some((pointer, scroll)) = wheel {
+        let old_zoom = zoom_range.clamp((painter_rect.size() / scene_rect.size()).min_elem());
+        let new_zoom = zoom_range.clamp(old_zoom * (scroll * 0.006).exp());
+        let offset = pointer - painter_rect.center();
+        let anchor = scene_rect.center() + offset / old_zoom;
+        scene_rect = Rect::from_center_size(anchor - offset / new_zoom, painter_rect.size() / new_zoom);
+    }
     let sigs: HashMap<NodeId, Vec<Row>> =
         view.graph.nodes.iter().map(|n| (n.id, rows(&n.kind.signature_in(gd, &view.graph)))).collect();
     let pin_at = |pin: &PinRef, output: bool, graph: &Graph| -> Option<Pos2> {
@@ -575,7 +596,7 @@ fn canvas(
     pan.set(egui::DragPanButtons::MIDDLE, g.diagram_pan_middle);
     pan.set(egui::DragPanButtons::SECONDARY, g.diagram_pan_right);
     let picker_button = g.diagram_picker.egui();
-    let resp = egui::Scene::new().zoom_range(0.2..=1.6).drag_pan_buttons(pan).show(ui, &mut scene_rect, |ui| {
+    let resp = egui::Scene::new().zoom_range(zoom_range).drag_pan_buttons(pan).show(ui, &mut scene_rect, |ui| {
         let to_scene = ui.ctx().layer_transform_from_global(ui.layer_id()).unwrap_or_default();
         view.to_global = ui.ctx().layer_transform_to_global(ui.layer_id());
         let pointer = ui.ctx().pointer_latest_pos().map(|p| to_scene * p);

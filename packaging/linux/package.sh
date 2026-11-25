@@ -10,6 +10,10 @@ case "${TARGET:-$(uname -m)}" in
   *aarch64*|arm64) ARCH=arm64; TAR_ARCH=aarch64 ;;
   *) ARCH=amd64; TAR_ARCH=x86_64 ;;
 esac
+FFMPEG_TARGET="${TARGET:-$TAR_ARCH-unknown-linux-gnu}"
+FFMPEG_DIR="target/ffmpeg/$FFMPEG_TARGET"
+packaging/ffmpeg/build.sh "$FFMPEG_TARGET" "$FFMPEG_DIR"
+
 DIST=dist
 mkdir -p "$DIST"
 
@@ -19,6 +23,8 @@ STAGE="$DIST/$NAME"
 rm -rf "$STAGE"
 mkdir -p "$STAGE/examples"
 install -m755 "$BIN_DIR/kit-editor" "$BIN_DIR/kit-player" "$STAGE/"
+mkdir -p "$STAGE/ffmpeg"
+cp -R "$FFMPEG_DIR/." "$STAGE/ffmpeg/"
 WEB_PLAYER=target/wasm32-unknown-unknown/release/kit_web.wasm
 install -Dm644 "$WEB_PLAYER" "$STAGE/players/web/kit_web.wasm"
 # Players for other systems built alongside (dist/players/<os>/).
@@ -37,6 +43,8 @@ PKG="$DIST/deb"
 rm -rf "$PKG"
 mkdir -p "$PKG/DEBIAN" "$PKG/usr/bin" "$PKG/usr/share/kit/examples" "$PKG/usr/share/applications" "$PKG/usr/share/doc/kit"
 install -m755 "$BIN_DIR/kit-editor" "$BIN_DIR/kit-player" "$PKG/usr/bin/"
+mkdir -p "$PKG/usr/lib/kit/ffmpeg"
+cp -R "$FFMPEG_DIR/." "$PKG/usr/lib/kit/ffmpeg/"
 install -Dm644 "$WEB_PLAYER" "$PKG/usr/share/kit/players/web/kit_web.wasm"
 [ -d "$DIST/players" ] && cp -r "$DIST/players/." "$PKG/usr/share/kit/players/"
 cp -r examples/hello "$PKG/usr/share/kit/examples/"

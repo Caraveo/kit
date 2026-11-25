@@ -653,6 +653,47 @@ dialog::backdrop {
     grid-template-columns: 1fr;
   }
 }
+.mp-steps {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 18px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+.mp-steps li {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #20182a;
+  padding: 18px clamp(16px, 2.5vw, 24px) 20px;
+  min-width: 0;
+}
+.mp-steps b:first-child {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  font-size: 14px;
+}
+.mp-steps h3 {
+  margin: 10px 0 0;
+  font-size: 19px;
+}
+.mp-steps p,
+.mp-cards code {
+  color: var(--muted);
+  line-height: 1.55;
+}
+.mp-steps p {
+  margin-top: 6px;
+}
+@media (max-width: 700px) {
+  .mp-steps {
+    grid-template-columns: 1fr;
+  }
+}
 .finish {
   display: flex;
   align-items: center;

@@ -1,0 +1,22 @@
+[package]
+name = "kit_xui"
+description = "Kit module: reusable HTML-like interfaces with camera attachments and X actions."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+epaint.workspace = true
+bytemuck.workspace = true
+image.workspace = true
+log.workspace = true
+kit_input.workspace = true
+kit_script.workspace = true
+kit_core.workspace = true
+kit_ecs.workspace = true
+kit_gamesys.workspace = true
+kit_resource.workspace = true
+kit_scene.workspace = true
+serde.workspace = true
+serde_json.workspace = true

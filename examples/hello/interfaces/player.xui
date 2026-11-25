@@ -1,0 +1,47 @@
+<interface>
+  <panel id="faction-screen" style="position: absolute; x: 0; y: 0; width: 100%; height: 100%; background: #070b12e8;" x="0.0" y="0.0">
+    <image id="hero" src="sprites/faction-hero.png" style="position: absolute; x: 0; y: 0; width: 50%; height: 100%; opacity: 0.95;" width="714.5" height="1004.0" />
+    <panel id="hero-shade" style="position: absolute; x: 0; y: 0; width: 52%; height: 100%; background: #03060955; border-radius: 0;" x="-122.0" y="5.5" />
+    <panel id="hero-copy" style="position: absolute; x: 4%; y: 70%; width: 40%; height: 22%; padding: 1em; background: #05080dcc; border: 1px solid #ffffff22; border-radius: 4px; box-shadow: 0 10px 24px #00000088;">
+      <label id="faction-kicker" text="THE CRUCIBLE" style="color: #e5e1dc; font-size: 0.9em;" />
+      <label id="faction-name" text="LORD SHAXX" style="color: #ffffff; font-size: 2.2em;" />
+      <label id="faction-copy" text="The arena is where Guardians forge their Light." style="color: #d7d2ca; font-size: 0.9em;" />
+    </panel>
+    <panel id="faction-panel" style="position: absolute; x: 50%; y: 0; width: 50%; height: 100%; padding: 2em; background: #4b0d17d9; border: 1px solid #d9a7a733; border-radius: 0; box-shadow: -18px 0 40px #00000066;" x="715.0" y="-3.0" width="1148.0" height="1031.0" border-radius="0.0px">
+      <row id="header" style="display: flex; flex-direction: row; gap: 1em; height: 5em; padding: 0.5em;">
+        <image id="faction-icon" src="sprites/faction-icon.png" style="width: 4em; height: 4em; border-radius: 8px;" />
+        <label id="reputation" text="REPUTATION" style="width: 14em; color: #e9d8d1; font-size: 0.95em;" />
+        <label id="tokens" text="825   0   0" style="width: 12em; color: #fff1e9; font-size: 1em;" />
+      </row>
+      <panel id="reward" style="width: 100%; height: 16em; margin: 1em 0; padding: 1.4em; background: #220d13aa; border: 1px solid #e8c9bd55; border-radius: 10px; box-shadow: 0 8px 24px #00000055;" border-radius="0.0px">
+        <row id="reward-body" style="display: flex; flex-direction: row; gap: 1.5em; padding: 0.5em;" x="0.0" y="0.5" width="828.8" height="117.0">
+          <image id="reward-icon" src="sprites/reward-icon.png" style="width: 8em; height: 8em; border-radius: 50%; opacity: 0.9;" width="129.5" height="112.5" x="-1.5" y="3.0" />
+          <panel id="reward-copy" style="width: 70%; height: 11em; padding: 0.5em; background: #00000000; border-radius: 0;">
+            <label id="reward-title" text="FACTION REWARD" style="color: #fff8f2; font-size: 1.4em;" />
+            <label id="reward-description" text="Complete matches and challenges to earn faction tokens and unlock new rewards." style="color: #e5d7d1; font-size: 0.95em;" />
+          </panel>
+        </row>
+      </panel>
+      <label id="bounties-title" text="▸ AVAILABLE BOUNTIES" style="width: 100%; height: 2em; color: #eee2dc; font-size: 0.95em; border-radius: 2px;" />
+      <row id="bounties" style="display: flex; flex-direction: row; gap: 0.7em; width: 100%; height: 8em; padding: 0.5em;">
+        <image id="bounty-1" src="sprites/bounty-01.png" style="width: 6em; height: 6em; border: 2px solid #eadbd2; border-radius: 3px;" />
+        <image id="bounty-2" src="sprites/bounty-02.png" style="width: 6em; height: 6em; border: 2px solid #eadbd2; border-radius: 3px;" />
+        <image id="bounty-3" src="sprites/bounty-03.png" style="width: 6em; height: 6em; border: 2px solid #eadbd2; border-radius: 3px;" />
+        <image id="bounty-4" src="sprites/bounty-04.png" style="width: 6em; height: 6em; border: 2px solid #eadbd2; border-radius: 3px;" />
+        <image id="bounty-5" src="sprites/bounty-05.png" style="width: 6em; height: 6em; border: 2px solid #eadbd2; border-radius: 3px;" />
+      </row>
+      <label id="pursuits-title" text="▸ PURSUITS" style="width: 100%; height: 2em; color: #eee2dc; font-size: 0.95em;" />
+      <row id="pursuits" style="display: flex; flex-direction: row; gap: 0.7em; width: 100%; height: 8em; padding: 0.5em;">
+        <image id="pursuit-1" src="sprites/pursuit-01.png" style="width: 6em; height: 6em; border: 2px solid #d3b9c9; border-radius: 3px;" />
+        <image id="pursuit-2" src="sprites/pursuit-02.png" style="width: 6em; height: 6em; border: 2px solid #d3b9c9; border-radius: 3px;" />
+        <image id="pursuit-3" src="sprites/pursuit-03.png" style="width: 6em; height: 6em; border: 2px solid #d3b9c9; border-radius: 3px;" />
+        <image id="pursuit-4" src="sprites/pursuit-04.png" style="width: 6em; height: 6em; border: 2px solid #d3b9c9; border-radius: 3px;" />
+        <image id="pursuit-5" src="sprites/pursuit-05.png" style="width: 6em; height: 6em; border: 2px solid #d3b9c9; border-radius: 3px;" />
+      </row>
+      <row id="footer" style="display: flex; flex-direction: row; gap: 1em; height: 3em; padding: 0.5em;">
+        <button id="open-character" text="F1  OPEN CHARACTER" style="width: 14em; height: 2em; background: #00000000; hover-background: #ffffff18; color: #f5eee9; border: 1px solid #ffffff33; border-radius: 4px;" />
+        <button id="dismiss" text="ESC  DISMISS" script="Resume.x" style="width: 12em; height: 2em; background: #00000000; hover-background: #ffffff18; color: #f5eee9; border: 1px solid #ffffff33; border-radius: 4px;" />
+      </row>
+    </panel>
+  </panel>
+</interface>

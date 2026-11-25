@@ -18,11 +18,18 @@ if ! lipo "$MOLTENVK" -verify_arch "$ARCH"; then
   exit 1
 fi
 
+FFMPEG_TARGET="${TARGET:-$(rustc -vV | sed -n "s/^host: //p")}"
+FFMPEG_DIR="target/ffmpeg/$FFMPEG_TARGET"
+packaging/ffmpeg/build.sh "$FFMPEG_TARGET" "$FFMPEG_DIR"
+
 DIST=dist
 APP="$DIST/Kit.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/examples" "$APP/Contents/Frameworks"
 install -m755 "$BIN_DIR/kit-editor" "$BIN_DIR/kit-player" "$APP/Contents/MacOS/"
+install -m755 "$FFMPEG_DIR/ffmpeg" "$APP/Contents/MacOS/ffmpeg"
+mkdir -p "$APP/Contents/Resources/ffmpeg"
+install -m644 "$FFMPEG_DIR"/*.tar.xz "$FFMPEG_DIR/COPYING.LGPLv2.1" "$FFMPEG_DIR/LICENSE.md" "$FFMPEG_DIR/build.sh" "$APP/Contents/Resources/ffmpeg/"
 cp "$MOLTENVK" "$APP/Contents/Frameworks/libMoltenVK.dylib"
 cp -r examples/hello "$APP/Contents/Resources/examples/"
 rm -rf "$APP"/Contents/Resources/examples/*/export   # games exported from the example

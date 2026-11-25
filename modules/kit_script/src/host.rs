@@ -190,6 +190,12 @@ impl Host for EntityHost<'_> {
                     "Elapsed" => Ok(Value::Float(t.elapsed)),
                     "Frame" => Ok(Value::Int(t.frame as i64)),
                     "Scale" => Ok(Value::Float(t.scale as f64)),
+                    "SetScale" => {
+                        let scale = args.first().and_then(Value::as_f64).ok_or("SetScale(scale) expects a number")?;
+                        drop(t);
+                        w.resource_mut::<Time>().scale = scale as f32;
+                        Ok(Value::Null)
+                    }
                     _ => Err(format!("unknown member `{member}`")),
                 }
             }

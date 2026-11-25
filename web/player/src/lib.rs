@@ -89,6 +89,7 @@ impl WebPlayer {
             .add_module(kit_input::InputModule)
             .add_module(kit_gamesys::GameSysModule)
             .add_module(kit_script::ScriptModule)
+            .add_module(kit_xui::XuiModule)
             .add_module(kit_path::PathModule)
             .add_module(kit_gamedata::GameDataModule)
             .add_module(kit_diagram::DiagramModule)

@@ -54,6 +54,7 @@ pub struct RexPanel {
     me: Option<kit_rex::Me>,
     note: Option<String>,
     faces: HashMap<String, egui::TextureHandle>,
+    friendly: bool,
     pub include_context: bool,
     focus_input: bool,
     connected: bool,
@@ -65,6 +66,32 @@ pub struct RexPanel {
 
 /// The input's placeholder.
 pub const INPUT_HINT: &str = "Talk to Rex to help you Code + Create your Game!";
+
+fn mode_label(mode: &ModeInfo, friendly: bool) -> &str {
+    if friendly { return &mode.name; }
+    match mode.id.as_str() {
+        "buddy" => "General",
+        "fetch" => "Scripting",
+        "sniff" => "Debugging",
+        "dig" => "Diagrams",
+        "zoomies" => "Game Design",
+        "sit" => "Learning",
+        _ => "Editor Help",
+    }
+}
+
+fn plain_rex_text(text: &str) -> String {
+    text.chars().filter(|ch| !matches!(ch,
+        '\u{1F000}'..='\u{1FAFF}' | '\u{2600}'..='\u{27BF}' |
+        '\u{FE0E}' | '\u{FE0F}' | '\u{200D}' | '\u{20E3}' |
+        '\u{E0020}'..='\u{E007F}'
+    )).collect()
+}
+
+fn rex_text(text: &str, friendly: bool) -> String {
+    if friendly { crate::markdown::displayable(text) } else { plain_rex_text(text) }
+}
+
 
 impl Default for RexPanel {
     fn default() -> Self {
@@ -81,6 +108,7 @@ impl Default for RexPanel {
             me: None,
             note: None,
             faces: HashMap::new(),
+            friendly: true,
             include_context: true,
             focus_input: false,
             connected: false,
@@ -235,7 +263,13 @@ impl RexPanel {
             return;
         }
         self.input.clear();
-        let context = self.include_context.then(|| project_context(ed)).flatten();
+        let mut context = self.include_context.then(|| project_context(ed)).flatten();
+        if !ed.rex_friendly() {
+            let preference = "Response style preference: use concise, professional editor language. Avoid puppy roleplay, references to treats, and emoji.";
+            let current = context.get_or_insert_with(String::new);
+            if !current.is_empty() { current.push_str("\n\n"); }
+            current.push_str(preference);
+        }
         let chat = self.chat();
         chat.push(Line { role: Role::User, text, error: None, credits: None });
         let messages: Vec<Message> = chat
@@ -318,6 +352,8 @@ fn pill(ui: &mut Ui, text: &str, color: Color32) {
 
 /// Draw the panel.
 pub fn show(ui: &mut Ui, ed: &mut Editor, rex: &mut RexPanel) {
+    rex.friendly = ed.rex_friendly();
+    if !rex.friendly { rex.faces.clear(); }
     rex.ensure_started();
     rex.handle_updates();
     if rex.busy || matches!(rex.auth, Auth::Pending { .. }) {
@@ -335,15 +371,17 @@ pub fn show(ui: &mut Ui, ed: &mut Editor, rex: &mut RexPanel) {
         // ---- Left: Rex himself.
         ui.allocate_ui_with_layout(vec2(150.0, height), Layout::top_down(Align::Center), |ui| {
             ui.set_max_height(height);
-            let mood = if rex.busy { mode.mood.as_str() } else if matches!(rex.auth, Auth::SignedIn) { mode.mood.as_str() } else { "happy" };
-            let tex = rex.face(&ctx, mood);
-            // A little bounce while he's answering.
-            let bob = if rex.busy { ((t * 6.0).sin() * 4.0) as f32 } else { ((t * 1.5).sin() * 1.5) as f32 };
-            ui.add_space(4.0 + bob.max(0.0));
-            ui.add(egui::Image::new(&tex).fit_to_exact_size(vec2(96.0, 96.0)));
-            ui.add_space(4.0 - bob.min(0.0).abs().min(4.0));
-            ui.label(RichText::new("Rex").size(16.0).strong());
-            ui.label(RichText::new(if rex.busy { "thinking…" } else { mode.name.as_str() }).size(11.0).color(MUTED()));
+            if rex.friendly {
+                let mood = if rex.busy { mode.mood.as_str() } else if matches!(rex.auth, Auth::SignedIn) { mode.mood.as_str() } else { "happy" };
+                let tex = rex.face(&ctx, mood);
+                // A little bounce while he's answering.
+                let bob = if rex.busy { ((t * 6.0).sin() * 4.0) as f32 } else { ((t * 1.5).sin() * 1.5) as f32 };
+                ui.add_space(4.0 + bob.max(0.0));
+                ui.add(egui::Image::new(&tex).fit_to_exact_size(vec2(96.0, 96.0)));
+                ui.add_space(4.0 - bob.min(0.0).abs().min(4.0));
+            }
+            ui.label(RichText::new(ed.rex_label()).size(16.0).strong());
+            ui.label(RichText::new(if rex.busy { "Working…" } else { mode_label(&mode, rex.friendly) }).size(11.0).color(MUTED()));
             ui.add_space(6.0);
             if let Some(me) = &rex.me {
                 pill(ui, &format!("{} credits", me.balance.total), ACCENT());
@@ -402,7 +440,7 @@ fn input_row(ui: &mut Ui, rex: &mut RexPanel, send_label: &str) -> bool {
     ui.horizontal(|ui| {
         let w = ui.available_width() - 110.0;
         let edit = egui::TextEdit::multiline(&mut rex.input)
-            .hint_text(RichText::new(INPUT_HINT).color(MUTED()))
+            .hint_text(RichText::new(if rex.friendly { INPUT_HINT } else { "Ask about your project" }).color(MUTED()))
             .desired_rows(2)
             .desired_width(w)
             .margin(Margin::symmetric(10, 8))
@@ -421,14 +459,14 @@ fn input_row(ui: &mut Ui, rex: &mut RexPanel, send_label: &str) -> bool {
         }
         ui.vertical(|ui| {
             if rex.busy {
-                if ui.button("■ Stop").clicked() {
+                if ui.button("Stop").clicked() {
                     rex.cancel.store(true, Ordering::Relaxed);
                 }
             } else if (crate::widgets::primary(ui, send_label, None).clicked() || enter) && !rex.input.trim().is_empty() {
                 send = true;
             }
             ui.checkbox(&mut rex.include_context, RichText::new("Share scene").size(10.5))
-                .on_hover_text("Send Rex a summary of your scene, the selected object's script and recent console errors");
+                .on_hover_text("Include the active scene, selected object’s script, and recent console errors");
         });
     });
     send
@@ -436,9 +474,13 @@ fn input_row(ui: &mut Ui, rex: &mut RexPanel, send_label: &str) -> bool {
 
 fn signed_out(ui: &mut Ui, _ed: &mut Editor, rex: &mut RexPanel) {
     ui.add_space(10.0);
-    ui.label(RichText::new("Meet Rex, your game-making puppy 🐾").size(17.0).strong());
+    ui.label(RichText::new(if rex.friendly { "Meet Rex, your game-making puppy 🐾" } else { "Kit Editor Assistant" }).size(17.0).strong());
     ui.label(
-        RichText::new("He writes x scripts, builds Diagrams, sniffs out bugs, brainstorms ideas and teaches. Sign in with your Kit account (free to start).")
+        RichText::new(if rex.friendly {
+            "He writes x scripts, builds Diagrams, sniffs out bugs, brainstorms ideas and teaches. Sign in with your Kit account (free to start)."
+        } else {
+            "Sign in with your Kit account for help with scripts, diagrams, debugging, and game design."
+        })
             .color(MUTED()),
     );
     ui.add_space(8.0);
@@ -454,11 +496,13 @@ fn signed_out(ui: &mut Ui, _ed: &mut Editor, rex: &mut RexPanel) {
         }
     });
     if let Some(n) = &rex.note {
-        ui.label(RichText::new(n).size(11.5).color(WARN()));
+        ui.label(RichText::new(rex_text(n, rex.friendly)).size(11.5).color(WARN()));
     }
     ui.add_space(10.0);
     mode_chips(ui, rex);
-    ui.label(RichText::new(crate::markdown::displayable(&rex.current_mode().tagline)).size(11.5).color(MUTED()));
+    if rex.friendly {
+        ui.label(RichText::new(crate::markdown::displayable(&rex.current_mode().tagline)).size(11.5).color(MUTED()));
+    }
     ui.add_space((ui.available_height() - 72.0).max(4.0));
     // Typing first works too: sign in, then the message goes out.
     if input_row(ui, rex, "Send") {
@@ -476,16 +520,16 @@ fn mode_chips(ui: &mut Ui, rex: &mut RexPanel) {
     ui.horizontal_wrapped(|ui| {
         for m in rex.modes.clone() {
             let on = m.id == rex.mode;
-            let tex = rex.face(&ctx, &m.mood);
+            let tex = rex.friendly.then(|| rex.face(&ctx, &m.mood));
             let fill = if on { ACCENT().gamma_multiply(0.22) } else { Color32::TRANSPARENT };
             let stroke = if on { Stroke::new(1.5, ACCENT()) } else { Stroke::new(1.0, CARD_BORDER()) };
             let r = Frame::new().fill(fill).stroke(stroke).corner_radius(CornerRadius::same(14)).inner_margin(Margin { left: 4, right: 10, top: 2, bottom: 2 }).show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.add(egui::Image::new(&tex).fit_to_exact_size(vec2(22.0, 22.0)));
-                    ui.label(RichText::new(&m.name).size(12.5).color(if on { TEXT_STRONG() } else { LABEL() }));
+                    if let Some(tex) = &tex { ui.add(egui::Image::new(tex).fit_to_exact_size(vec2(22.0, 22.0))); }
+                    ui.label(RichText::new(mode_label(&m, rex.friendly)).size(12.5).color(if on { TEXT_STRONG() } else { LABEL() }));
                 });
             });
-            let r = ui.interact(r.response.rect, ui.id().with(("rex_mode", &m.id)), Sense::click()).on_hover_text(crate::markdown::displayable(&m.tagline));
+            let r = ui.interact(r.response.rect, ui.id().with(("rex_mode", &m.id)), Sense::click()).on_hover_text(if rex.friendly { crate::markdown::displayable(&m.tagline) } else { mode_label(&m, false).into() });
             if r.clicked() && !rex.busy {
                 rex.mode = m.id.clone();
             }
@@ -497,19 +541,20 @@ fn signed_in(ui: &mut Ui, ed: &mut Editor, rex: &mut RexPanel, mode: &ModeInfo) 
     mode_chips(ui, rex);
     ui.add_space(4.0);
 
-    let dig_face = rex.face(ui.ctx(), "dig");
-    let avatar = rex.face(ui.ctx(), &mode.mood);
+    let dig_face = rex.friendly.then(|| rex.face(ui.ctx(), "dig"));
+    let avatar = rex.friendly.then(|| rex.face(ui.ctx(), &mode.mood));
     // Input row (bottom), conversation above it.
     let input_h = 78.0;
     let chat_h = (ui.available_height() - input_h).max(60.0);
     egui::ScrollArea::vertical().id_salt(("rex_chat", &rex.mode)).max_height(chat_h).auto_shrink([false, false]).stick_to_bottom(true).show(ui, |ui| {
         let lines = rex.chats.get(&rex.mode).cloned().unwrap_or_default();
         if lines.is_empty() {
-            bubble(ui, false, Some(&avatar), |ui| {
-                crate::markdown::show(ui, &mode.greeting);
+            bubble(ui, false, avatar.as_ref(), |ui| {
+                crate::markdown::show(ui, if rex.friendly { &mode.greeting } else { "Describe what you want to build or fix." });
             });
             ui.horizontal_wrapped(|ui| {
                 for ex in &mode.examples {
+                    let ex = rex_text(ex, rex.friendly);
                     if ui.button(RichText::new(format!("“{ex}”")).size(11.5)).clicked() {
                         rex.input = ex.clone();
                         rex.focus_input = true;
@@ -520,12 +565,12 @@ fn signed_in(ui: &mut Ui, ed: &mut Editor, rex: &mut RexPanel, mode: &ModeInfo) 
         let last = lines.len().saturating_sub(1);
         for (i, line) in lines.iter().enumerate() {
             let mine = line.role == Role::User;
-            bubble(ui, mine, Some(&avatar), |ui| {
+            bubble(ui, mine, avatar.as_ref(), |ui| {
                 if let Some((code, msg)) = &line.error {
-                    ui.label(RichText::new(crate::markdown::displayable(msg)).color(ERROR()));
+                    ui.label(RichText::new(rex_text(msg, rex.friendly)).color(ERROR()));
                     if code == "out_of_credits" {
                         if let Some(me) = &rex.me {
-                            if ui.button("Get more treats (credits)").clicked() {
+                            if ui.button(if rex.friendly { "Get more treats (credits)" } else { "Get more credits" }).clicked() {
                                 let _ = webbrowser::open(&me.links.pricing);
                             }
                         }
@@ -535,10 +580,10 @@ fn signed_in(ui: &mut Ui, ed: &mut Editor, rex: &mut RexPanel, mode: &ModeInfo) 
                 } else if line.text.is_empty() && rex.busy && i == last {
                     ui.horizontal(|ui| {
                         ui.spinner();
-                        ui.label(RichText::new("Rex is thinking…").color(MUTED()));
+                        ui.label(RichText::new(if rex.friendly { "Rex is thinking…" } else { "Generating response…" }).color(MUTED()));
                     });
                 } else {
-                    reply(ui, ed, &line.text, rex.busy && i == last, &dig_face);
+                    reply(ui, ed, &line.text, rex.busy && i == last, dig_face.as_ref());
                     if let Some(c) = line.credits.filter(|c| *c > 0) {
                         ui.label(RichText::new(format!("{c} credit{}", if c == 1 { "" } else { "s" })).size(10.0).color(MUTED()));
                     }
@@ -560,7 +605,7 @@ fn signed_in(ui: &mut Ui, ed: &mut Editor, rex: &mut RexPanel, mode: &ModeInfo) 
         rex.send(ed);
     }
     if let Some(n) = &rex.note {
-        ui.label(RichText::new(n).size(11.0).color(WARN()));
+        ui.label(RichText::new(rex_text(n, rex.friendly)).size(11.0).color(WARN()));
     }
 }
 
@@ -591,11 +636,11 @@ fn bubble(ui: &mut Ui, mine: bool, avatar: Option<&egui::TextureHandle>, add: im
 }
 
 /// Rex's reply: text, plus code blocks with checks and one-click actions.
-fn reply(ui: &mut Ui, ed: &mut Editor, text: &str, streaming: bool, dig_face: &egui::TextureHandle) {
+fn reply(ui: &mut Ui, ed: &mut Editor, text: &str, streaming: bool, dig_face: Option<&egui::TextureHandle>) {
     let gd: kit::gamedata::GameData = ed.world().try_resource::<kit::gamedata::GameData>().map(|g| g.clone()).unwrap_or_default();
     for (i, part) in kit_rex::parts(text).into_iter().enumerate() {
         match part {
-            Part::Text(t) => crate::markdown::show(ui, &t),
+            Part::Text(t) => crate::markdown::show(ui, &rex_text(&t, ed.rex_friendly())),
             Part::Code { kind, lang, code }
                 if kind == SnippetKind::Diagram || (streaming && matches!(lang.as_str(), "kdiagram" | "diagram" | "json")) =>
             {
@@ -664,7 +709,7 @@ fn flow(graph: &kit::diagram::Graph, gd: &kit::gamedata::GameData) -> Vec<String
 }
 
 /// A Diagram from Rex: a summary card with Use / Copy (no JSON on screen).
-fn diagram_card(ui: &mut Ui, ed: &mut Editor, code: &str, gd: &kit::gamedata::GameData, streaming: bool, face: &egui::TextureHandle) {
+fn diagram_card(ui: &mut Ui, ed: &mut Editor, code: &str, gd: &kit::gamedata::GameData, streaming: bool, face: Option<&egui::TextureHandle>) {
     Frame::new()
         .fill(ACCENT().gamma_multiply(0.10))
         .stroke(Stroke::new(1.0, ACCENT().gamma_multiply(0.45)))
@@ -673,12 +718,12 @@ fn diagram_card(ui: &mut Ui, ed: &mut Editor, code: &str, gd: &kit::gamedata::Ga
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
-                ui.add(egui::Image::new(face).fit_to_exact_size(vec2(40.0, 40.0)));
+                if let Some(face) = face { ui.add(egui::Image::new(face).fit_to_exact_size(vec2(40.0, 40.0))); }
                 ui.vertical(|ui| {
                     if streaming {
                         ui.horizontal(|ui| {
                             ui.spinner();
-                            ui.label(RichText::new("Rex is digging up a Diagram…").strong());
+                            ui.label(RichText::new(if face.is_some() { "Rex is digging up a Diagram…" } else { "Generating diagram…" }).strong());
                         });
                         return;
                     }
@@ -696,7 +741,7 @@ fn diagram_card(ui: &mut Ui, ed: &mut Editor, code: &str, gd: &kit::gamedata::Ga
                         }
                         Err(why) => {
                             ui.label(RichText::new("Diagram").strong());
-                            ui.label(RichText::new("Rex's Diagram needs fixing. Ask him to try again.").size(12.0).color(WARN())).on_hover_text(why);
+                            ui.label(RichText::new(if face.is_some() { "Rex's Diagram needs fixing. Ask him to try again." } else { "The generated diagram is invalid. Try again." }).size(12.0).color(WARN())).on_hover_text(why);
                             if ui.small_button("Copy").clicked() {
                                 ui.ctx().copy_text(code.to_owned());
                             }
@@ -740,7 +785,7 @@ fn script_actions(ui: &mut Ui, ed: &mut Editor, code: &str) {
                             ed.app.world.insert(e, kit::gamesys::Script::new(path.clone()));
                         }
                         ed.open_script(&path);
-                        ed.notify(format!("Rex fetched {path} 🐾"));
+                        ed.notify(if ed.rex_friendly() { format!("Rex fetched {path} 🐾") } else { format!("Saved script {path}") });
                     }
                     Err(e) => ed.report(Err(e)),
                 }
@@ -768,7 +813,7 @@ fn diagram_actions(ui: &mut Ui, ed: &mut Editor, code: &str, gd: &kit::gamedata:
                         ed.app.world.insert(e, kit::gamesys::Diagram { graph: path.clone() });
                         ed.refresh_assets(true);
                         ed.settings.diagram = true;
-                        ed.notify(format!("Rex dug up {path} 🐾 (press 7 to see it)"));
+                        ed.notify(if ed.rex_friendly() { format!("Rex dug up {path} 🐾 (press 7 to see it)") } else { format!("Saved diagram {path}") });
                     }
                     Err(err) => ed.report(Err(err)),
                 }
@@ -777,5 +822,19 @@ fn diagram_actions(ui: &mut Ui, ed: &mut Editor, code: &str, gd: &kit::gamedata:
         Err(why) => {
             ui.label(RichText::new("⚠ needs fixing").size(11.0).color(WARN())).on_hover_text(why);
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn plain_mode_keeps_the_mode_id_and_strips_emoji_from_prose() {
+        let mode = kit_rex::builtin_modes().into_iter().find(|mode| mode.id == "sniff").unwrap();
+        assert_eq!(mode_label(&mode, true), "Sniff");
+        assert_eq!(mode_label(&mode, false), "Debugging");
+        assert_eq!(plain_rex_text("Check the café script 🐾✨ — now"), "Check the café script  — now");
     }
 }

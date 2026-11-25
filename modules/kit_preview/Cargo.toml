@@ -1,0 +1,14 @@
+[package]
+name = "kit_preview"
+description = "Read-only asset previews for Kit tools."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+image = { workspace = true, features = ["bmp", "dds", "hdr", "ico", "pnm", "tga", "tiff", "gif", "webp", "qoi"] }
+kit_resource.workspace = true
+kit_render.workspace = true
+resvg = { version = "0.45", default-features = false }
+glam.workspace = true

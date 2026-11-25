@@ -19,6 +19,7 @@ kit_rigg.workspace = true
 kit_graphics.workspace = true
 kit_render.workspace = true
 kit_script.workspace = true
+kit_xui.workspace = true
 kit_collider.workspace = true
 kit_physics.workspace = true
 kit_path.workspace = true

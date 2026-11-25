@@ -4,11 +4,11 @@
 
 **Draw a path. Press play. See where it goes.**
 
-Kit is a free, open-source **2D and 3D game engine** with its own editor. You build scenes, give objects behavior with visual **Diagrams** or the **x** scripting language, press **F5** to play in the same window, and export your game for desktop or the web. **Rex**, the built-in AI companion, can write scripts and Diagrams for you, and **Rigg** lets you pose and animate characters without bones.
+Kit is a free, open-source **2D and 3D game engine** with its own editor. You build scenes, give objects behavior with visual **Diagrams** or the **x** scripting language, press **F5** to play in the same window, and export your game for desktop or the web. **Rex**, the built-in AI companion, can write scripts and Diagrams for you, **Rigg** lets you pose and animate characters without bones, and **Super Multiplayer** puts players in the same world with a checkbox: no servers to write or run.
 
 Kit runs on **Linux, Windows and macOS** and is written in Rust (Vulkan on desktop, WebGPU in the browser). It's MIT-licensed, so you can make and sell games with no royalties.
 
-**[⬇ Download Kit v0.0.4](https://github.com/caraveo/kit/releases/latest)** · [Website](https://kitgameengine.win) · [Docs](documentation/src/content/docs) · [Changelog](CHANGELOG.md) · [Report a problem](https://github.com/caraveo/kit/issues)
+**[⬇ Download Kit v0.0.5](https://github.com/caraveo/kit/releases/latest)** · [Website](https://kitgameengine.win) · [Docs](documentation/src/content/docs) · [Changelog](CHANGELOG.md) · [Report a problem](https://github.com/caraveo/kit/issues)
 
 ![The Kit editor: the object list and assets on the left, a 3D terrain scene in the viewport with the Rover selected, and the inspector on the right](docs/images/editor.webp)
 
@@ -22,6 +22,8 @@ Kit runs on **Linux, Windows and macOS** and is written in Rust (Vulkan on deskt
 - [Your first five minutes](#your-first-five-minutes)
 - [Rex, the AI companion](#rex-the-ai-companion)
 - [Rigg: character animation without bones](#rigg-character-animation-without-bones)
+- [Super Multiplayer](#super-multiplayer)
+- [Circuits: extensions for your project](#circuits-extensions-for-your-project)
 - [Scripting in x](#scripting-in-x)
 - [Export and share your game](#export-and-share-your-game)
 - [Keyboard shortcuts](#keyboard-shortcuts)
@@ -39,7 +41,7 @@ Kit runs on **Linux, Windows and macOS** and is written in Rust (Vulkan on deskt
 | **Draw movement.** Select an object, press **5** for Canvas mode and sketch its path in the viewport. Press play and it follows the path, bumping into colliders and physics objects on the way. | ![Canvas mode: a hint bar explains how to draw the Rover's path over the terrain](docs/images/canvas.webp) |
 | **Add logic without code.** Press **7** for the Diagram view. Wire events (On Start, On Trigger Enter, On Interact, On Timer…) to actions (move, tint, show/hide, play a sound, change gravity…). Diagrams light up live while the game runs. | ![The Diagram view under the viewport: On Trigger Enter wired to Set Tint and Move Over Time for the Ring](docs/images/diagram.webp) |
 | **Write gameplay in x.** A small, readable scripting language with a built-in code editor. `EDIT` fields show up in the inspector so you can tune each object. | ![The built-in Script editor showing FreeCamera.x with its EDIT fields](docs/images/script-editor.webp) |
-| **Play instantly.** **F5** runs the game inside the editor. Click the viewport to give the game your keyboard, and press **Esc** to get it back. | ![Play mode: the game running in the viewport with a hint to click for keyboard input](docs/images/play.webp) |
+| **Play instantly.** **F5** runs the game inside the editor, in the **Game View**. Switch to **Scene View** while it runs to fly around freely. Click the viewport to give the game your keyboard, and press **Esc** to get it back. | ![Play mode: the game running in the viewport with a hint to click for keyboard input](docs/images/play.webp) |
 
 Plus:
 
@@ -73,12 +75,12 @@ Get the file for your computer from the **[latest release](https://github.com/ca
 
 | Your computer | Download | Then |
 |---|---|---|
-| Mac with Apple Silicon (M1–M4) | `kit-0.0.4-macos-arm64.dmg` | Open it and drag **Kit** into **Applications**. |
-| Mac with an Intel chip | `kit-0.0.4-macos-x86_64.dmg` | Same as above. |
-| Windows 10/11 (most PCs) | `kit-0.0.4-windows-x86_64.zip` | Right-click → **Extract All**, then run **kit-editor.exe**. |
-| Windows 11 on ARM | `kit-0.0.4-windows-arm64.zip` | Same as above. |
-| Ubuntu / Debian | `kit_0.0.4_amd64.deb` (or `_arm64.deb`) | `sudo apt install ./kit_0.0.4_amd64.deb`, then open **Kit** from your apps. |
-| Other Linux | `kit-0.0.4-linux-x86_64.tar.gz` (or `-aarch64`) | `tar -xzf kit-0.0.4-linux-x86_64.tar.gz && cd kit-0.0.4-linux-x86_64 && ./kit-editor` |
+| Mac with Apple Silicon (M1–M4) | `kit-0.0.5-macos-arm64.dmg` | Open it and drag **Kit** into **Applications**. |
+| Mac with an Intel chip | `kit-0.0.5-macos-x86_64.dmg` | Same as above. |
+| Windows 10/11 (most PCs) | `kit-0.0.5-windows-x86_64.zip` | Right-click → **Extract All**, then run **kit-editor.exe**. |
+| Windows 11 on ARM | `kit-0.0.5-windows-arm64.zip` | Same as above. |
+| Ubuntu / Debian | `kit_0.0.5_amd64.deb` (or `_arm64.deb`) | `sudo apt install ./kit_0.0.5_amd64.deb`, then open **Kit** from your apps. |
+| Other Linux | `kit-0.0.5-linux-x86_64.tar.gz` (or `-aarch64`) | `tar -xzf kit-0.0.5-linux-x86_64.tar.gz && cd kit-0.0.5-linux-x86_64 && ./kit-editor` |
 
 Not sure which Mac you have? Apple menu → **About This Mac**: "Chip: Apple M…" means Apple Silicon, "Processor: Intel…" means Intel.
 
@@ -153,6 +155,43 @@ Rigg rigs a 3D character with simple shapes (spheres, capsules and boxes) instea
 5. Click **Animation**, create a clip (Idle, Walk…), move the playhead and press **◆ Key**. Set **Play on start** in the inspector to play a clip when the game starts.
 
 Rigs work in every export, including the web. [Rigg guide](documentation/src/content/docs/editor/rigg.md)
+
+---
+
+## Super Multiplayer
+
+The easiest multiplayer in game development: no game server to write, rent or run. Clients render and simulate, and Kit's Realtime service (on Cloudflare) syncs only what other players need to see.
+
+1. **Project → Circuit Manager** → **Multiplayer** → **Install**.
+2. Choose a plan on your Kit account (**Circuits → Multiplayer → Billing**) and create a project there. Copy its environment id and turn on anonymous play in **Settings**.
+3. **Project → Multiplayer…** → paste the environment id.
+4. Select your player → **+ Add component → Circuits → Realtime Sync** → tick **One per player**. Add Realtime Sync without that box to shared objects (a ball, a door). **Save**.
+5. Press **Play**, then **👥 +1 player** to open more game windows. Switch to **Scene View** to watch everyone.
+
+How it works:
+
+- **Worlds, scenes and rooms.** Each game has a world, and every scene is a room (a *sector*). A full room opens a new instance automatically, and parties stay together. `Scene.Load("scenes/level2")` moves the player to that scene's room.
+- **Only what changes travels.** A moving player costs about 22 bytes. Rendering, terrain and physics shapes stay local. Each player gets the nearby players at full rate, distant ones less often, and only the closest 64 in a crowd (up to 300 per room).
+- **Seed + diff worlds.** A world's seed and a world hash that changes with every modification. Latecomers regenerate the world locally and fetch only the changes for the chunks they're near.
+- **Shared state** with revisions (scores, timers, weather, quest flags), presence, and reconnects that keep your objects.
+- **Physics is best effort.** The owner simulates and everyone else follows its transform ([networked-physics.md](circuit/multiplayer/networked-physics.md)).
+- **Players never need accounts.** Games get short-lived connection tokens, anonymously or from your own backend with a backend key.
+
+**Pricing** is a monthly plan measured in **Sync Time**. One sync-hour is one player connected for an hour, including 10 MB of data. Extra data counts too, and a busy room counts as at least 4 players. Plans: Starter $5 (600 sync-hours), Indie $19 (4,000 included, then $0.006 per sync-hour), Studio $99 (20,000 included, then $0.005), and Enterprise (rex@kitgameengine.win). See [login.kitgameengine.win/pricing](https://login.kitgameengine.win/pricing#multiplayer). Multiplayer needs a plan: without one, games can't connect.
+
+Details: [circuit/multiplayer](circuit/multiplayer) (README, [binary protocol](circuit/multiplayer/PROTOCOL.md), [AI NPC notes](circuit/multiplayer/ai-npc.md)).
+
+---
+
+## Circuits: extensions for your project
+
+Circuits are installable extensions that connect Kit to services, such as Multiplayer. They aren't built into the engine: each project chooses its own Circuits and versions.
+
+- **Project → Circuit Manager:** browse, install, update, downgrade, disable and remove. You sign in with your Kit account.
+- **Safe:** downloads are checked (SHA-256, plus publisher signatures when signed) before anything is unpacked. An install never touches your scenes or scripts, and a failed one changes nothing.
+- **Reproducible:** `circuits.lock` records exact versions and checksums, so commit it with your project. Settings live in `circuits.settings.toml`.
+- Circuits can add **components** (under **+ Add component → Circuits**) and their own item in the **Project** menu.
+- **Make your own:** see [circuit/README.md](circuit/README.md) for the `circuit.toml` format, packaging with `kit-circuit`, and publishing.
 
 ---
 
@@ -266,7 +305,8 @@ More detail: [Build from source](documentation/src/content/docs/engine/build-fro
 | `editor/` | The Kit editor (egui) |
 | `player/` | `kit-player`, the standalone game runner |
 | `kit/` | The engine crate games and tools build on |
-| `modules/` | Engine modules: rendering (Vulkan), physics, audio, scripting (x), Diagrams, Rigg, Rex client, and more |
+| `modules/` | Engine modules: rendering (Vulkan), physics, audio, scripting (x), Diagrams, Rigg, Rex client, Circuits, and more |
+| `circuit/` | Circuits: the format and Kit's own (`circuit/multiplayer`: SDK, game runtime, protocol docs) |
 | `web/` | The WebGPU web player (`kit_web.wasm` + `kit.js`) |
 | `examples/hello/` | The Hello Kit example project |
 | `documentation/` | The documentation site (Astro Starlight) |

@@ -3,7 +3,7 @@
 //! renderer must issue them. The Vulkan renderer and the web player
 //! (WebGPU) both consume this, so they draw the same thing.
 
-use crate::meshes::{MeshData, Vertex};
+use crate::meshes::MeshData;
 use crate::model_asset::{self, Material, ModelAsset};
 use crate::{GridPlane, View, is_model_bundle, srgb_to_linear};
 use anyhow::{Context, Result};
@@ -99,25 +99,11 @@ impl ImportedGeometry {
                     let (first, count) = if let Some(&range) = geometry.get(file) {
                         range
                     } else {
-                        let bytes = resources.read_bytes(&model_asset::sibling(path, file))?;
-                        anyhow::ensure!(
-                            !bytes.is_empty() && bytes.len() % (3 * 32) == 0,
-                            "invalid triangle data in {file}"
-                        );
+                        let vertices = model_asset::read_frame_vertices(resources, path, file)?;
                         let first = u32::try_from(data.indices.len())?;
-                        let count = u32::try_from(bytes.len() / 32)?;
+                        let count = u32::try_from(vertices.len())?;
                         let end = first.checked_add(count).context("imported mesh exceeds index limits")?;
-                        for vertex in bytes.chunks_exact(32) {
-                            let values: [f32; 8] = std::array::from_fn(|i| {
-                                f32::from_le_bytes(vertex[i * 4..i * 4 + 4].try_into().unwrap())
-                            });
-                            anyhow::ensure!(values.iter().all(|v| v.is_finite()), "invalid vertex in {file}");
-                            data.vertices.push(Vertex {
-                                pos: [values[0], values[1], values[2]],
-                                normal: [values[3], values[4], values[5]],
-                                uv: [values[6], values[7]],
-                            });
-                        }
+                        data.vertices.extend(vertices);
                         data.indices.extend(first..end);
                         geometry.insert(file, (first, count));
                         (first, count)

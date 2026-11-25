@@ -2,7 +2,7 @@
 
 use anyhow::{Context, Result, bail};
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, mpsc};
 use symphonia::core::audio::SampleBuffer;
 use symphonia::core::codecs::DecoderOptions;
 use symphonia::core::errors::Error as SymError;
@@ -93,10 +93,16 @@ struct Voice {
 
 /// Every voice that's playing, mixed on demand by the audio device (or, on
 /// the web, by the page's Web Audio code).
+struct PreviewStream {
+    receiver: mpsc::Receiver<Vec<f32>>,
+    samples: std::vec::IntoIter<f32>,
+}
+
 pub struct Mixer {
     pub rate: u32,
     voices: HashMap<u64, Voice>,
     finished: Vec<u64>,
+    preview_stream: Option<PreviewStream>,
     /// Master volume.
     pub volume: f32,
 }
@@ -111,12 +117,16 @@ pub fn pan_gains(volume: f32, pan: f32) -> [f32; 2] {
 
 impl Mixer {
     pub fn new(rate: u32) -> Self {
-        Self { rate, voices: HashMap::new(), finished: Vec::new(), volume: 1.0 }
+        Self { rate, voices: HashMap::new(), finished: Vec::new(), preview_stream: None, volume: 1.0 }
     }
 
     pub fn play(&mut self, id: u64, clip: Arc<Clip>, volume: f32, pan: f32, pitch: f32, looping: bool) {
         let g = pan_gains(volume, pan);
         self.voices.insert(id, Voice { clip, pos: 0.0, looping, pitch, target: g, current: g, fresh: true });
+    }
+
+    pub fn set_preview_stream(&mut self, receiver: Option<mpsc::Receiver<Vec<f32>>>) {
+        self.preview_stream = receiver.map(|receiver| PreviewStream { receiver, samples: Vec::new().into_iter() });
     }
 
     /// Change a playing voice (volume/pan ramp over the next buffer).
@@ -135,6 +145,7 @@ impl Mixer {
     pub fn stop_all(&mut self) {
         self.voices.clear();
         self.finished.clear();
+        self.preview_stream = None;
     }
 
     pub fn is_playing(&self, id: u64) -> bool {
@@ -196,6 +207,25 @@ impl Mixer {
         for id in done {
             self.voices.remove(&id);
             self.finished.push(id);
+        }
+        if let Some(stream) = &mut self.preview_stream {
+            for sample in out.iter_mut() {
+                if let Some(value) = stream.samples.next() {
+                    *sample += value * master;
+                    continue;
+                }
+                match stream.receiver.try_recv() {
+                    Ok(samples) => {
+                        stream.samples = samples.into_iter();
+                        *sample += stream.samples.next().unwrap_or(0.0) * master;
+                    }
+                    Err(mpsc::TryRecvError::Empty) => break,
+                    Err(mpsc::TryRecvError::Disconnected) => {
+                        self.preview_stream = None;
+                        break;
+                    }
+                }
+            }
         }
         // Soft clip so many loud sounds don't crackle.
         for s in out.iter_mut() {
@@ -277,5 +307,27 @@ mod tests {
         assert!((l - 1.0).abs() < 1e-4 && (r - 1.0).abs() < 1e-4);
         let [l, r] = pan_gains(0.5, -1.0);
         assert!((l - 0.5).abs() < 1e-4 && r.abs() < 1e-4);
+    }
+}
+
+#[cfg(test)]
+mod preview_stream_tests {
+    use super::*;
+
+    #[test]
+    fn mixes_stereo_preview_chunks_across_output_callbacks() {
+        let mut mixer = Mixer::new(48_000);
+        let (tx, rx) = mpsc::channel();
+        mixer.set_preview_stream(Some(rx));
+        tx.send(vec![0.25, -0.25, 0.5, -0.5]).unwrap();
+        tx.send(vec![0.75, -0.75]).unwrap();
+        drop(tx);
+
+        let mut first = [0.0; 2];
+        mixer.mix(&mut first);
+        assert_eq!(first, [0.25, -0.25]);
+        let mut remaining = [0.0; 6];
+        mixer.mix(&mut remaining);
+        assert_eq!(remaining, [0.5, -0.5, 0.75, -0.75, 0.0, 0.0]);
     }
 }

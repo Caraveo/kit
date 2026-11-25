@@ -103,12 +103,28 @@ impl Audio {
         let clip = self.clip(resources, path)?;
         self.ensure_output();
         let seconds = clip.duration() / pitch.max(0.01);
-        self.mixer.lock().unwrap().play(PREVIEW, clip, volume, 0.0, pitch, false);
+        let mut mixer = self.mixer.lock().unwrap();
+        mixer.set_preview_stream(None);
+        mixer.play(PREVIEW, clip, volume, 0.0, pitch, false);
         Ok(seconds)
     }
 
+    /// Sample rate of the active desktop output, if available.
+    pub fn preview_output_rate(&mut self) -> Option<u32> {
+        self.has_output().then(|| self.mixer.lock().unwrap().rate)
+    }
+
+    /// Play interleaved stereo PCM at the active output sample rate.
+    pub fn preview_stream(&mut self, receiver: std::sync::mpsc::Receiver<Vec<f32>>) {
+        let mut mixer = self.mixer.lock().unwrap();
+        mixer.stop(PREVIEW);
+        mixer.set_preview_stream(Some(receiver));
+    }
+
     pub fn stop_preview(&mut self) {
-        self.mixer.lock().unwrap().stop(PREVIEW);
+        let mut mixer = self.mixer.lock().unwrap();
+        mixer.stop(PREVIEW);
+        mixer.set_preview_stream(None);
     }
 
     pub fn previewing(&self) -> bool {

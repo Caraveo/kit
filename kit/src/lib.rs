@@ -41,6 +41,8 @@ pub use kit_resource as resource;
 pub use kit_scene as scene;
 pub use kit_script as script;
 pub use kit_x as x;
+pub use kit_xui as xui;
+pub use kit_preview as preview;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub use kit_core::{BUILD_ID, BUILD_MARKER};
@@ -56,5 +58,7 @@ pub mod prelude {
         RigidBody, Script, Sprite,
     };
     pub use kit_input::Input;
+    pub use kit_gamesys::InterfaceAttachment;
+    pub use kit_xui::{InterfaceFile, XuiModule};
     pub use kit_scene::{GlobalTransform, Name, Transform, set_parent, spawn_node};
 }

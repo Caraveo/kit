@@ -75,6 +75,11 @@ impl Input {
         (self.down(positive) as i32 - self.down(negative) as i32) as f32
     }
 
+    /// Keys pressed this frame (canonical names).
+    pub fn pressed_keys(&self) -> Vec<String> {
+        self.pressed.iter().cloned().collect()
+    }
+
     pub fn set_mouse(&mut self, pos: Vec2) {
         self.mouse_delta += pos - self.mouse;
         self.mouse = pos;
