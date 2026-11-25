@@ -23,6 +23,8 @@ kit_collider.workspace = true
 kit_physics.workspace = true
 kit_path.workspace = true
 kit_audio.workspace = true
+# The Multiplayer Circuit's runtime: dormant unless a project installs and enables it.
+kit_multiplayer = { path = "../../circuit/multiplayer/runtime" }
 winit.workspace = true
 raw-window-handle.workspace = true
 glam.workspace = true

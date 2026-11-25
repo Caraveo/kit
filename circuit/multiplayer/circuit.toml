@@ -55,6 +55,13 @@ name = "Realtime Sync"
 description = "Share this object with other players. Only what changes is sent."
 
 [[component.fields]]
+key = "per_player"
+type = "boolean"
+default = false
+label = "One per player"
+description = "For player characters: each game controls its own and sees the other players' copies. Off: one shared object everyone sees."
+
+[[component.fields]]
 key = "position"
 type = "boolean"
 default = true

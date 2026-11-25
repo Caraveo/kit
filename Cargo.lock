@@ -2288,6 +2288,7 @@ dependencies = [
  "kit_gamesys",
  "kit_graphics",
  "kit_input",
+ "kit_multiplayer",
  "kit_path",
  "kit_physics",
  "kit_render",
@@ -2360,6 +2361,25 @@ version = "0.0.4"
 dependencies = [
  "glam 0.34.3",
  "kit_core",
+]
+
+[[package]]
+name = "kit_multiplayer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "glam 0.34.3",
+ "kit_core",
+ "kit_ecs",
+ "kit_gamesys",
+ "kit_realtime",
+ "kit_resource",
+ "kit_scene",
+ "log",
+ "serde",
+ "serde_json",
+ "toml 0.9.12+spec-1.1.0",
+ "ureq",
 ]
 
 [[package]]

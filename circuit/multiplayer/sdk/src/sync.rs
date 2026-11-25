@@ -104,6 +104,9 @@ pub struct RealtimeSync {
     pub transferable: bool,
     /// Terrain only: send sculpt strokes as world modifications.
     pub sculpt: bool,
+    /// One copy per player (a player character): each game owns its own and
+    /// sees other players' copies. Off = one shared object for everyone.
+    pub per_player: bool,
 }
 
 impl Default for RealtimeSync {
@@ -121,6 +124,7 @@ impl Default for RealtimeSync {
             lifetime: Lifetime::Temporary,
             transferable: false,
             sculpt: false,
+            per_player: false,
         }
     }
 }

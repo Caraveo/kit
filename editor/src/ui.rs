@@ -736,6 +736,11 @@ fn header(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
             if primary(ui, play_label, Some(&ed.controls.label(Shortcut::Play))).clicked() {
                 if ed.playing { ed.stop() } else { ed.play() }
             }
+            if ed.project.is_some() && crate::circuit_ui::networked() {
+                if ghost(ui, "👥 +1 player").on_hover_text("Open another game window that joins the same world (to test multiplayer)").clicked() {
+                    crate::circuit_ui::launch_player(ed);
+                }
+            }
             ui.add_space(6.0);
             let light = crate::theme::is_light();
             let toggle = ghost(ui, if light { "🌙" } else { "☀" }).on_hover_text(if light {

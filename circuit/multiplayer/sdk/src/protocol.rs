@@ -58,6 +58,9 @@ pub const ANY_REVISION: u32 = 0xffff_ffff;
 /// Entity flags.
 pub const ENTITY_PERSISTENT: u8 = 1;
 pub const ENTITY_TRANSFERABLE: u8 = 2;
+/// Spawn only if no entity of this kind exists; otherwise SPAWNED returns the
+/// existing one (and its ENTITY follows), so shared scene objects exist once.
+pub const ENTITY_UNIQUE: u8 = 4;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Value {

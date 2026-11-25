@@ -261,3 +261,28 @@ pub fn settings_window(ctx: &egui::Context, ed: &mut Editor, win: &mut SettingsW
         win.open = None;
     }
 }
+
+// ------------------------------------------------------------------ test players
+
+/// Does an enabled Circuit network the game (so extra player windows make sense)?
+pub fn networked() -> bool {
+    active().iter().any(|m| m.circuit.permissions.iter().any(|p| p == "network.client"))
+}
+
+/// Open another game window on this project (another player), using its saved files.
+pub fn launch_player(ed: &mut Editor) {
+    let Some(root) = ed.project.as_ref().map(|p| p.root().to_path_buf()) else { return };
+    let exe = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join(if cfg!(windows) { "kit-player.exe" } else { "kit-player" })));
+    let Some(player) = exe.filter(|p| p.is_file()) else {
+        ed.notify("kit-player wasn't found next to the editor. Reinstall Kit (or build it with cargo build -p kit-player).");
+        return;
+    };
+    match std::process::Command::new(&player).arg(&root).spawn() {
+        Ok(_) => ed.notify(if ed.scene_dirty() {
+            "Opened another player window. It uses the saved scene, so save to include your latest changes."
+        } else {
+            "Opened another player window."
+        }),
+        Err(e) => ed.notify(format!("Couldn't start kit-player: {e}")),
+    }
+}

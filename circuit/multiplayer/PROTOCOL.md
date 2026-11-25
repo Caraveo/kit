@@ -58,7 +58,7 @@ Only changed fields are sent. A moving player (position and rotation) costs 1 +
 
 | Type | Name | Fields | Needs permission |
 |---|---|---|---|
-| 0x01 | SPAWN | u16 request, u8 flags (1 persistent, 2 transferable), str8 kind, transform | spawn |
+| 0x01 | SPAWN | u16 request, u8 flags (1 persistent, 2 transferable, 4 unique: if an entity of this kind exists, SPAWNED returns it and its ENTITY follows), str8 kind, transform | spawn |
 | 0x02 | DESPAWN | u32 entity | owner |
 | 0x03 | TRANSFORM | u32 entity, transform | publish, owner |
 | 0x04 | STATE_SET | u32 expect revision (0xFFFFFFFF = any), str8 key, value (null deletes) | state |
