@@ -47,7 +47,7 @@ jobs:
           curl -fsSL -o "$RUNNER_TEMP/moltenvk.tar" https://github.com/KhronosGroup/MoltenVK/releases/download/v1.4.2/MoltenVK-macos.tar
           tar -xf "$RUNNER_TEMP/moltenvk.tar" -C "$RUNNER_TEMP" MoltenVK/MoltenVK/dynamic/dylib/macOS/libMoltenVK.dylib
           dylib="$RUNNER_TEMP/MoltenVK/MoltenVK/dynamic/dylib/macOS/libMoltenVK.dylib"
-          lipo -verify_arch x86_64 arm64 "$dylib"
+          lipo "$dylib" -verify_arch x86_64 arm64
           echo "MOLTENVK=$dylib" >> "$GITHUB_ENV"
 
       - name: Test
