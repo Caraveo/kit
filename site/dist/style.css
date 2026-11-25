@@ -910,3 +910,5 @@ dialog::backdrop {
   .download > .button, .dl-menu, .dl-menu > summary { width: 100%; justify-content: center; }
   .dl-menu ul { position: static; margin-top: 8px; min-width: 0; }
 }
+.release-link { color: var(--accent); text-decoration: none; }
+.release-link:hover, .release-link:focus-visible { text-decoration: underline; }
