@@ -87,6 +87,7 @@ pub struct UiState {
     pub sketch: crate::canvas::Sketch,
     pub settings: crate::settings::SettingsWindow,
     pub circuits: crate::circuit_manager::CircuitManager,
+    pub circuit_settings: crate::circuit_ui::SettingsWindow,
     pub brush: crate::terrain_tools::Brush,
     pub gizmo: crate::move_gizmo::MoveGizmo,
     pub export: crate::export_wizard::ExportWizard,
@@ -218,6 +219,7 @@ impl UiState {
             sketch: Default::default(),
             settings: Default::default(),
             circuits: Default::default(),
+            circuit_settings: Default::default(),
             brush: Default::default(),
             gizmo: Default::default(),
             export: Default::default(),
@@ -532,7 +534,9 @@ pub fn draw(root: &mut Ui, ed: &mut Editor, st: &mut UiState) {
     new_asset_dialog(&ctx, ed, st);
     rename_asset_dialog(&ctx, ed, st);
     crate::settings::window(&ctx, ed, &mut st.settings);
+    crate::circuit_ui::sync(ed);
     crate::circuit_manager::window(&ctx, ed, &mut st.circuits, &mut st.rex);
+    crate::circuit_ui::settings_window(&ctx, ed, &mut st.circuit_settings);
     let wizard = crate::export_wizard::window(&ctx, ed, &mut st.export);
     if wizard.pick_folder {
         st.requests.push(Request::PickExportFolder);
@@ -821,6 +825,8 @@ fn header(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                     st.circuits.show_for(ed);
                     ui.close();
                 }
+                // Each installed Circuit with settings (e.g. Multiplayer) gets its own item.
+                crate::circuit_ui::project_menu(ui, ed, &mut st.circuit_settings);
                 if !st.recent.is_empty() {
                     ui.separator();
                     for p in st.recent.clone().iter().take(6) {
@@ -1741,7 +1747,7 @@ fn texture_row(ui: &mut Ui, images: &[String], id: &str, tex: &mut String) {
 }
 
 /// A collapsible component section with a remove button. Returns `false` when removed.
-fn section(ui: &mut Ui, id: &str, title: &str, icon: &str, removable: bool, body: impl FnOnce(&mut Ui)) -> bool {
+pub(crate) fn section(ui: &mut Ui, id: &str, title: &str, icon: &str, removable: bool, body: impl FnOnce(&mut Ui)) -> bool {
     let mut keep = true;
     let state =
         egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), Id::new(("section", id)), true);
@@ -1853,6 +1859,7 @@ fn inspector(ui: &mut Ui, ed: &mut Editor, rig_tool: crate::rigg_mode::RigTool) 
             volume_section(ui, ed, e);
             diagram_section(ui, ed, e);
             script_section(ui, ed, e);
+            crate::circuit_ui::inspector_sections(ui, ed, e);
             add_component_menu(ui, ed, e);
         },
     );
@@ -3004,6 +3011,7 @@ fn add_component_menu_body(ui: &mut Ui, ed: &mut Editor, e: Entity, sketch_now: 
                 w.insert(e, kit::gamesys::PathFollow::default());
                 *sketch_now = true;
             });
+            crate::circuit_ui::add_component_section(ui, ed, e);
         });
     });
 }

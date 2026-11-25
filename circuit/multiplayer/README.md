@@ -45,7 +45,12 @@ what changes travels:
 | Scripts | local; networked fields as state | logic runs on the owner |
 
 Ambient life (birds, bugs) and personal NPCs (a storyteller talking to you)
-stay local too. See [ai-npc.md](ai-npc.md).
+stay local too. See [ai-npc.md](ai-npc.md). Physics is best effort: the owner
+simulates, and everyone else smoothly follows its transform. See
+[networked-physics.md](networked-physics.md).
+
+In the editor: **+ Add component → Circuits → Realtime Sync** on the objects to
+share, and **Project → Multiplayer…** for this project's environment and world.
 
 ## Scenes are sectors
 

@@ -15,6 +15,7 @@ pub mod lock;
 pub mod manifest;
 pub mod package;
 pub mod registry;
+pub mod settings;
 
 pub use manifest::Manifest;
 pub use package::ReleaseManifest;

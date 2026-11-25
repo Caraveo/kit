@@ -273,6 +273,27 @@ mod tests {
         assert_eq!(p.x, 10.0, "no extrapolation unless asked");
     }
 
+    /// The editor builds new Realtime Sync components from circuit.toml's
+    /// defaults; they must mean exactly what the SDK's defaults mean.
+    #[test]
+    fn editor_defaults_match_the_sdk() {
+        let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../circuit.toml")).unwrap();
+        let doc: toml::Table = toml::from_str(&text).unwrap();
+        let comp = doc["component"].as_array().unwrap().iter().find(|c| c["id"].as_str() == Some("realtime")).unwrap();
+        let mut obj = serde_json::Map::new();
+        for f in comp["fields"].as_array().unwrap() {
+            obj.insert(f["key"].as_str().unwrap().to_owned(), serde_json::to_value(&f["default"]).unwrap());
+        }
+        let from_editor: RealtimeSync = serde_json::from_value(serde_json::Value::Object(obj.clone())).unwrap();
+        assert_eq!(from_editor, RealtimeSync::default());
+        let sdk_keys: Vec<String> = serde_json::to_value(RealtimeSync::default()).unwrap().as_object().unwrap().keys().cloned().collect();
+        let mut editor_keys: Vec<String> = obj.keys().cloned().collect();
+        let mut sdk_sorted = sdk_keys.clone();
+        sdk_sorted.sort();
+        editor_keys.sort();
+        assert_eq!(editor_keys, sdk_sorted, "every SDK field is editable and nothing extra");
+    }
+
     #[test]
     fn reads_the_component_from_scene_extras() {
         let extra = serde_json::json!({ "realtime": { "scale": true, "lifetime": "persistent" } });

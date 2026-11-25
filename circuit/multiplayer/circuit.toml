@@ -7,7 +7,7 @@ id = "kit.multiplayer"
 name = "Multiplayer"
 publisher = "kit"
 description = "Serverless realtime multiplayer: worlds divided into sectors (one per scene), streamed transforms, shared state, and seed + diff procedural worlds. No servers to run."
-version = "0.1.0"
+version = "0.1.1"
 channel = "beta"
 license = "MIT"
 kit = ">=0.0.4"
@@ -16,3 +16,125 @@ permissions = ["network.client"]
 documentation = "https://github.com/caraveo/kit/tree/main/circuit/multiplayer"
 repository = "https://github.com/caraveo/kit"
 release_notes = "NOTES.md"
+dashboard = "https://login.kitgameengine.win/account/circuits/multiplayer"
+
+# Project → Multiplayer… (saved in circuits.settings.toml)
+[config.environment]
+type = "string"
+label = "Environment id"
+description = "From your Kit account → Circuits → Multiplayer → Projects (env_…)."
+
+[config.world]
+type = "string"
+label = "World"
+default = "main"
+description = "Scopes are world/<this> and world/<this>/sector/<scene>."
+
+[config.tokens]
+type = "choice"
+label = "Player tokens"
+options = ["anonymous", "backend"]
+default = "anonymous"
+description = "anonymous: no backend needed (turn it on in the dashboard). backend: your game server asks for tokens with a backend key."
+
+[config.token_url]
+type = "url"
+label = "Backend token URL"
+description = "Only for backend tokens: your server's endpoint that returns a connection token."
+
+[config.connect_url]
+type = "url"
+label = "Realtime address"
+default = "wss://circuit.kitgameengine.win/api/v1/realtime/connect"
+description = "Change only for a local or self-hosted relay."
+
+# + Add component → Circuits → Realtime Sync (stored on the entity as "realtime")
+[[component]]
+id = "realtime"
+name = "Realtime Sync"
+description = "Share this object with other players. Only what changes is sent."
+
+[[component.fields]]
+key = "position"
+type = "boolean"
+default = true
+label = "Position"
+
+[[component.fields]]
+key = "rotation"
+type = "boolean"
+default = true
+label = "Rotation"
+
+[[component.fields]]
+key = "scale"
+type = "boolean"
+default = false
+label = "Scale"
+description = "Only if it changes size while playing."
+
+[[component.fields]]
+key = "velocity"
+type = "boolean"
+default = false
+label = "Velocity"
+description = "Smoother physics objects (others follow the owner's transform; rigid bodies aren't synced)."
+
+[[component.fields]]
+key = "animation"
+type = "boolean"
+default = true
+label = "Animation"
+description = "Animation state, time and speed (5 bytes), not skeletons."
+
+[[component.fields]]
+key = "rate"
+type = "integer"
+default = 0
+min = 0
+max = 30
+label = "Updates / s"
+description = "0 = the scope's rate (20 by default)."
+
+[[component.fields]]
+key = "interpolate"
+type = "boolean"
+default = true
+label = "Smooth"
+
+[[component.fields]]
+key = "extrapolate"
+type = "boolean"
+default = false
+label = "Predict"
+description = "Guess ahead from velocity when updates are late (needs Velocity)."
+
+[[component.fields]]
+key = "scope"
+type = "choice"
+options = ["sector", "world"]
+default = "sector"
+label = "Scope"
+description = "sector: this scene only. world: seen from every scene (rare)."
+
+[[component.fields]]
+key = "lifetime"
+type = "choice"
+options = ["temporary", "persistent"]
+default = "temporary"
+label = "Lifetime"
+description = "temporary: leaves with its owner. persistent: stays; another player can take it over."
+
+[[component.fields]]
+key = "transferable"
+type = "boolean"
+default = false
+label = "Anyone can take over"
+description = "For shared physics objects (a ball): whoever touches it simulates it."
+
+[[component.fields]]
+key = "sculpt"
+type = "boolean"
+default = false
+label = "Sync terrain sculpting"
+description = "Terrain only: sculpt strokes travel as world changes. Terrain itself is never streamed."

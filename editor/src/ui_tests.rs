@@ -1484,3 +1484,41 @@ fn inspecting_a_rig_volume_does_not_change_the_scene() {
     assert_eq!(h.ed.world().get::<kit::gamesys::RigVolume>(v).unwrap().falloff, 0.15706, "not rounded by the Inspector");
     assert!(!h.ed.scene_dirty(), "just looking doesn't count as an edit");
 }
+
+/// Installing a Circuit adds its components and its Project menu settings;
+/// uninstalling keeps the scene's data. Uses the real Multiplayer package.
+#[test]
+fn installed_circuits_add_components_and_settings() {
+    let mut h = Harness::new("circuits");
+    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../circuit/multiplayer");
+    let (m, bytes) = kit_circuit::package::pack(&src).unwrap();
+    let rel = kit_circuit::package::release_manifest(&m, &bytes, None, None);
+    kit_circuit::install::install(&h.dir, &rel, &bytes, &[], "test").unwrap();
+    h.frame(vec![]);
+    let active = crate::circuit_ui::active();
+    let comp = active.iter().flat_map(|m| &m.components).find(|c| c.id == "realtime").expect("Realtime Sync offered");
+    assert_eq!(comp.name, "Realtime Sync");
+    assert!(active.iter().any(|m| m.circuit.name == "Multiplayer" && !m.config.is_empty() && m.circuit.dashboard.is_some()));
+
+    // Add it to the cube (what the menu item does) and draw the inspector.
+    let cube = kit::scene::find_by_name(h.ed.world(), "Cube").unwrap();
+    let mut extra = h.ed.world().get_cloned::<kit::gamesys::ExtraData>(cube).unwrap_or_default();
+    extra.0.insert("realtime".into(), comp.defaults());
+    h.ed.app.world.insert(cube, extra);
+    h.ed.selected = Some(cube);
+    h.frame(vec![]);
+    h.frame(vec![]);
+    // Saved with the scene, readable by the SDK.
+    let scene = kit::gamesys::save_scene(h.ed.world());
+    let saved = scene.entities.iter().find(|d| d.name == "Cube").unwrap();
+    let sync = kit_realtime::sync::RealtimeSync::from_extra(&saved.extra).expect("SDK reads it");
+    assert!(sync.position && sync.rotation && !sync.scale);
+
+    // Disabling hides it from the menus; uninstalling keeps the scene data.
+    kit_circuit::install::set_enabled(&h.dir, "kit.multiplayer", false).unwrap();
+    h.frame(vec![]);
+    assert!(crate::circuit_ui::active().is_empty());
+    kit_circuit::install::uninstall(&h.dir, "kit.multiplayer").unwrap();
+    h.frame(vec![]);
+    assert!(h.ed.world().get::<kit::gamesys::ExtraData>(cube).unwrap().0.contains_key("realtime"));
+}

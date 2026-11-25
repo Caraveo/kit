@@ -43,10 +43,44 @@ pub struct Manifest {
     pub dependencies: BTreeMap<String, String>,
     #[serde(default)]
     pub entry: Entry,
-    /// Optional settings a project can set for this Circuit.
+    /// Optional settings a project can set for this Circuit. When present, Kit
+    /// adds a Project menu item named after the Circuit that edits them.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub config: BTreeMap<String, ConfigField>,
+    /// Components the Circuit adds to "+ Add component" (under Circuits).
+    /// Their values are stored on the entity in the scene file under `id`.
+    #[serde(default, rename = "component", skip_serializing_if = "Vec::is_empty")]
+    pub components: Vec<ComponentDef>,
 }
+
+/// A component a Circuit offers in the editor.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ComponentDef {
+    /// Key in the scene file, e.g. `realtime`. Lowercase letters, digits and _.
+    pub id: String,
+    /// Shown in the menu and inspector, e.g. "Realtime Sync".
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    /// Fields in display order.
+    #[serde(default)]
+    pub fields: Vec<NamedField>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NamedField {
+    pub key: String,
+    #[serde(flatten)]
+    pub field: ConfigField,
+}
+
+/// Built-in component names a Circuit can't reuse.
+pub const RESERVED_COMPONENTS: &[&str] = &[
+    "id", "name", "parent", "transform", "camera", "model", "sprite", "light", "script", "collider", "rigid_body", "path", "terrain",
+    "audio", "post_volume", "diagram", "rig", "rig_volume",
+];
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -83,6 +117,9 @@ pub struct Info {
     /// Path of the release notes inside the package (Markdown).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub release_notes: Option<String>,
+    /// Web page where a hosted service is managed (opened from the Circuit's settings).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dashboard: Option<String>,
 }
 
 fn stable() -> String {
@@ -115,13 +152,24 @@ pub struct Entry {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ConfigField {
-    /// `string`, `integer`, `number`, `boolean` or `url`.
+    /// `string`, `integer`, `number`, `boolean`, `url` or `choice`.
     #[serde(rename = "type")]
     pub kind: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default: Option<toml::Value>,
+    /// Label shown in the editor (defaults to the key).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub label: String,
     #[serde(default)]
     pub description: String,
+    /// `choice` fields: the allowed values.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub options: Vec<String>,
+    /// Numeric fields: range.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max: Option<f64>,
     /// Never written to the project file (e.g. keys); set per machine.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub secret: bool,
@@ -198,7 +246,7 @@ impl Manifest {
         if !self.entry.native.is_empty() && !c.permissions.iter().any(|p| p == "native") {
             bail!("native entry points need the \"native\" permission");
         }
-        for url in [&c.documentation, &c.repository, &c.homepage].into_iter().flatten() {
+        for url in [&c.documentation, &c.repository, &c.homepage, &c.dashboard].into_iter().flatten() {
             if !url.starts_with("https://") {
                 bail!("links must use https:// ({url})");
             }
@@ -215,11 +263,25 @@ impl Manifest {
             crate::package::check_relative(p).with_context(|| format!("entry path \"{p}\""))?;
         }
         for (key, field) in &self.config {
-            if !key.chars().all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '_') {
-                bail!("config key \"{key}\" must be lowercase letters, digits and _");
+            check_field(&format!("config {key}"), key, field)?;
+        }
+        let mut seen = std::collections::BTreeSet::new();
+        for comp in &self.components {
+            if !key_ok(&comp.id) || RESERVED_COMPONENTS.contains(&comp.id.as_str()) {
+                bail!("component id \"{}\" must be lowercase letters, digits and _, and not a built-in component", comp.id);
             }
-            if !["string", "integer", "number", "boolean", "url"].contains(&field.kind.as_str()) {
-                bail!("config {key}: unknown type \"{}\"", field.kind);
+            if !seen.insert(comp.id.clone()) {
+                bail!("component \"{}\" is declared twice", comp.id);
+            }
+            if comp.name.trim().is_empty() || comp.name.len() > 40 {
+                bail!("component {}: name must be 1–40 characters", comp.id);
+            }
+            let mut keys = std::collections::BTreeSet::new();
+            for f in &comp.fields {
+                check_field(&format!("component {} field {}", comp.id, f.key), &f.key, &f.field)?;
+                if !keys.insert(f.key.clone()) {
+                    bail!("component {}: field {} is declared twice", comp.id, f.key);
+                }
             }
         }
         Ok(())
@@ -235,6 +297,56 @@ impl Manifest {
             return Some(format!("doesn't support {platform} (supports {})", self.circuit.platforms.join(", ")));
         }
         None
+    }
+}
+
+fn key_ok(key: &str) -> bool {
+    !key.is_empty() && key.len() <= 40 && key.chars().all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '_')
+}
+
+fn check_field(what: &str, key: &str, f: &ConfigField) -> Result<()> {
+    if !key_ok(key) {
+        bail!("{what}: keys are lowercase letters, digits and _");
+    }
+    if !["string", "integer", "number", "boolean", "url", "choice"].contains(&f.kind.as_str()) {
+        bail!("{what}: unknown type \"{}\"", f.kind);
+    }
+    if f.kind == "choice" && f.options.is_empty() {
+        bail!("{what}: a choice needs options");
+    }
+    if let Some(d) = &f.default {
+        let ok = match f.kind.as_str() {
+            "boolean" => d.is_bool(),
+            "integer" => d.is_integer(),
+            "number" => d.is_float() || d.is_integer(),
+            "choice" => d.as_str().is_some_and(|s| f.options.iter().any(|o| o == s)),
+            _ => d.is_str(),
+        };
+        if !ok {
+            bail!("{what}: default doesn't match its type");
+        }
+    }
+    Ok(())
+}
+
+impl ConfigField {
+    /// The default as JSON (what a new component or setting starts with).
+    pub fn default_json(&self) -> serde_json::Value {
+        match (&self.default, self.kind.as_str()) {
+            (Some(v), _) => serde_json::to_value(v).unwrap_or(serde_json::Value::Null),
+            (None, "boolean") => serde_json::Value::Bool(false),
+            (None, "integer") => serde_json::json!(0),
+            (None, "number") => serde_json::json!(0.0),
+            (None, "choice") => serde_json::Value::String(self.options.first().cloned().unwrap_or_default()),
+            (None, _) => serde_json::Value::String(String::new()),
+        }
+    }
+}
+
+impl ComponentDef {
+    /// A new component's value: every field at its default.
+    pub fn defaults(&self) -> serde_json::Value {
+        serde_json::Value::Object(self.fields.iter().map(|f| (f.key.clone(), f.field.default_json())).collect())
     }
 }
 
@@ -306,6 +418,18 @@ runtime = ["scripts/Multiplayer.x"]
         assert!(m.incompatibility(&Version::new(0, 0, 3), "linux").unwrap().contains("needs Kit"));
         assert!(m.incompatibility(&Version::new(0, 0, 4), "web").unwrap().contains("doesn't support web"));
         assert_eq!(Manifest::parse(&m.to_toml()).unwrap(), m);
+    }
+
+    #[test]
+    fn components_and_settings() {
+        let text = format!(
+            "{SAMPLE}\n[config.environment]\ntype = \"string\"\nlabel = \"Environment\"\n\n[[component]]\nid = \"realtime\"\nname = \"Realtime Sync\"\n[[component.fields]]\nkey = \"position\"\ntype = \"boolean\"\ndefault = true\n[[component.fields]]\nkey = \"scope\"\ntype = \"choice\"\noptions = [\"sector\", \"world\"]\ndefault = \"sector\"\n"
+        );
+        let m = Manifest::parse(&text).unwrap();
+        assert_eq!(m.components[0].defaults(), serde_json::json!({ "position": true, "scope": "sector" }));
+        assert_eq!(Manifest::parse(&m.to_toml()).unwrap(), m);
+        assert!(Manifest::parse(&text.replace("id = \"realtime\"", "id = \"model\"")).is_err(), "built-in names are reserved");
+        assert!(Manifest::parse(&text.replace("default = \"sector\"", "default = \"moon\"")).is_err(), "defaults must be valid");
     }
 
     #[test]

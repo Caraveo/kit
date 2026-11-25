@@ -37,3 +37,6 @@ winresource = "0.1"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 x11rb = "0.13"
+
+[dev-dependencies]
+kit_realtime = { path = "../circuit/multiplayer/sdk" }

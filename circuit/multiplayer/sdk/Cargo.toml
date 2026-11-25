@@ -16,3 +16,6 @@ anyhow.workspace = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tungstenite = { version = "0.27", default-features = false, features = ["handshake", "rustls-tls-webpki-roots"] }
+
+[dev-dependencies]
+toml.workspace = true
