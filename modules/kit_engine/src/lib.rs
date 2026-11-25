@@ -78,7 +78,8 @@ pub fn project_app(project: &Project) -> Result<App> {
     let main = &project.config.project.main_scene;
     let text = project.resources.read_text(main).with_context(|| format!("loading main scene `{main}`"))?;
     let scene = SceneFile::from_json(&text).with_context(|| format!("in {main}"))?;
-    kit_gamesys::load_scene(&mut app.world, &scene)?;
+    let spawned = kit_gamesys::load_scene(&mut app.world, &scene)?;
+    kit_gamesys::scenes::mark_loaded(&mut app.world, main, spawned);
     Ok(app)
 }
 

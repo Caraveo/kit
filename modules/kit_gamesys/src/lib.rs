@@ -13,6 +13,7 @@ mod physics;
 pub mod post;
 pub mod rig;
 mod scene_file;
+pub mod scenes;
 mod terrain;
 
 pub use terrain::{RESOLUTIONS as TERRAIN_RESOLUTIONS, SculptTool, Terrain};
@@ -260,6 +261,10 @@ impl Module for GameSysModule {
         app.world.insert_resource(AudioState::default());
         app.world.insert_resource(GraphEvents::default());
         app.world.insert_resource(ScriptCalls::default());
+        app.world.insert_resource(scenes::SceneRequests::default());
+        app.world.insert_resource(scenes::SceneEvents::default());
+        app.add_play_system(kit_core::Stage::First, "clear_scene_events", scenes::clear_scene_events);
+        app.add_play_system(kit_core::Stage::Last, "scene_requests", scenes::apply_scene_requests);
     }
 }
 

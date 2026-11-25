@@ -127,6 +127,13 @@ impl RexPanel {
         self.chats.entry(self.mode.clone()).or_default()
     }
 
+    /// Start the Kit sign-in (device code in the browser), e.g. from Circuit Manager.
+    pub fn sign_in(&mut self) {
+        if let Some(w) = &self.worker {
+            w.sign_in(format!("Kit Editor ({})", std::env::consts::OS));
+        }
+    }
+
     /// Put the cursor in the message box.
     pub fn ask_focus(&mut self) {
         self.focus_input = true;

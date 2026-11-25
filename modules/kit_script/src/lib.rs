@@ -296,6 +296,7 @@ fn apply_commands(world: &mut World, commands: Vec<Command>) {
     for c in commands {
         match c {
             Command::Despawn(e) => kit_scene::despawn_recursive(world, e),
+            Command::Scene(op) => kit_gamesys::scenes::request(world, op),
         }
     }
 }

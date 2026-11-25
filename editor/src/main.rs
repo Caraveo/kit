@@ -7,6 +7,7 @@
 
 mod camera;
 mod canvas;
+mod circuit_manager;
 mod code;
 mod controls;
 mod diagram_view;

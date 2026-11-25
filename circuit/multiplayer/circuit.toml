@@ -1,0 +1,18 @@
+# The Multiplayer Circuit. Versioned on its own; released with tags
+# circuit/multiplayer/v<version> (see .github/workflows/circuit-release.yml).
+schema = 1
+
+[circuit]
+id = "kit.multiplayer"
+name = "Multiplayer"
+publisher = "kit"
+description = "Serverless realtime multiplayer: worlds divided into sectors (one per scene), streamed transforms, shared state, and seed + diff procedural worlds. No servers to run."
+version = "0.1.0"
+channel = "beta"
+license = "MIT"
+kit = ">=0.0.4"
+platforms = ["linux", "macos", "windows"]
+permissions = ["network.client"]
+documentation = "https://github.com/caraveo/kit/tree/main/circuit/multiplayer"
+repository = "https://github.com/caraveo/kit"
+release_notes = "NOTES.md"

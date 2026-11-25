@@ -333,3 +333,57 @@ CREATE Mover[
     assert_eq!(d.fields.len(), 3);
     assert_eq!(d.fields[0].value, Some(kit_gamesys::FieldValue::Float(1.0)));
 }
+
+#[test]
+fn scripts_switch_scenes_at_runtime() {
+    let root = temp_project(&[
+        ("scenes/level2.kscene", r#"{"version":1,"entities":[{"id":1,"name":"Cave"}]}"#),
+        ("scenes/sky.kscene", r#"{"version":1,"entities":[{"id":1,"name":"Clouds"}]}"#),
+        (
+            "door.x",
+            r#"
+TAKE Scene
+INTEGER Count: 0
+VOID CREATE Update(FLOAT dt)[
+    Count: Count + 1
+    IF(Count == 1)[ Scene.Load("scenes/missing") ]
+    IF(Count == 2)[ Scene.Load("scenes/level2") ]
+]
+"#,
+        ),
+        (
+            "cave.x",
+            r#"
+TAKE Scene
+INTEGER Count: 0
+VOID CREATE Update(FLOAT dt)[
+    Count: Count + 1
+    IF(Count == 1)[ Scene.LoadAdditive("scenes/sky") ]
+    IF(Count == 2)[ Scene.Unload("scenes/sky") ]
+]
+"#,
+        ),
+    ]);
+    let mut app = app(root);
+    let door = kit_scene::spawn_node(&mut app.world, "Door", Transform::IDENTITY);
+    app.world.insert(door, Script::new("door.x"));
+    kit_gamesys::scenes::mark_loaded(&mut app.world, "main.kscene", vec![door]);
+
+    // A missing scene leaves the current one running.
+    app.update(0.1);
+    assert!(app.world.is_alive(door));
+    assert!(matches!(&app.world.resource::<kit_gamesys::scenes::SceneEvents>().0[..], [kit_gamesys::scenes::SceneEvent::Failed { .. }]));
+
+    app.update(0.1);
+    assert!(!app.world.is_alive(door), "the old scene is gone");
+    let cave = kit_scene::find_by_name(&app.world, "Cave").expect("level2 loaded");
+    assert_eq!(app.world.resource::<kit_gamesys::scenes::LoadedScenes>().current(), Some("scenes/level2.kscene"));
+
+    app.world.insert(cave, Script::new("cave.x"));
+    app.update(0.1);
+    assert!(kit_scene::find_by_name(&app.world, "Clouds").is_some(), "additive scene on top");
+    assert!(app.world.is_alive(cave));
+    app.update(0.1);
+    assert!(kit_scene::find_by_name(&app.world, "Clouds").is_none(), "additive scene removed");
+    assert!(app.world.is_alive(cave), "main scene stays");
+}

@@ -86,6 +86,7 @@ pub struct UiState {
     rename_error: Option<String>,
     pub sketch: crate::canvas::Sketch,
     pub settings: crate::settings::SettingsWindow,
+    pub circuits: crate::circuit_manager::CircuitManager,
     pub brush: crate::terrain_tools::Brush,
     pub gizmo: crate::move_gizmo::MoveGizmo,
     pub export: crate::export_wizard::ExportWizard,
@@ -216,6 +217,7 @@ impl UiState {
             rename_error: None,
             sketch: Default::default(),
             settings: Default::default(),
+            circuits: Default::default(),
             brush: Default::default(),
             gizmo: Default::default(),
             export: Default::default(),
@@ -530,6 +532,7 @@ pub fn draw(root: &mut Ui, ed: &mut Editor, st: &mut UiState) {
     new_asset_dialog(&ctx, ed, st);
     rename_asset_dialog(&ctx, ed, st);
     crate::settings::window(&ctx, ed, &mut st.settings);
+    crate::circuit_manager::window(&ctx, ed, &mut st.circuits, &mut st.rex);
     let wizard = crate::export_wizard::window(&ctx, ed, &mut st.export);
     if wizard.pick_folder {
         st.requests.push(Request::PickExportFolder);
@@ -812,6 +815,10 @@ fn header(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                 });
                 if ui.add_enabled(ed.project.is_some(), egui::Button::new("Project settings…")).clicked() {
                     st.settings.open(ed);
+                    ui.close();
+                }
+                if ui.add_enabled(ed.project.is_some(), egui::Button::new("Circuit Manager…")).on_hover_text("Install and update Circuits (extensions) for this project").clicked() {
+                    st.circuits.show_for(ed);
                     ui.close();
                 }
                 if !st.recent.is_empty() {

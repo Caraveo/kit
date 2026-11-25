@@ -16,6 +16,7 @@ pub const MODULES: &[&str] =
 /// Structural changes requested by scripts, applied after the script returns.
 pub enum Command {
     Despawn(Entity),
+    Scene(kit_gamesys::scenes::SceneOp),
 }
 
 pub struct EntityHost<'a> {
@@ -216,6 +217,20 @@ impl Host for EntityHost<'_> {
                     Ok(kit_scene::find_by_name(w, n).map(entity_id).unwrap_or(Value::Null))
                 }
                 "Exists" => Ok(Value::Bool(args.first().is_some_and(|a| arg_entity(w, a).is_ok()))),
+                // Scene.Load("scenes/level2"), Scene.LoadAdditive(path), Scene.Unload(path): applied at the end of the frame.
+                "Load" | "LoadAdditive" | "Unload" => {
+                    use kit_gamesys::scenes::SceneOp;
+                    let path = args.first().and_then(|a| a.as_str()).ok_or_else(|| format!("Scene.{member}(\"scenes/name\")"))?.to_owned();
+                    self.commands.push(Command::Scene(match member {
+                        "Load" => SceneOp::Load(path),
+                        "LoadAdditive" => SceneOp::LoadAdditive(path),
+                        _ => SceneOp::Unload(path),
+                    }));
+                    Ok(Value::Null)
+                }
+                "Current" => Ok(Value::Str(
+                    w.try_resource::<kit_gamesys::scenes::LoadedScenes>().and_then(|l| l.current().map(|p| p.trim_end_matches(".kscene").to_owned())).unwrap_or_default().into(),
+                )),
                 "Destroy" => {
                     let target = arg_entity(w, args.first().ok_or("Destroy(id)")?)?;
                     self.commands.push(Command::Despawn(target));

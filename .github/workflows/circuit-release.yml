@@ -1,0 +1,68 @@
+name: Circuit release
+
+# Push a tag like `circuit/multiplayer/v0.1.0` to package and publish that
+# Circuit, independently of Kit's own releases (which use `v*` tags). The
+# Circuit API registers new releases within the hour.
+on:
+  push:
+    tags: ["circuit/*/v*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  publish:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: circuits
+
+      - name: Read the tag
+        id: tag
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME}"                 # circuit/multiplayer/v0.1.0
+          name="$(echo "$tag" | cut -d/ -f2)"
+          version="${tag##*/v}"
+          dir="circuit/$name"
+          test -f "$dir/circuit.toml" || { echo "::error::$dir/circuit.toml not found"; exit 1; }
+          manifest_version="$(sed -n 's/^version = "\(.*\)"/\1/p' "$dir/circuit.toml" | head -1)"
+          if [ "$manifest_version" != "$version" ]; then
+            echo "::error::tag says $version but $dir/circuit.toml says $manifest_version"; exit 1
+          fi
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Test
+        run: |
+          cargo test -p kit_circuit
+          if [ -f "${{ steps.tag.outputs.dir }}/sdk/Cargo.toml" ]; then
+            cargo test --manifest-path "${{ steps.tag.outputs.dir }}/sdk/Cargo.toml"
+          fi
+
+      - name: Pack
+        env:
+          # Optional: base64 Ed25519 secret + key id from repository secrets.
+          KIT_CIRCUIT_SIGNING_KEY: ${{ secrets.KIT_CIRCUIT_SIGNING_KEY }}
+          KIT_CIRCUIT_KEY_ID: ${{ secrets.KIT_CIRCUIT_KEY_ID }}
+        run: |
+          cargo run -q -p kit_circuit --bin kit-circuit -- pack "${{ steps.tag.outputs.dir }}" --out dist
+          cargo run -q -p kit_circuit --bin kit-circuit -- verify dist/*.kitcircuit dist/circuit.json
+          (cd dist && sha256sum * > SHA256SUMS)
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes="${{ steps.tag.outputs.dir }}/NOTES.md"
+          prerelease=""
+          grep -q '^channel = "stable"' "${{ steps.tag.outputs.dir }}/circuit.toml" || prerelease="--prerelease"
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "$(sed -n 's/^name = "\(.*\)"/\1/p' "${{ steps.tag.outputs.dir }}/circuit.toml" | head -1) ${{ steps.tag.outputs.version }}" \
+            --notes-file "$notes" --latest=false $prerelease

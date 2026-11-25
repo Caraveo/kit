@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["modules/*", "kit", "player", "editor", "web/player"]
+members = ["modules/*", "kit", "player", "editor", "web/player", "circuit/multiplayer/sdk"]
 
 [workspace.package]
 version = "0.0.4"
@@ -28,6 +28,7 @@ kit_gamedata = { path = "modules/kit_gamedata" }
 kit_diagram = { path = "modules/kit_diagram" }
 kit_rex = { path = "modules/kit_rex" }
 kit_rigg = { path = "modules/kit_rigg" }
+kit_circuit = { path = "modules/kit_circuit" }
 kit_export_security = { path = "modules/kit_export_security", default-features = false }
 kit = { path = "kit" }
 
