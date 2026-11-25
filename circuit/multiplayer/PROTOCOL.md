@@ -2,7 +2,7 @@
 
 The binary protocol between game clients and Realtime scopes. The reference
 implementations are `sdk/src/protocol.rs` (Rust) and kit-ai's
-`src/realtime/protocol.ts` (Worker). Golden hash values are tested on both
+`src/realtime/protocol.ts` (Realtime service). Golden hash values are tested on both
 sides.
 
 ## Connecting

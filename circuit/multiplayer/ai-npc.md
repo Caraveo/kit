@@ -13,7 +13,7 @@ that works:
 | ------------ | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- | --------------------- |
 | **Ambient**  | bugs, birds, butterflies, fish, fireflies, crowds in the distance                                                   | each client, locally                                | none                  |
 | **Personal** | a storyteller who talks to *you*, a companion pet, a tutorial guide, a shopkeeper's small talk                      | each client, locally (AI calls go from that client) | none                  |
-| **Shared**   | a guard everyone can fight, a boss, a merchant whose stock runs out, a quest giver whose state changes for everyone | an NPC client on Kit's Workers ("NPC as a service") | streams like a player |
+| **Shared**   | a guard everyone can fight, a boss, a merchant whose stock runs out, a quest giver whose state changes for everyone | an NPC client on Kit's servers ("NPC as a service") | streams like a player |
 
 ### Ambient AI: local, unsynced
 
@@ -48,12 +48,12 @@ For NPCs every player must see identically (mostly competitive or MMO-style
 games):
 
 - Each shared NPC, or a group of them in a sector, runs as an **independent
-  client on its own Worker**, with its own code and AI.
+  client on Kit's servers**, with its own code and AI.
 - It joins scopes with a connection token like any player, owns its entities,
   and streams transforms, animation and state through the same scopes. Its
   token marks it as an NPC (an `npc` claim the scope announces in presence)
   and may grant extra permissions (e.g. state authority in its sector).
-- Scaling follows sectors: an NPC worker per active sector instance, started
+- Scaling follows sectors: an NPC service per active sector instance, started
   when the first player enters and stopped when the instance empties.
 - Because most games' NPCs are player-based (personal), this tier stays
   opt-in and per NPC.
@@ -62,8 +62,8 @@ games):
 DO NOT USE NPC to fool Players into believing they are not BOTS. Basically be smart.
 ## Open questions for when this is built
 
-- NPC worker runtime: JavaScript/TypeScript Worker vs. compiling x scripts to
-  run in a Worker.
+- NPC runtime: JavaScript/TypeScript vs. compiling x scripts to run on
+  Kit's servers.
 - Behavior authoring in the Kit editor: Diagram graphs, x scripts, or prompts.
 - Cost controls: AI calls per NPC per minute, shared NPCs per environment.
 - Moderation and safety filtering for generated dialog.

@@ -137,7 +137,7 @@ native libraries at runtime. So:
   files inside the target.
 - Publishing is tied to the publisher's account. Signatures bind a package to
   its id and version, so a valid package can't be replayed under another name.
-- Circuits never receive the developer's REX token, Cloudflare credentials or
+- Circuits never receive the developer's REX token, Kit's infrastructure credentials or
   GitHub credentials. Hosted services use their own scoped keys (see
   Multiplayer's backend keys).
 - Community scripts run with the game's script permissions. Review what a

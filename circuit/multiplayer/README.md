@@ -22,8 +22,8 @@ Developer
   simulation: games that need cheat-proof combat or physics need their own
   trusted logic. AI NPCs as a service are planned separately (see
   [ai-npc.md](ai-npc.md)).
-- **No servers, no containers.** Scopes are Cloudflare Durable Objects created
-  on first use and released when idle. Developers never configure Cloudflare.
+- **No servers to run.** Scopes are created on first use and released when
+  idle. Developers never configure infrastructure.
 - **Players don't have accounts.** Connections use short-lived tokens from
   your game's backend (with a backend key) or, if you allow it, anonymous
   tokens. REX accounts are for developers only.

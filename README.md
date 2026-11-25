@@ -161,7 +161,7 @@ Rigs work in every export, including the web. [Rigg guide](documentation/src/con
 
 ## Super Multiplayer
 
-The easiest multiplayer in game development: no game server to write, rent or run. Clients render and simulate, and Kit's Realtime service (on Cloudflare) syncs only what other players need to see.
+The easiest multiplayer in game development: no game server to write, rent or run. Clients render and simulate, and Kit's Realtime service syncs only what other players need to see.
 
 1. **Project → Circuit Manager** → **Multiplayer** → **Install**.
 2. Choose a plan on your Kit account (**Circuits → Multiplayer → Billing**) and create a project there. Copy its environment id and turn on anonymous play in **Settings**.
@@ -178,7 +178,7 @@ How it works:
 - **Physics is best effort.** The owner simulates and everyone else follows its transform ([networked-physics.md](circuit/multiplayer/networked-physics.md)).
 - **Players never need accounts.** Games get short-lived connection tokens, anonymously or from your own backend with a backend key.
 
-**Pricing** is a monthly plan measured in **Sync Time**. One sync-hour is one player connected for an hour, including 10 MB of data. Extra data counts too, and a busy room counts as at least 4 players. Plans: Starter $5 (600 sync-hours), Indie $19 (4,000 included, then $0.006 per sync-hour), Studio $99 (20,000 included, then $0.005), and Enterprise (rex@kitgameengine.win). See [login.kitgameengine.win/pricing](https://login.kitgameengine.win/pricing#multiplayer). Multiplayer needs a plan: without one, games can't connect.
+**Pricing** is a monthly plan measured in **Sync Time**. One sync-hour is one player connected for an hour, including 10 MB of data. Extra data counts too, and a busy room counts as at least 4 players. Plans: Starter $5 (600 sync-hours), Indie $19 (4,000 included, then $0.006 per sync-hour), Studio $99 (20,000 included, then $0.005), and Enterprise (rex@kitgameengine.win). Need more? **Buy Time:** sync-hour packs (500 for $5, 2,500 for $20, 10,000 for $60) never expire and are used before any overage. See [login.kitgameengine.win/pricing](https://login.kitgameengine.win/pricing#multiplayer). Multiplayer needs a plan: without one, games can't connect.
 
 Details: [circuit/multiplayer](circuit/multiplayer) (README, [binary protocol](circuit/multiplayer/PROTOCOL.md), [AI NPC notes](circuit/multiplayer/ai-npc.md)).
 
@@ -223,7 +223,7 @@ Fields are private unless marked `PUBLIC` or `EDIT`, and Diagrams can read `PUBL
 Click **Export** in the top bar and pick a platform:
 
 - **Linux, Windows, Mac:** a folder with the player and your game, ready to zip and share. You can export for any desktop platform from any desktop platform.
-- **Web (HTML5):** a folder you can upload to any static host (itch.io, GitHub Pages, Cloudflare Pages…). Players need a WebGPU browser.
+- **Web (HTML5):** a folder you can upload to any static host (itch.io, GitHub Pages, your own website…). Players need a WebGPU browser.
 - **Protection:** *Signed* makes the player run only the build you published, and *Signed + Encrypted* also hides your files.
 
 [Export guide](documentation/src/content/docs/editor/export.md)

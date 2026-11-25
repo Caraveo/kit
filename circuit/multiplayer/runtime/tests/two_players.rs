@@ -1,5 +1,5 @@
 //! Two Kit games in one world, end to end against a Realtime service.
-//! Needs a running service (e.g. local `wrangler dev`) with anonymous play on:
+//! Needs a running Realtime service (e.g. a local one) with anonymous play on:
 //!
 //!   KIT_RT_TEST_URL=ws://127.0.0.1:8787/api/v1/realtime/connect KIT_RT_TEST_ENV=env_… \
 //!   cargo test -p kit_multiplayer --test two_players -- --ignored --nocapture

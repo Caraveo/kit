@@ -72,7 +72,7 @@ fn main() {
         lat.push(sent.elapsed().as_secs_f64() * 1000.0);
     }
     lat.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    println!("A→scope→B latency over 50 spaced moves: median {:.2} ms, p90 {:.2} ms, max {:.2} ms (local wrangler dev on one machine; not a Cloudflare network number)", lat[25], lat[45], lat[49]);
+    println!("A→scope→B latency over 50 spaced moves: median {:.2} ms, p90 {:.2} ms, max {:.2} ms (a local Realtime service on one machine; not a production network number)", lat[25], lat[45], lat[49]);
 
     a.set_state(Channel::World, "weather", &Value::Str("rain".into()), kit_realtime::protocol::ANY_REVISION);
     a.flush();
