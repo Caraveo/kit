@@ -563,14 +563,16 @@ impl Renderer {
         self.prepared += 1;
         let now = self.prepared;
         // Frames in flight + a margin.
-        let (old, keep): (Vec<_>, Vec<_>) = std::mem::take(&mut self.retired).into_iter().partition(|(at, _)| now >= at + 4);
+        let (old, keep): (Vec<_>, Vec<_>) =
+            std::mem::take(&mut self.retired).into_iter().partition(|(at, _)| now >= at + 4);
         self.retired = keep;
         for (_, mut m) in old {
             m.vertices.destroy(gfx);
             m.indices.destroy(gfx);
         }
         let deformed = world.try_resource::<draw::Deformed>();
-        let live: HashMap<Entity, u64> = deformed.as_ref().map(|d| d.meshes.iter().map(|(e, m)| (*e, m.revision)).collect()).unwrap_or_default();
+        let live: HashMap<Entity, u64> =
+            deformed.as_ref().map(|d| d.meshes.iter().map(|(e, m)| (*e, m.revision)).collect()).unwrap_or_default();
         let gone: Vec<Entity> = self.deformed.keys().filter(|e| !live.contains_key(e)).copied().collect();
         for e in gone {
             if let Some((_, m, _)) = self.deformed.remove(&e) {

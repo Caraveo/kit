@@ -10,8 +10,8 @@ use std::path::Path;
 pub mod video;
 
 pub const IMAGES: &[&str] = &[
-    "png", "jpg", "jpeg", "webp", "gif", "bmp", "ico", "tif", "tiff", "tga", "dds", "hdr", "pnm",
-    "pbm", "pgm", "ppm", "qoi", "svg",
+    "png", "jpg", "jpeg", "webp", "gif", "bmp", "ico", "tif", "tiff", "tga", "dds", "hdr", "pnm", "pbm", "pgm", "ppm",
+    "qoi", "svg",
 ];
 pub const VIDEOS: &[&str] = &["mp4", "m4v", "webm", "mov", "avi", "mkv", "mpeg", "mpg", "ogv", "wmv"];
 pub const TEXT: &[&str] = &["txt", "md", "json", "toml", "csv", "tsv", "xml", "yaml", "yml", "ini", "log"];
@@ -22,7 +22,9 @@ pub fn extension(path: &str) -> String {
 }
 
 pub fn image(bytes: &[u8], ext: &str) -> Result<DynamicImage> {
-    if ext == "svg" { return svg(bytes); }
+    if ext == "svg" {
+        return svg(bytes);
+    }
     let mut reader = ImageReader::new(Cursor::new(bytes)).with_guessed_format()?;
     if reader.format().is_none() {
         if let Some(format) = image::ImageFormat::from_extension(ext) {
@@ -64,10 +66,14 @@ fn svg(bytes: &[u8]) -> Result<DynamicImage> {
     let height = (size.height() * scale).ceil().max(1.0) as u32;
     let mut pixmap = resvg::tiny_skia::Pixmap::new(width, height).context("allocating SVG preview")?;
     resvg::render(&tree, resvg::tiny_skia::Transform::from_scale(scale, scale), &mut pixmap.as_mut());
-    let pixels = pixmap.pixels().iter().flat_map(|pixel| {
-        let color = pixel.demultiply();
-        [color.red(), color.green(), color.blue(), color.alpha()]
-    }).collect::<Vec<_>>();
+    let pixels = pixmap
+        .pixels()
+        .iter()
+        .flat_map(|pixel| {
+            let color = pixel.demultiply();
+            [color.red(), color.green(), color.blue(), color.alpha()]
+        })
+        .collect::<Vec<_>>();
     Ok(DynamicImage::ImageRgba8(image::RgbaImage::from_raw(width, height, pixels).context("reading SVG pixels")?))
 }
 
@@ -87,7 +93,9 @@ pub fn model(resources: &Resources, asset: &str) -> Result<Model> {
     let mut meshes = Vec::new();
     if kit_render::is_model_bundle(Path::new(asset)) {
         let model = kit_render::model_asset::ModelAsset::load(resources, asset)?;
-        let frame = model.rest.and_then(|index| model.frames.get(index))
+        let frame = model
+            .rest
+            .and_then(|index| model.frames.get(index))
             .filter(|frame| frame.iter().any(Option::is_some))
             .or_else(|| model.frames.iter().find(|frame| frame.iter().any(Option::is_some)))
             .context("The model has no visible geometry")?;
@@ -124,8 +132,14 @@ pub fn model(resources: &Resources, asset: &str) -> Result<Model> {
     let mut triangles = Vec::new();
     for (positions, indices, color) in meshes {
         for face in indices.chunks_exact(3).step_by(step) {
-            let coords = |idx: u32| positions.get(idx as usize).copied().map(Vec3::from)
-                .filter(|point| point.is_finite()).map(|point| (point - center) / extent);
+            let coords = |idx: u32| {
+                positions
+                    .get(idx as usize)
+                    .copied()
+                    .map(Vec3::from)
+                    .filter(|point| point.is_finite())
+                    .map(|point| (point - center) / extent)
+            };
             if let (Some(a), Some(b), Some(c)) = (coords(face[0]), coords(face[1]), coords(face[2])) {
                 triangles.push(Triangle { positions: [a, b, c], color });
             }

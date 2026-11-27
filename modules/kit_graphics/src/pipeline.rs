@@ -180,7 +180,8 @@ mod builtin_shader_tests {
             ("desktop", source.to_owned(), naga::valid::Capabilities::IMMEDIATES),
             ("web", web, naga::valid::Capabilities::empty()),
         ] {
-            let module = naga::front::wgsl::parse_str(&src).unwrap_or_else(|e| panic!("{label}: {}", e.emit_to_string(&src)));
+            let module =
+                naga::front::wgsl::parse_str(&src).unwrap_or_else(|e| panic!("{label}: {}", e.emit_to_string(&src)));
             let info = naga::valid::Validator::new(naga::valid::ValidationFlags::all(), caps)
                 .validate(&module)
                 .unwrap_or_else(|e| panic!("{label}: {}", e.emit_to_string(&src)));

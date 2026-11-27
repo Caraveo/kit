@@ -589,16 +589,20 @@ fn dragging_a_sound_onto_an_object_or_the_viewport() {
     // Onto the Cube in the hierarchy: it gets an Audio Source.
     let row = ui::marked(&h.ctx, "sound_asset").expect("Sounds group lists the file").center();
     let objects = ui::marked(&h.ctx, "objects_tab").unwrap().center();
-    h.frame(vec![Event::PointerMoved(row), Event::PointerButton {
-        pos: row, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE,
-    }]);
+    h.frame(vec![
+        Event::PointerMoved(row),
+        Event::PointerButton { pos: row, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE },
+    ]);
     h.frame(vec![Event::PointerMoved(row + Vec2::new(10.0, 0.0))]);
     h.frame(vec![Event::PointerMoved(objects)]);
     h.frame(vec![]);
     let cube_row = h.row("Cube").center();
     h.frame(vec![Event::PointerMoved(cube_row)]);
     h.frame(vec![Event::PointerButton {
-        pos: cube_row, button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE,
+        pos: cube_row,
+        button: PointerButton::Primary,
+        pressed: false,
+        modifiers: Modifiers::NONE,
     }]);
     h.frame(vec![]);
     let cube = kit::scene::find_by_name(h.ed.world(), "Cube").unwrap();
@@ -1392,14 +1396,17 @@ fn rebound_play_shortcut_uses_the_new_key() {
     assert!(!h.ed.playing);
 }
 
-
 #[test]
 fn renaming_an_asset_updates_every_reference() {
     let mut h = Harness::new("rename_refs");
     let res = h.ed.project.as_ref().unwrap().resources.clone();
     // Another scene and a script that mention the file, plus an unsaved edit.
     res.write_text("scenes/level2.kscene", &kit::gamesys::save_scene(h.ed.world()).to_json()).unwrap();
-    res.write_text("scripts/loader.x", "# uses \"scripts/spinner.x\"\nVOID CREATE Init()[\n    DISPLAY[\"scripts/spinner.x\"]\n]\n").unwrap();
+    res.write_text(
+        "scripts/loader.x",
+        "# uses \"scripts/spinner.x\"\nVOID CREATE Init()[\n    DISPLAY[\"scripts/spinner.x\"]\n]\n",
+    )
+    .unwrap();
     let cube = kit::scene::find_by_name(h.ed.world(), "Cube").unwrap();
     h.ed.app.world.get_mut::<kit::scene::Transform>(cube).unwrap().translation.x = 3.0;
     h.frame(vec![]);
@@ -1415,7 +1422,10 @@ fn renaming_an_asset_updates_every_reference() {
         let text = std::fs::read_to_string(h.dir.join(f)).unwrap();
         assert!(text.contains("scripts/spin.x") && !text.contains("scripts/spinner.x"), "{f}");
     }
-    assert_eq!(std::fs::read_to_string(h.dir.join("scripts/loader.x")).unwrap().matches("\"scripts/spin.x\"").count(), 2);
+    assert_eq!(
+        std::fs::read_to_string(h.dir.join("scripts/loader.x")).unwrap().matches("\"scripts/spin.x\"").count(),
+        2
+    );
     // Undo history was updated too: undoing never brings back the old name.
     h.ed.undo();
     let cube = kit::scene::find_by_name(h.ed.world(), "Cube").unwrap();
@@ -1509,9 +1519,8 @@ fn project_search_filters_objects_and_assets_with_one_query() {
     assert!(!visible.contains(&sun));
 
     h.assets_tab();
-    let rendered = |path: &str| h.ctx.data(|data| {
-        data.get_temp::<Rect>(egui::Id::new(("asset_preview_row", path))).is_some()
-    });
+    let rendered =
+        |path: &str| h.ctx.data(|data| data.get_temp::<Rect>(egui::Id::new(("asset_preview_row", path))).is_some());
     assert!(rendered("data/cube-notes.md"));
     assert!(!rendered("data/sun-notes.md"));
 }
@@ -1580,11 +1589,15 @@ fn asset_clicks_preview_in_center_and_double_click_places_a_sprite() {
         modifiers: Modifiers::NONE,
     };
     h.frame(vec![Event::PointerMoved(diagram_pointer), wheel(2.0)]);
-    for _ in 0..4 { h.frame(vec![]); }
+    for _ in 0..4 {
+        h.frame(vec![]);
+    }
     let zoomed_in = h.st.diagram.canvas_zoom().unwrap();
     assert!(zoomed_in > zoom, "{zoomed_in} must be greater than {zoom}");
     h.frame(vec![wheel(-5.0)]);
-    for _ in 0..4 { h.frame(vec![]); }
+    for _ in 0..4 {
+        h.frame(vec![]);
+    }
     assert!(h.st.diagram.canvas_zoom().unwrap() < zoomed_in);
     let back = ui::marked(&h.ctx, "return_game_view").unwrap();
     h.click(back.center());
@@ -1621,7 +1634,6 @@ fn opening_a_diagram_asset_shows_it_until_the_selection_changes() {
     assert!(h.st.diagram.pinned().is_none(), "selecting an object releases the opened file");
 }
 
-
 /// Builds the release showcase project (not a regular test):
 /// KIT_SHOWCASE_DIR=/path KIT_SHOWCASE_MODEL=/path/model.glb cargo test -p kit-editor zz_make_showcase -- --ignored
 #[test]
@@ -1633,7 +1645,11 @@ fn zz_make_showcase() {
     let _ = std::fs::remove_dir_all(&dir);
     crate::templates::create_from(
         &dir,
-        &crate::templates::NewProject { title: "Kit Showcase".into(), template: crate::templates::Template::Empty3D, ..Default::default() },
+        &crate::templates::NewProject {
+            title: "Kit Showcase".into(),
+            template: crate::templates::Template::Empty3D,
+            ..Default::default()
+        },
     )
     .unwrap();
     let mut h = Harness::new("showcase");
@@ -1714,7 +1730,13 @@ fn inspecting_a_rig_volume_does_not_change_the_scene() {
     let mut h = Harness::new("rig_inspect");
     let cube = kit::scene::find_by_name(h.ed.world(), "Cube").unwrap();
     crate::rigg_mode::add_rig(&mut h.ed, cube);
-    let v = kit::rigg::preset::add_volume(&mut h.ed.app.world, cube, "Joint", kit::gamesys::RigShape::Sphere { radius: 0.3 }, kit::scene::Transform::IDENTITY);
+    let v = kit::rigg::preset::add_volume(
+        &mut h.ed.app.world,
+        cube,
+        "Joint",
+        kit::gamesys::RigShape::Sphere { radius: 0.3 },
+        kit::scene::Transform::IDENTITY,
+    );
     // A value the 2-decimal slider would round.
     h.ed.app.world.get_mut::<kit::gamesys::RigVolume>(v).unwrap().falloff = 0.15706;
     h.ed.app.update(1.0 / 60.0);
@@ -1725,7 +1747,11 @@ fn inspecting_a_rig_volume_does_not_change_the_scene() {
         h.ed.app.update(1.0 / 60.0);
         h.frame(vec![]);
     }
-    assert_eq!(h.ed.world().get::<kit::gamesys::RigVolume>(v).unwrap().falloff, 0.15706, "not rounded by the Inspector");
+    assert_eq!(
+        h.ed.world().get::<kit::gamesys::RigVolume>(v).unwrap().falloff,
+        0.15706,
+        "not rounded by the Inspector"
+    );
     assert!(!h.ed.scene_dirty(), "just looking doesn't count as an edit");
 }
 
@@ -1742,7 +1768,9 @@ fn installed_circuits_add_components_and_settings() {
     let active = crate::circuit_ui::active();
     let comp = active.iter().flat_map(|m| &m.components).find(|c| c.id == "realtime").expect("Realtime Sync offered");
     assert_eq!(comp.name, "Realtime Sync");
-    assert!(active.iter().any(|m| m.circuit.name == "Multiplayer" && !m.config.is_empty() && m.circuit.dashboard.is_some()));
+    assert!(
+        active.iter().any(|m| m.circuit.name == "Multiplayer" && !m.config.is_empty() && m.circuit.dashboard.is_some())
+    );
 
     // Add it to the cube (what the menu item does) and draw the inspector.
     let cube = kit::scene::find_by_name(h.ed.world(), "Cube").unwrap();
@@ -1787,7 +1815,11 @@ fn scene_view_and_game_view_tabs() {
     h.frame(vec![]);
     assert!(!h.ed.settings.game_camera, "Stop returns to Scene View");
     // The tabs sit in order: Game View, Scene View, Preview.
-    let (g, s, p) = (ui::marked(&h.ctx, "return_game_view").unwrap(), ui::marked(&h.ctx, "scene_view").unwrap(), ui::marked(&h.ctx, "open_preview").unwrap());
+    let (g, s, p) = (
+        ui::marked(&h.ctx, "return_game_view").unwrap(),
+        ui::marked(&h.ctx, "scene_view").unwrap(),
+        ui::marked(&h.ctx, "open_preview").unwrap(),
+    );
     assert!(g.left() < s.left() && s.left() < p.left());
 }
 
@@ -1815,7 +1847,10 @@ fn fabs_save_place_and_spawn_from_scripts() {
     assert_ne!(placed, cube);
     assert_eq!(kit::scene::children(h.ed.world(), placed).len(), 1);
     assert_eq!(h.ed.world().get::<kit::gamesys::Tags>(placed).unwrap().0, ["Loot"]);
-    assert_eq!(h.ed.world().get::<kit::scene::Transform>(placed).unwrap().translation, kit::math::Vec3::new(0.0, 0.0, -3.0));
+    assert_eq!(
+        h.ed.world().get::<kit::scene::Transform>(placed).unwrap().translation,
+        kit::math::Vec3::new(0.0, 0.0, -3.0)
+    );
 
     // Tags are saved with the scene.
     let saved = kit::gamesys::save_scene(h.ed.world()).to_json();
@@ -1829,7 +1864,14 @@ fn fabs_save_place_and_spawn_from_scripts() {
     )
     .unwrap();
     // Remove the scene objects named Crate so the bare name means the Fab.
-    let crates: Vec<_> = h.ed.world().storage::<kit::scene::Name>().unwrap().iter().filter(|(_, n)| n.0 == "Crate").map(|(e, _)| e).collect();
+    let crates: Vec<_> =
+        h.ed.world()
+            .storage::<kit::scene::Name>()
+            .unwrap()
+            .iter()
+            .filter(|(_, n)| n.0 == "Crate")
+            .map(|(e, _)| e)
+            .collect();
     for c in crates {
         kit::scene::despawn_recursive(&mut h.ed.app.world, c);
     }
@@ -1837,18 +1879,18 @@ fn fabs_save_place_and_spawn_from_scripts() {
     h.ed.app.world.insert(spawner, kit::gamesys::Script::new("scripts/Spawner.x"));
     h.ed.play();
     h.ed.app.update(1.0 / 60.0);
-    let heights: Vec<f32> = h
-        .ed
-        .world()
-        .storage::<kit::scene::Name>()
-        .unwrap()
-        .iter()
-        .filter(|(_, n)| n.0 == "Crate")
-        .map(|(e, _)| h.ed.world().get::<kit::scene::Transform>(e).unwrap().translation.y)
-        .collect();
+    let heights: Vec<f32> =
+        h.ed.world()
+            .storage::<kit::scene::Name>()
+            .unwrap()
+            .iter()
+            .filter(|(_, n)| n.0 == "Crate")
+            .map(|(e, _)| h.ed.world().get::<kit::scene::Transform>(e).unwrap().translation.y)
+            .collect();
     let mut heights = heights;
     heights.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    let console: Vec<String> = h.ed.world().resource::<kit::core::Console>().lines().iter().map(|l| l.text.clone()).collect();
+    let console: Vec<String> =
+        h.ed.world().resource::<kit::core::Console>().lines().iter().map(|l| l.text.clone()).collect();
     assert_eq!(heights, [8.0, 9.0], "{console:?}");
     h.ed.stop();
 }
@@ -1882,7 +1924,11 @@ fn cinematic_menu_sits_at_the_right_when_the_circuit_is_installed() {
     let menu = ui::marked(&h.ctx, "cinematic_menu").expect("shown once installed");
     let preview = ui::marked(&h.ctx, "open_preview").unwrap();
     assert!(menu.min.x > preview.max.x, "after Game View, Scene View and Preview");
-    assert!(h.st.viewport_rect.max.x - menu.max.x < 40.0, "at the very right of the row: {menu:?} vs {:?}", h.st.viewport_rect);
+    assert!(
+        h.st.viewport_rect.max.x - menu.max.x < 40.0,
+        "at the very right of the row: {menu:?} vs {:?}",
+        h.st.viewport_rect
+    );
 
     // New cinematic: a director and a first shot framed like the Scene View.
     let director = crate::cinematic_ui::new_cinematic(&mut h.ed);
@@ -1954,15 +2000,31 @@ fn particle_emitter_from_add_component_previews_plays_and_saves() {
     }
     h.ed.play();
     h.ed.app.update(1.0 / 60.0);
-    let played = kit::scene::find_by_name(h.ed.world(), "Empty").filter(|x| h.ed.world().has::<kit::gamesys::ParticleEmitter>(*x)).unwrap_or(e);
+    let played = kit::scene::find_by_name(h.ed.world(), "Empty")
+        .filter(|x| h.ed.world().has::<kit::gamesys::ParticleEmitter>(*x))
+        .unwrap_or(e);
     let n = h.ed.world().get::<kit::particles::ParticleState>(played).map_or(0, |s| s.particles.len());
     assert!((30..=32).contains(&n), "a new Play session starts fresh: {n}");
     h.ed.app.world.resource_mut::<kit::core::Time>().scale = 0.0;
-    let before: Vec<_> = h.ed.world().get::<kit::particles::ParticleState>(played).unwrap().particles.iter().map(|p| p.position).collect();
+    let before: Vec<_> =
+        h.ed.world()
+            .get::<kit::particles::ParticleState>(played)
+            .unwrap()
+            .particles
+            .iter()
+            .map(|p| p.position)
+            .collect();
     for _ in 0..10 {
         h.ed.app.update(1.0 / 60.0);
     }
-    let after: Vec<_> = h.ed.world().get::<kit::particles::ParticleState>(played).unwrap().particles.iter().map(|p| p.position).collect();
+    let after: Vec<_> =
+        h.ed.world()
+            .get::<kit::particles::ParticleState>(played)
+            .unwrap()
+            .particles
+            .iter()
+            .map(|p| p.position)
+            .collect();
     assert_eq!(before, after, "paused game time freezes particles");
     h.ed.app.world.resource_mut::<kit::core::Time>().scale = 1.0;
     h.ed.stop();

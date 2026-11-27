@@ -97,7 +97,13 @@ mod tests {
         let mut lock = Lock::load(dir.path()).unwrap();
         assert!(lock.circuits.is_empty());
         for id in ["kit.zeta", "kit.alpha"] {
-            lock.upsert(Locked { id: id.into(), version: "1.0.0".into(), sha256: "ab".into(), source: "s".into(), enabled: true });
+            lock.upsert(Locked {
+                id: id.into(),
+                version: "1.0.0".into(),
+                sha256: "ab".into(),
+                source: "s".into(),
+                enabled: true,
+            });
         }
         lock.save(dir.path()).unwrap();
         let back = Lock::load(dir.path()).unwrap();

@@ -134,7 +134,12 @@ pub fn pack(dir: &Path) -> Result<(Manifest, Vec<u8>)> {
 }
 
 /// Build the release manifest for packed bytes, optionally signing them.
-pub fn release_manifest(manifest: &Manifest, bytes: &[u8], notes: Option<String>, signer: Option<(&str, &ed25519_dalek::SigningKey)>) -> ReleaseManifest {
+pub fn release_manifest(
+    manifest: &Manifest,
+    bytes: &[u8],
+    notes: Option<String>,
+    signer: Option<(&str, &ed25519_dalek::SigningKey)>,
+) -> ReleaseManifest {
     let sha256 = sha256_hex(bytes);
     let c = &manifest.circuit;
     let (signature, key_id) = match signer {
@@ -147,7 +152,13 @@ pub fn release_manifest(manifest: &Manifest, bytes: &[u8], notes: Option<String>
     };
     ReleaseManifest {
         manifest: manifest.clone(),
-        package: PackageInfo { file: file_name(&c.id, &c.version), sha256, size: bytes.len() as u64, signature, key_id },
+        package: PackageInfo {
+            file: file_name(&c.id, &c.version),
+            sha256,
+            size: bytes.len() as u64,
+            signature,
+            key_id,
+        },
         notes,
     }
 }
@@ -177,11 +188,14 @@ pub fn verify(bytes: &[u8], release: &ReleaseManifest, keys: &[PublisherKey]) ->
         (Some(_), true) => bail!("the release is signed but the registry has no key for this publisher"),
         (Some(sig), false) => {
             let key = match &p.key_id {
-                Some(id) => keys.iter().find(|k| &k.key_id == id).with_context(|| format!("unknown signing key {id}"))?,
+                Some(id) => {
+                    keys.iter().find(|k| &k.key_id == id).with_context(|| format!("unknown signing key {id}"))?
+                }
                 None => &keys[0],
             };
             let b64 = base64::engine::general_purpose::STANDARD;
-            let pk: [u8; 32] = b64.decode(&key.public_key)?.try_into().map_err(|_| anyhow::anyhow!("bad public key"))?;
+            let pk: [u8; 32] =
+                b64.decode(&key.public_key)?.try_into().map_err(|_| anyhow::anyhow!("bad public key"))?;
             let sig: [u8; 64] = b64.decode(sig)?.try_into().map_err(|_| anyhow::anyhow!("bad signature"))?;
             let vk = ed25519_dalek::VerifyingKey::from_bytes(&pk)?;
             let c = &release.manifest.circuit;

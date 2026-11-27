@@ -9,16 +9,18 @@
 
 pub mod audio;
 pub mod bridge;
-mod physics;
 mod particles;
+mod fog;
+mod physics;
 pub mod post;
 pub mod rig;
 mod scene_file;
 pub mod scenes;
 mod terrain;
 
-pub use terrain::{RESOLUTIONS as TERRAIN_RESOLUTIONS, SculptTool, Terrain};
 pub use particles::ParticleEmitter;
+pub use fog::{FogEmitter, FogKind};
+pub use terrain::{RESOLUTIONS as TERRAIN_RESOLUTIONS, SculptTool, Terrain};
 
 pub use physics::{
     BodyKind, Collider, ColliderShape, CollisionEvent, CollisionEvents, PathFollow, PathLoop, Physics, PhysicsApi,
@@ -29,11 +31,11 @@ pub use audio::{
     AudioCommand, AudioCommands, AudioSource, AudioState, Rolloff, SOUND_EXTENSIONS, is_sound, stereo_pan,
 };
 pub use bridge::{BridgeValue, Diagram, GraphEvent, GraphEvents, ScriptCall, ScriptCalls};
-pub use rig::{Rig, RigClip, RigKey, RigPose, RigShape, RigTrack, RigVolume};
 pub use post::{
-    AmbientFx, AoQuality, ColorFx, ExposureFx, FocusFx, GlowFx, ImageFx, Override, PostEffects, PostVolume, Tonemap,
-    VolumeAffect, VolumeShape,
+    AmbientFx, AoQuality, ColorFx, ExposureFx, FocusFx, FogFx, GlowFx, ImageFx, Override, PostEffects, PostVolume,
+    Tonemap, VolumeAffect, VolumeShape,
 };
+pub use rig::{Rig, RigClip, RigKey, RigPose, RigShape, RigTrack, RigVolume};
 pub use scene_file::{
     EntityData, ExtraData, SCENE_EXTENSION, SceneFile, clone_subtree, load_scene, save_scene, save_subtree,
 };

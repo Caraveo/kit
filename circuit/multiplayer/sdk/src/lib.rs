@@ -38,7 +38,12 @@ pub struct Config {
 /// The sector scope for a scene file ("scenes/level2.kscene" → "world/main/sector/scenes/level2").
 pub fn sector_scope(world: &str, scene_path: &str) -> String {
     let stem = scene_path.trim_start_matches("./").trim_end_matches(".kscene").replace('\\', "/");
-    let clean: String = stem.chars().map(|c| if c.is_ascii_alphanumeric() || c == '/' || c == '-' || c == '_' { c.to_ascii_lowercase() } else { '-' }).collect();
+    let clean: String =
+        stem.chars()
+            .map(|c| {
+                if c.is_ascii_alphanumeric() || c == '/' || c == '-' || c == '_' { c.to_ascii_lowercase() } else { '-' }
+            })
+            .collect();
     format!("world/{world}/sector/{clean}")
 }
 
@@ -64,8 +69,25 @@ pub struct Realtime {
 impl Realtime {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn connect(cfg: Config, tokens: TokenSource) -> Self {
-        let world = Connection::open(Target { base: cfg.connect_url.clone(), environment: cfg.environment.clone(), scope: format!("world/{}", cfg.world), auto_instance: false, party: None }, tokens.clone());
-        Self { cfg, tokens, world, sector: None, entering: None, frames: [Writer::new(), Writer::new()], next_request: 1 }
+        let world = Connection::open(
+            Target {
+                base: cfg.connect_url.clone(),
+                environment: cfg.environment.clone(),
+                scope: format!("world/{}", cfg.world),
+                auto_instance: false,
+                party: None,
+            },
+            tokens.clone(),
+        );
+        Self {
+            cfg,
+            tokens,
+            world,
+            sector: None,
+            entering: None,
+            frames: [Writer::new(), Writer::new()],
+            next_request: 1,
+        }
     }
 
     /// Start moving to a scene's sector. The current sector keeps streaming
@@ -77,7 +99,16 @@ impl Realtime {
         if self.sector.as_ref().is_some_and(|(s, _)| s.starts_with(&scope)) {
             return;
         }
-        let conn = Connection::open(Target { base: self.cfg.connect_url.clone(), environment: self.cfg.environment.clone(), scope: scope.clone(), auto_instance: true, party: self.cfg.party.clone() }, self.tokens.clone());
+        let conn = Connection::open(
+            Target {
+                base: self.cfg.connect_url.clone(),
+                environment: self.cfg.environment.clone(),
+                scope: scope.clone(),
+                auto_instance: true,
+                party: self.cfg.party.clone(),
+            },
+            self.tokens.clone(),
+        );
         self.entering = Some((scope, conn, false));
     }
 
@@ -130,7 +161,15 @@ impl Realtime {
     }
     /// Set this scope's world seed (once; or replace with `expect` = current world revision).
     pub fn set_seed(&mut self, ch: Channel, seed: &protocol::WorldDescriptor, expect: u32) {
-        self.frame(ch).u8(c::WORLD_DESC).u32(expect).str8(&seed.id).f64(seed.seed).str8(&seed.generator).str8(&seed.generator_version).u32(seed.chunk_size).str8(&seed.compatibility_hash);
+        self.frame(ch)
+            .u8(c::WORLD_DESC)
+            .u32(expect)
+            .str8(&seed.id)
+            .f64(seed.seed)
+            .str8(&seed.generator)
+            .str8(&seed.generator_version)
+            .u32(seed.chunk_size)
+            .str8(&seed.compatibility_hash);
     }
     pub fn ping(&mut self, ch: Channel, now_ms: u32) {
         self.frame(ch).u8(c::PING).u32(now_ms);

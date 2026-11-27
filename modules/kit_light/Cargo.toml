@@ -1,0 +1,12 @@
+[package]
+name = "kit_light"
+description = "Kit directional-light extraction shared by renderers"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+kit_ecs.workspace = true
+kit_gamesys.workspace = true
+kit_scene.workspace = true
+glam.workspace = true

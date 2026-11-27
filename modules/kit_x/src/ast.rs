@@ -99,7 +99,10 @@ pub enum ExprKind {
     Convert(Type, Vec<Expr>),
     /// `INVOKE("Sphere", position, ...)` spawns an object inside the calling
     /// object (`inside: true`); `INSTANTIATE(...)` spawns it at the top level.
-    Invoke { args: Vec<Expr>, inside: bool },
+    Invoke {
+        args: Vec<Expr>,
+        inside: bool,
+    },
     /// `EXIST(expr)` / `EXIST expr`: true when the value is not NULL.
     Exist(Box<Expr>),
 }

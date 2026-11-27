@@ -2182,10 +2182,12 @@ dependencies = [
  "kit_diagram",
  "kit_ecs",
  "kit_engine",
+ "kit_fog",
  "kit_gamedata",
  "kit_gamesys",
  "kit_graphics",
  "kit_input",
+ "kit_light",
  "kit_particles",
  "kit_path",
  "kit_physics",
@@ -2354,6 +2356,7 @@ dependencies = [
  "kit_core",
  "kit_diagram",
  "kit_ecs",
+ "kit_fog",
  "kit_gamedata",
  "kit_gamesys",
  "kit_graphics",
@@ -2383,6 +2386,18 @@ dependencies = [
  "ed25519-dalek",
  "getrandom 0.2.17",
  "sha2",
+]
+
+[[package]]
+name = "kit_fog"
+version = "0.0.6"
+dependencies = [
+ "glam 0.34.3",
+ "kit_collider",
+ "kit_core",
+ "kit_ecs",
+ "kit_gamesys",
+ "kit_scene",
 ]
 
 [[package]]
@@ -2433,6 +2448,16 @@ version = "0.0.6"
 dependencies = [
  "glam 0.34.3",
  "kit_core",
+]
+
+[[package]]
+name = "kit_light"
+version = "0.0.6"
+dependencies = [
+ "glam 0.34.3",
+ "kit_ecs",
+ "kit_gamesys",
+ "kit_scene",
 ]
 
 [[package]]
@@ -2499,6 +2524,7 @@ dependencies = [
  "kit_core",
  "kit_ecs",
  "kit_gamesys",
+ "kit_light",
  "kit_scene",
  "naga",
 ]
@@ -2539,8 +2565,10 @@ dependencies = [
  "image",
  "kit_core",
  "kit_ecs",
+ "kit_fog",
  "kit_gamesys",
  "kit_graphics",
+ "kit_light",
  "kit_particles",
  "kit_post",
  "kit_resource",
@@ -2633,6 +2661,7 @@ dependencies = [
  "kit_diagram",
  "kit_ecs",
  "kit_export_security",
+ "kit_fog",
  "kit_gamedata",
  "kit_gamesys",
  "kit_input",

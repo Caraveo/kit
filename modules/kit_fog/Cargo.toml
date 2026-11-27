@@ -1,0 +1,14 @@
+[package]
+name = "kit_fog"
+description = "Kit module: drifting mist, dust, smog, ghost and radiance cloud emitters."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+kit_ecs.workspace = true
+kit_core.workspace = true
+kit_scene.workspace = true
+kit_gamesys.workspace = true
+kit_collider.workspace = true
+glam.workspace = true

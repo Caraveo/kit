@@ -9,7 +9,7 @@ use crate::{GridPlane, View, is_model_bundle, srgb_to_linear};
 use anyhow::{Context, Result};
 use glam::{Mat4, Vec3, Vec4};
 use kit_ecs::{Entity, World};
-use kit_gamesys::{Light, MeshKind, Model, Sprite, Terrain};
+use kit_gamesys::{MeshKind, Model, Sprite, Terrain};
 use kit_resource::Resources;
 use kit_scene::GlobalTransform;
 use std::collections::HashMap;
@@ -39,18 +39,8 @@ pub struct DrawUniforms {
 
 /// The scene's key light: first Light entity, else a default.
 pub fn key_light(world: &World) -> (Vec3, Vec3) {
-    let mut dir = Vec3::new(-0.45, -0.8, -0.4).normalize();
-    let mut color = Vec3::splat(1.05);
-    if let Some(lights) = world.storage::<Light>() {
-        let shining = |e: Entity| kit_scene::is_active(world, e) && !kit_gamesys::feature_disabled(world, e, "Light");
-        if let Some((e, l)) = lights.iter().find(|(e, _)| shining(*e)) {
-            if let Some(g) = world.get::<GlobalTransform>(e) {
-                dir = g.0.transform_vector3(Vec3::NEG_Z).normalize_or(dir);
-            }
-            color = l.color * l.intensity;
-        }
-    }
-    (dir, color)
+    let light = kit_light::extract(world);
+    (light.direction, light.color)
 }
 
 pub fn frame_uniforms(world: &World, view: &View) -> FrameUniforms {
@@ -340,6 +330,7 @@ pub fn draw_list<'a>(world: &World, view: &View, imported: impl Fn(&str) -> Opti
             blended.push(((view.view * g.0.w_axis).z, item));
         }
     }
+    fog_items(world, view, &mut blended);
     particle_items(world, view, &mut blended);
     blended.sort_by(|a, b| a.0.total_cmp(&b.0));
     list.blended = blended.into_iter().map(|(_, item)| item).collect();
@@ -357,11 +348,67 @@ pub fn draw_list<'a>(world: &World, view: &View, imported: impl Fn(&str) -> Opti
     list
 }
 
+/// Live fog clouds as soft, camera-facing layers.
+fn fog_items(world: &World, view: &View, blended: &mut Vec<(f32, DrawItem)>) {
+    let (Some(states), Some(emitters)) =
+        (world.storage::<kit_fog::FogState>(), world.storage::<kit_fog::FogEmitter>())
+    else {
+        return;
+    };
+    let (_, face, _) = view.view.inverse().to_scale_rotation_translation();
+    for (e, state) in states.iter() {
+        let Some(emitter) = emitters.get(e) else { continue };
+        if state.clouds.is_empty() || !kit_scene::is_active(world, e) {
+            continue;
+        }
+        let mut color = srgb_to_linear(emitter.color);
+        let density = emitter.density.clamp(0.0, 4.0);
+        color.w *= density;
+        let round = if emitter.texture.trim().is_empty() { 1.0 } else { 0.0 };
+        let emission = if emitter.kind == kit_fog::FogKind::Radiance {
+            color.truncate() * (density * 1.5)
+        } else {
+            Vec3::ZERO
+        };
+        let alpha_scale = match emitter.kind {
+            kit_fog::FogKind::Ghost => 0.65,
+            kit_fog::FogKind::Smog => 0.8,
+            _ => 1.0,
+        };
+        for cloud in &state.clouds {
+            let alpha = color.w * cloud.opacity() * alpha_scale;
+            if alpha <= 0.002 {
+                continue;
+            }
+            let model =
+                Mat4::from_scale_rotation_translation(Vec3::splat(cloud.size * cloud.surface_scale), face, cloud.position);
+            blended.push((
+                (view.view * cloud.position.extend(1.0)).z,
+                DrawItem {
+                    geometry: Geometry::Builtin(MeshKind::Quad),
+                    first: 0,
+                    count: None,
+                    pass: Pass::Sprite,
+                    texture: emitter.texture.clone(),
+                    uniforms: uniforms(
+                        model,
+                        color.truncate().extend(alpha),
+                        [0.0, 0.0, 0.0, 1.0],
+                        [round, 0.0, 0.0, 0.0],
+                        emission.extend(1.0).into(),
+                    ),
+                },
+            ));
+        }
+    }
+}
+
 /// Live particles as camera-facing quads in the shared (depth-sorted) sprite
 /// list. Facing the camera's own rotation works for perspective and
 /// orthographic cameras alike.
 fn particle_items(world: &World, view: &View, blended: &mut Vec<(f32, DrawItem)>) {
-    let (Some(states), Some(emitters)) = (world.storage::<kit_particles::ParticleState>(), world.storage::<kit_particles::ParticleEmitter>())
+    let (Some(states), Some(emitters)) =
+        (world.storage::<kit_particles::ParticleState>(), world.storage::<kit_particles::ParticleEmitter>())
     else {
         return;
     };
@@ -389,7 +436,13 @@ fn particle_items(world: &World, view: &View, blended: &mut Vec<(f32, DrawItem)>
                     count: None,
                     pass: Pass::Sprite,
                     texture: emitter.texture.clone(),
-                    uniforms: uniforms(model, color.truncate().extend(alpha), [0.0, 0.0, 0.0, 1.0], [round, 0.0, 0.0, 0.0], [0.0; 4]),
+                    uniforms: uniforms(
+                        model,
+                        color.truncate().extend(alpha),
+                        [0.0, 0.0, 0.0, 1.0],
+                        [round, 0.0, 0.0, 0.0],
+                        [0.0; 4],
+                    ),
                 },
             ));
         }
@@ -447,6 +500,9 @@ pub fn wanted_textures<'a>(world: &World, imported: impl Fn(&str) -> Option<&'a 
     }
     if let Some(emitters) = world.storage::<kit_particles::ParticleEmitter>() {
         wanted.extend(emitters.iter().map(|(_, p)| p.texture.clone()));
+    }
+    if let Some(emitters) = world.storage::<kit_fog::FogEmitter>() {
+        wanted.extend(emitters.iter().map(|(_, fog)| fog.texture.clone()));
     }
     wanted.retain(|t| !t.trim().is_empty());
     wanted.sort();
@@ -507,7 +563,10 @@ mod particle_tests {
         let (view, items) = particle_draws(&app);
         assert_eq!(items.len(), 12);
         check_facing(&view, &items);
-        assert_eq!(Mat4::from_cols_array_2d(&items[0].uniforms.model).to_scale_rotation_translation().0.x, ParticleEmitter::default().size);
+        assert_eq!(
+            Mat4::from_cols_array_2d(&items[0].uniforms.model).to_scale_rotation_translation().0.x,
+            ParticleEmitter::default().size
+        );
 
         // A 2D orthographic camera.
         let app = scene(Camera::orthographic(10.0), Transform::from_xyz(0.0, 0.0, 10.0));

@@ -108,7 +108,7 @@ fn fs_sprite(i: VOut) -> @location(0) vec4<f32> {
     if (t.a < 0.004) {
         discard;
     }
-    var c = t.rgb;
+    var c = t.rgb + pc.emission.rgb;
     if (pc.extra.z > 0.5) {
         c = mix(c, ACCENT, 0.35);
     }

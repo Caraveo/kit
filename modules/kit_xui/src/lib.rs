@@ -90,7 +90,13 @@ pub fn activate_class(world: &mut kit_ecs::World, camera: Entity, id: &str, clas
 }
 
 pub fn set_visible(world: &mut kit_ecs::World, camera: Entity, id: &str, visible: bool) {
-    world.resource_mut::<InterfaceRuntime>().instances.entry(camera).or_default().visible.insert(id.to_owned(), visible);
+    world
+        .resource_mut::<InterfaceRuntime>()
+        .instances
+        .entry(camera)
+        .or_default()
+        .visible
+        .insert(id.to_owned(), visible);
 }
 
 pub struct XuiModule;
@@ -141,7 +147,10 @@ mod tests {
 
     #[test]
     fn text_and_attributes_round_trip_with_markup_characters() {
-        let doc = Document::parse(r#"<interface><!-- use > here --><label text='x > y &amp; "quoted"'>a &lt; b</label></interface>"#).unwrap();
+        let doc = Document::parse(
+            r#"<interface><!-- use > here --><label text='x > y &amp; "quoted"'>a &lt; b</label></interface>"#,
+        )
+        .unwrap();
         let label = &doc.root.children[0];
         assert_eq!(label.attr("text"), Some(r#"x > y & "quoted""#));
         assert_eq!(label.attr("_text"), Some("a < b"));

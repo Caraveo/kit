@@ -10,7 +10,9 @@ Kit runs on **Linux, Windows and macOS** and is written in Rust (Vulkan on deskt
 
 [![CI](https://github.com/caraveo/kit/actions/workflows/ci.yml/badge.svg)](https://github.com/caraveo/kit/actions/workflows/ci.yml) [![Release](https://github.com/caraveo/kit/actions/workflows/release.yml/badge.svg)](https://github.com/caraveo/kit/actions/workflows/release.yml) [![Circuit release](https://github.com/caraveo/kit/actions/workflows/circuit-release.yml/badge.svg)](https://github.com/caraveo/kit/actions/workflows/circuit-release.yml) [![Latest release](https://img.shields.io/github/v/release/caraveo/kit?label=Kit)](https://github.com/caraveo/kit/releases/latest)
 
-**[⬇ Download Kit v0.0.5](https://github.com/caraveo/kit/releases/latest)** · [Website](https://kitgameengine.win) · [Docs](documentation/src/content/docs) · [Changelog](CHANGELOG.md) · [Report a problem](https://github.com/caraveo/kit/issues)
+**[⬇ Download Kit](https://github.com/caraveo/kit/releases/latest)** · [Website](https://kitgameengine.win) · [Docs](documentation/src/content/docs) · [Changelog](CHANGELOG.md) · [Report a problem](https://github.com/caraveo/kit/issues)
+
+Kit v0.0.6 adds Cinematics for camera sequences, live particle emitters, drifting fog, and the Crystal Run demo.
 
 ![The Kit editor: the object list and assets on the left, a 3D terrain scene in the viewport with the Rover selected, and the inspector on the right](docs/images/editor.webp)
 
@@ -51,6 +53,7 @@ Plus:
 - **Physics** (Rapier): rigid bodies, colliders and triggers, all set up in the inspector.
 - **Sculptable terrain**, lights, cameras, and **positional sound**.
 - **Particle Emitters** (+ Add component): continuous streams and bursts, with direction, spread, speed, gravity, size, color and an optional texture. They preview live in the editor.
+- **Fog Emitters** (+ Add component) create drifting clouds. Open [Kit Fog](examples/kit_fog) or [Volumetric Fog](examples/volumetric_fog) to see fog in a scene.
 - **Effects:** post-processing volumes for bloom, color grading, fog, depth of field, vignette and more.
 - **Game Data:** datasets and constants your Diagrams can read.
 - **Fabs:** right-click an object → **Save as Fab** to reuse it anywhere: place it from **Assets → Fabs** or spawn it from a script.

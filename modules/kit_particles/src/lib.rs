@@ -95,7 +95,8 @@ pub fn simulate(world: &mut World, dt: f32) {
     let mut budget = MAX_TOTAL.saturating_sub(total(world));
     for e in emitters {
         let Some(emitter) = world.get_cloned::<ParticleEmitter>(e) else { continue };
-        let on = emitter.enabled && kit_scene::is_active(world, e) && !kit_gamesys::feature_disabled(world, e, "Particles");
+        let on =
+            emitter.enabled && kit_scene::is_active(world, e) && !kit_gamesys::feature_disabled(world, e, "Particles");
         if !on {
             // Switched off: particles vanish; switching back on bursts again.
             if let Some(st) = world.remove::<ParticleState>(e) {

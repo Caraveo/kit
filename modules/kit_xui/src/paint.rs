@@ -6,8 +6,8 @@ use crate::layout::{Item, Layout, Measure};
 use crate::style::{EM, Length, State, border, color, length, prop, prop_in, shadow};
 use epaint::text::{FontDefinitions, Fonts, FontsView, TextOptions};
 use epaint::{
-    ClippedPrimitive, ClippedShape, Color32, CornerRadius, FontId, Pos2, Rect, RectShape, Shadow, Shape, Stroke, StrokeKind,
-    TessellationOptions, Tessellator, TextureId, Vec2, pos2, vec2,
+    ClippedPrimitive, ClippedShape, Color32, CornerRadius, FontId, Pos2, Rect, RectShape, Shadow, Shape, Stroke,
+    StrokeKind, TessellationOptions, Tessellator, TextureId, Vec2, pos2, vec2,
 };
 
 impl Measure for FontsView<'_> {
@@ -33,7 +33,12 @@ pub const DEFAULT_BUTTON: Color32 = Color32::from_rgb(114, 85, 190);
 pub type ImageLookup<'a> = dyn FnMut(&str) -> Option<(TextureId, Vec2)> + 'a;
 
 /// Paint every laid-out element.
-pub fn paint(layout: &Layout, fonts: &mut FontsView<'_>, state: &dyn Fn(&Item) -> ElementState, image: &mut ImageLookup<'_>) -> Vec<ClippedShape> {
+pub fn paint(
+    layout: &Layout,
+    fonts: &mut FontsView<'_>,
+    state: &dyn Fn(&Item) -> ElementState,
+    image: &mut ImageLookup<'_>,
+) -> Vec<ClippedShape> {
     let mut out = Vec::new();
     for item in &layout.items {
         paint_item(item, fonts, &state(item), image, &mut out);
@@ -53,7 +58,13 @@ fn resolve_radius(node: &crate::Node, rect: Rect, scale: f32) -> f32 {
     r.clamp(0.0, (rect.width().min(rect.height()) / 2.0).min(255.0))
 }
 
-pub fn paint_item(item: &Item, fonts: &mut FontsView<'_>, st: &ElementState, image: &mut ImageLookup<'_>, out: &mut Vec<ClippedShape>) {
+pub fn paint_item(
+    item: &Item,
+    fonts: &mut FontsView<'_>,
+    st: &ElementState,
+    image: &mut ImageLookup<'_>,
+    out: &mut Vec<ClippedShape>,
+) {
     let node = &item.node;
     let rect = item.rect;
     if !rect.is_positive() || !item.clip.intersects(rect) {
@@ -61,14 +72,19 @@ pub fn paint_item(item: &Item, fonts: &mut FontsView<'_>, st: &ElementState, ima
     }
     let s = item.scale;
     let state = State { hovered: st.hovered, pressed: st.pressed, focused: st.focused, classes: &st.classes };
-    let opacity = prop_in(node, "opacity", state).and_then(|v| v.trim().parse::<f32>().ok()).filter(|v| v.is_finite()).unwrap_or(1.0).clamp(0.0, 1.0);
+    let opacity = prop_in(node, "opacity", state)
+        .and_then(|v| v.trim().parse::<f32>().ok())
+        .filter(|v| v.is_finite())
+        .unwrap_or(1.0)
+        .clamp(0.0, 1.0);
     let fade = |c: Color32| c.gamma_multiply(opacity);
     let radius = resolve_radius(node, rect, s);
     let corner = CornerRadius::same(radius.round() as u8);
     let mut push = |shape: Shape| out.push(ClippedShape { clip_rect: item.clip, shape });
 
     // Shadow, fill, image, border, text.
-    if let Some((dx, dy, blur, spread, c)) = prop_in(node, "box-shadow", state).and_then(|v| shadow(v, rect.width(), s)) {
+    if let Some((dx, dy, blur, spread, c)) = prop_in(node, "box-shadow", state).and_then(|v| shadow(v, rect.width(), s))
+    {
         let sh = Shadow {
             offset: [dx.clamp(-127.0, 127.0) as i8, dy.clamp(-127.0, 127.0) as i8],
             blur: blur.clamp(0.0, 255.0) as u8,
@@ -98,15 +114,30 @@ pub fn paint_item(item: &Item, fonts: &mut FontsView<'_>, st: &ElementState, ima
                 push(Shape::image(texture, dst, uv, fade(tint)));
             }
             None => {
-                push(Shape::Rect(RectShape::new(rect, corner, Color32::from_rgba_unmultiplied(255, 255, 255, 14), Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 60)), StrokeKind::Inside)));
+                push(Shape::Rect(RectShape::new(
+                    rect,
+                    corner,
+                    Color32::from_rgba_unmultiplied(255, 255, 255, 14),
+                    Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 60)),
+                    StrokeKind::Inside,
+                )));
             }
         }
     }
     if let Some((w, c)) = prop_in(node, "border", state).and_then(|v| border(v, rect.width(), s)) {
-        push(Shape::Rect(RectShape::new(rect, corner, Color32::TRANSPARENT, Stroke::new(w, fade(c)), StrokeKind::Inside)));
+        push(Shape::Rect(RectShape::new(
+            rect,
+            corner,
+            Color32::TRANSPARENT,
+            Stroke::new(w, fade(c)),
+            StrokeKind::Inside,
+        )));
     }
     if let Some((w, c)) = prop_in(node, "border-bottom", state).and_then(|v| border(v, rect.width(), s)) {
-        push(Shape::line_segment([pos2(rect.left(), rect.bottom() - w / 2.0), pos2(rect.right(), rect.bottom() - w / 2.0)], Stroke::new(w, fade(c))));
+        push(Shape::line_segment(
+            [pos2(rect.left(), rect.bottom() - w / 2.0), pos2(rect.right(), rect.bottom() - w / 2.0)],
+            Stroke::new(w, fade(c)),
+        ));
     }
     if matches!(node.tag.as_str(), "label" | "button") {
         let text = node.text().unwrap_or("");
@@ -115,9 +146,16 @@ pub fn paint_item(item: &Item, fonts: &mut FontsView<'_>, st: &ElementState, ima
             let col = prop_in(node, "text-color", state)
                 .or_else(|| prop_in(node, "color", state))
                 .and_then(color)
-            .unwrap_or(DEFAULT_TEXT);
-            let pad = crate::style::edges(prop(node, "padding").unwrap_or(if node.tag == "button" { "0.5em 1em" } else { "0" }), rect.width(), s);
-            let inner = Rect::from_min_max(pos2(rect.left() + pad[3], rect.top() + pad[0]), pos2(rect.right() - pad[1], rect.bottom() - pad[2]));
+                .unwrap_or(DEFAULT_TEXT);
+            let pad = crate::style::edges(
+                prop(node, "padding").unwrap_or(if node.tag == "button" { "0.5em 1em" } else { "0" }),
+                rect.width(),
+                s,
+            );
+            let inner = Rect::from_min_max(
+                pos2(rect.left() + pad[3], rect.top() + pad[0]),
+                pos2(rect.right() - pad[1], rect.bottom() - pad[2]),
+            );
             let galley = fonts.layout(text.to_owned(), FontId::proportional(size), fade(col), inner.width().max(1.0));
             let align = prop(node, "text-align").unwrap_or(if node.tag == "button" { "center" } else { "left" });
             let x = match align {
@@ -141,7 +179,11 @@ fn fit_image(rect: Rect, size: Vec2, fit: &str) -> (Rect, Rect) {
     let box_aspect = rect.width() / rect.height().max(1e-3);
     match fit {
         "contain" => {
-            let s = if aspect > box_aspect { vec2(rect.width(), rect.width() / aspect) } else { vec2(rect.height() * aspect, rect.height()) };
+            let s = if aspect > box_aspect {
+                vec2(rect.width(), rect.width() / aspect)
+            } else {
+                vec2(rect.height() * aspect, rect.height())
+            };
             (Rect::from_center_size(rect.center(), s), full)
         }
         "cover" => {
@@ -182,7 +224,8 @@ impl UiFonts {
     /// changes to it are in [`Self::atlas_delta`].
     pub fn tessellate(&mut self, shapes: Vec<ClippedShape>, pixels_per_point: f32) -> Vec<ClippedPrimitive> {
         let atlas = self.fonts.texture_atlas();
-        let mut t = Tessellator::new(pixels_per_point, TessellationOptions::default(), atlas.size(), atlas.prepared_discs());
+        let mut t =
+            Tessellator::new(pixels_per_point, TessellationOptions::default(), atlas.size(), atlas.prepared_discs());
         t.tessellate_shapes(shapes)
     }
 
@@ -205,13 +248,18 @@ mod tests {
     #[test]
     fn paints_and_tessellates_the_example_interfaces() {
         let mut fonts = UiFonts::new();
-        for src in [include_str!("../../../examples/hello/interfaces/player.xui"), include_str!("../../../examples/hello/interfaces/settings.xui")] {
+        for src in [
+            include_str!("../../../examples/hello/interfaces/player.xui"),
+            include_str!("../../../examples/hello/interfaces/settings.xui"),
+        ] {
             fonts.begin_frame();
             let doc = crate::Document::parse(src).unwrap();
             let screen = Rect::from_min_size(Pos2::ZERO, vec2(1280.0, 720.0));
             let mut view = fonts.view(1.0);
             let l = layout(&doc, screen, &mut view, &Options::default());
-            let shapes = paint(&l, &mut view, &|_| ElementState::default(), &mut |_| Some((TextureId::User(1), vec2(64.0, 64.0))));
+            let shapes = paint(&l, &mut view, &|_| ElementState::default(), &mut |_| {
+                Some((TextureId::User(1), vec2(64.0, 64.0)))
+            });
             assert!(shapes.len() > 20);
             let prims = fonts.tessellate(shapes, 1.0);
             assert!(!prims.is_empty());

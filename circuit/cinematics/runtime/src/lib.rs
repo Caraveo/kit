@@ -72,7 +72,15 @@ pub struct Director {
 
 impl Default for Director {
     fn default() -> Self {
-        Self { name: String::new(), play_on_start: false, letterbox: true, skippable: true, fade_in: 0.6, fade_out: 0.6, looping: false }
+        Self {
+            name: String::new(),
+            play_on_start: false,
+            letterbox: true,
+            skippable: true,
+            fade_in: 0.6,
+            fade_out: 0.6,
+            looping: false,
+        }
     }
 }
 
@@ -91,7 +99,15 @@ pub struct ShotSettings {
 
 impl Default for ShotSettings {
     fn default() -> Self {
-        Self { duration: 3.0, transition: "cut".into(), blend: 1.0, look_at: String::new(), zoom_to: 0.0, caption: String::new(), shake: 0.0 }
+        Self {
+            duration: 3.0,
+            transition: "cut".into(),
+            blend: 1.0,
+            look_at: String::new(),
+            zoom_to: 0.0,
+            caption: String::new(),
+            shake: 0.0,
+        }
     }
 }
 
@@ -157,7 +173,8 @@ pub fn enabled_in_lock(text: &str) -> bool {
     let Ok(v) = text.parse::<toml::Table>() else { return false };
     v.get("circuit").and_then(|c| c.as_array()).is_some_and(|list| {
         list.iter().any(|c| {
-            c.get("id").and_then(|v| v.as_str()) == Some(CIRCUIT_ID) && c.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true)
+            c.get("id").and_then(|v| v.as_str()) == Some(CIRCUIT_ID)
+                && c.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true)
         })
     })
 }
@@ -273,7 +290,8 @@ fn start(world: &mut World, cin: &mut Cinematics, name: &str) -> Result<(), Stri
     if cin.playing.is_some() {
         finish(world, cin, false);
     }
-    let Some((director, settings)) = directors(world).into_iter().find(|(_, d)| d.name.eq_ignore_ascii_case(name)) else {
+    let Some((director, settings)) = directors(world).into_iter().find(|(_, d)| d.name.eq_ignore_ascii_case(name))
+    else {
         return Err(format!("no cinematic named \"{name}\" in this scene"));
     };
     let shots: Vec<Shot> = shots_of(world, director)
@@ -289,7 +307,8 @@ fn start(world: &mut World, cin: &mut Cinematics, name: &str) -> Result<(), Stri
     if shots.is_empty() {
         return Err(format!("the cinematic \"{name}\" has no shots: put cameras with a Cinematic Shot inside it"));
     }
-    let cameras = world.query::<(Camera,)>().into_iter().map(|c| (c, world.get::<Camera>(c).is_some_and(|c| c.active))).collect();
+    let cameras =
+        world.query::<(Camera,)>().into_iter().map(|c| (c, world.get::<Camera>(c).is_some_and(|c| c.active))).collect();
     let game_cam = kit_gamesys::active_camera(world);
     let from = game_cam.map(|c| world_pose(world, c));
     let from_fov = game_cam.and_then(|c| fov_of(world, c));
@@ -418,7 +437,8 @@ fn step(world: &mut World, cin: &mut Cinematics) {
 
     // Requests from scripts, and from diagrams' custom events (taken out of
     // the queue: they're addressed to us).
-    let mut requests = world.try_resource_mut::<CinematicControl>().map(|mut c| std::mem::take(&mut c.requests)).unwrap_or_default();
+    let mut requests =
+        world.try_resource_mut::<CinematicControl>().map(|mut c| std::mem::take(&mut c.requests)).unwrap_or_default();
     if let Some(mut q) = world.try_resource_mut::<GraphEvents>() {
         q.0.retain(|ev| match (ev.name.as_str(), &ev.payload) {
             ("PlayCinematic", Some(BridgeValue::Text(n))) => {
@@ -468,9 +488,9 @@ fn step(world: &mut World, cin: &mut Cinematics) {
             pb.shot_time += dt;
             // Skip key.
             let skip = pb.settings.skippable
-                && world.try_resource::<kit_input::Input>().is_some_and(|i| {
-                    ["Escape", "Space", "Enter", "PadStart", "PadA"].iter().any(|k| i.pressed(k))
-                });
+                && world
+                    .try_resource::<kit_input::Input>()
+                    .is_some_and(|i| ["Escape", "Space", "Enter", "PadStart", "PadA"].iter().any(|k| i.pressed(k)));
             let total: f32 = pb.shots.iter().map(|s| s.settings.duration.max(0.05)).sum();
             if skip {
                 done = true;
@@ -564,7 +584,9 @@ fn frame(world: &mut World, pb: &mut Playback) {
     }
     if s.shake > 0.0 {
         let t = pb.time * 23.0;
-        let wobble = Vec3::new((t * 1.3).sin() + (t * 2.9).sin() * 0.5, (t * 1.7).cos() + (t * 3.1).sin() * 0.5, 0.0) * 0.05 * s.shake;
+        let wobble = Vec3::new((t * 1.3).sin() + (t * 2.9).sin() * 0.5, (t * 1.7).cos() + (t * 3.1).sin() * 0.5, 0.0)
+            * 0.05
+            * s.shake;
         pos += rot * wobble;
     }
     set_world_pose(world, cam, pos, rot);

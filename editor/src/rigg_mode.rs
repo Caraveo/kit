@@ -479,15 +479,18 @@ pub fn volume_section(
             }),
             RigShape::Capsule { radius, length } => {
                 row(ui, "Radius", |ui| {
-                    edited |= ui.add(egui::DragValue::new(radius).speed(0.005).range(0.005..=100.0).suffix(" m")).changed();
+                    edited |=
+                        ui.add(egui::DragValue::new(radius).speed(0.005).range(0.005..=100.0).suffix(" m")).changed();
                 });
                 row(ui, "Length", |ui| {
-                    edited |= ui.add(egui::DragValue::new(length).speed(0.01).range(0.0..=100.0).suffix(" m")).changed();
+                    edited |=
+                        ui.add(egui::DragValue::new(length).speed(0.01).range(0.0..=100.0).suffix(" m")).changed();
                 });
             }
             RigShape::Box { size } => row(ui, "Size", |ui| {
                 for (i, a) in ["X ", "Y ", "Z "].iter().enumerate() {
-                    edited |= ui.add(egui::DragValue::new(&mut size[i]).speed(0.01).range(0.01..=100.0).prefix(*a)).changed();
+                    edited |=
+                        ui.add(egui::DragValue::new(&mut size[i]).speed(0.01).range(0.01..=100.0).prefix(*a)).changed();
                 }
             }),
         }
@@ -495,7 +498,8 @@ pub fn volume_section(
             edited |= slider(ui, &mut v.influence, "", None);
         });
         row(ui, "Falloff", |ui| {
-            edited |= slider(ui, &mut v.falloff, " m", Some("How far past its surface the volume still pulls the mesh"));
+            edited |=
+                slider(ui, &mut v.falloff, " m", Some("How far past its surface the volume still pulls the mesh"));
         });
         ui.add_space(4.0);
         ui.label(RichText::new("CONNECTED TO").size(10.5).color(MUTED()));

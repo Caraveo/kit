@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.0.6: Cinematics, Particles and a much bigger x
+## v0.0.6: Cinematics, Particles, Fog and a much bigger x
 
 ### Cinematics (new, as a Circuit)
 - **Project → Circuit Manager → Cinematics**. Put a **Cinematic** on an Empty and a **Cinematic Shot** on each camera inside it. The shots play in Hierarchy order.
@@ -14,6 +14,9 @@
 - **+ Add component → Particle Emitter:** continuous streams and bursts, with direction, spread, speed, gravity, size, color and an optional texture. Particles fade out over their life.
 - Camera-facing, so they work with 3D and 2D cameras, on desktop and the web. Without a texture, each particle is a soft round dot.
 - Emitters **preview live in the editor**. In Play they start fresh, follow game time (pausing freezes them) and are capped at 1,024 per emitter and 16,384 in all.
+
+### Fog (new)
+- Add a **Fog Emitter** to create drifting clouds. Try the **Kit Fog** and **Volumetric Fog** example projects.
 
 ### x scripting
 - **Spawning:** `INVOKE` (inside this object) and `INSTANTIATE` (top level) create shapes, models, Fabs or copies.

@@ -16,9 +16,15 @@ pub enum Status {
     Connecting,
     Connected,
     /// Lost; trying again after the given delay.
-    Reconnecting { attempt: u32, in_ms: u64, reason: String },
+    Reconnecting {
+        attempt: u32,
+        in_ms: u64,
+        reason: String,
+    },
     /// Stopped for good (closed, or the token was refused).
-    Closed { reason: String },
+    Closed {
+        reason: String,
+    },
 }
 
 /// Where to connect. `base` is e.g. `wss://circuit.kitgameengine.win/api/v1/realtime/connect`.
@@ -119,7 +125,13 @@ impl Drop for Connection {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn run(target: Target, tokens: TokenSource, out_rx: Receiver<Vec<u8>>, inbox: SyncSender<Event>, stop: Arc<AtomicBool>) {
+fn run(
+    target: Target,
+    tokens: TokenSource,
+    out_rx: Receiver<Vec<u8>>,
+    inbox: SyncSender<Event>,
+    stop: Arc<AtomicBool>,
+) {
     use tungstenite::client::IntoClientRequest;
     use tungstenite::{Message, stream::MaybeTlsStream};
 
@@ -220,9 +232,12 @@ fn run(target: Target, tokens: TokenSource, out_rx: Receiver<Vec<u8>>, inbox: Sy
                         let _ = inbox.try_send(e);
                     }
                 }
-                Ok(Message::Close(frame)) => break frame.map(|f| f.reason.to_string()).unwrap_or_else(|| "closed by scope".into()),
+                Ok(Message::Close(frame)) => {
+                    break frame.map(|f| f.reason.to_string()).unwrap_or_else(|| "closed by scope".into());
+                }
                 Ok(_) => {}
-                Err(tungstenite::Error::Io(e)) if matches!(e.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => {}
+                Err(tungstenite::Error::Io(e))
+                    if matches!(e.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => {}
                 Err(e) => break e.to_string(),
             }
         };

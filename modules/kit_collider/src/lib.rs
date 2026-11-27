@@ -20,13 +20,13 @@ use kit_gamesys::{
 };
 use kit_scene::GlobalTransform;
 use rapier3d::math::{Pose as RPose, Rotation as RRot, Vector as RVec};
+use rapier3d::parry::query::ShapeCastOptions;
 use rapier3d::pipeline::PhysicsWorld;
 use rapier3d::prelude::{
     ActiveCollisionTypes, ActiveEvents, Ball, ChannelEventCollector, ColliderBuilder, ColliderHandle,
     CollisionEventFlags, Group, InteractionGroups, InteractionTestMode, LockedAxes, QueryFilter, Ray, RigidBodyBuilder,
     RigidBodyHandle, RigidBodyType,
 };
-use rapier3d::parry::query::ShapeCastOptions;
 use std::any::Any;
 use std::collections::{HashMap, HashSet};
 
@@ -347,7 +347,8 @@ impl CollisionWorld {
                 self.contacts.remove(&pair(a, b));
             }
             let trigger = flags.contains(CollisionEventFlags::SENSOR);
-            let mut ev = CollisionEvent { a, b, started, trigger, point: Vec3::ZERO, normal: Vec3::ZERO, strength: 0.0 };
+            let mut ev =
+                CollisionEvent { a, b, started, trigger, point: Vec3::ZERO, normal: Vec3::ZERO, strength: 0.0 };
             if started && !trigger {
                 self.contact_details(h1, h2, &mut ev);
             }
@@ -371,8 +372,11 @@ impl CollisionWorld {
     }
 
     fn filter(&self, exclude: Option<Entity>, layers: u32) -> QueryFilter<'static> {
-        let mut filter = QueryFilter::default()
-            .groups(InteractionGroups::new(Group::ALL, Group::from_bits_truncate(layers), InteractionTestMode::And));
+        let mut filter = QueryFilter::default().groups(InteractionGroups::new(
+            Group::ALL,
+            Group::from_bits_truncate(layers),
+            InteractionTestMode::And,
+        ));
         if let Some(en) = exclude.and_then(|e| self.entries.get(&e)) {
             filter = filter.exclude_rigid_body(en.body);
         }
@@ -429,7 +433,14 @@ impl PhysicsApi for CollisionWorld {
     fn raycast(&self, origin: Vec3, dir: Vec3, max_distance: f32, exclude: Option<Entity>) -> Option<RayHit> {
         self.raycast_layers(origin, dir, max_distance, exclude, u32::MAX)
     }
-    fn raycast_layers(&self, origin: Vec3, dir: Vec3, max_distance: f32, exclude: Option<Entity>, layers: u32) -> Option<RayHit> {
+    fn raycast_layers(
+        &self,
+        origin: Vec3,
+        dir: Vec3,
+        max_distance: f32,
+        exclude: Option<Entity>,
+        layers: u32,
+    ) -> Option<RayHit> {
         let dir = dir.normalize_or_zero();
         if dir == Vec3::ZERO {
             return None;
@@ -452,13 +463,24 @@ impl PhysicsApi for CollisionWorld {
         out.dedup();
         out
     }
-    fn sphere_cast(&self, origin: Vec3, dir: Vec3, radius: f32, max: f32, exclude: Option<Entity>, layers: u32) -> Option<RayHit> {
+    fn sphere_cast(
+        &self,
+        origin: Vec3,
+        dir: Vec3,
+        radius: f32,
+        max: f32,
+        exclude: Option<Entity>,
+        layers: u32,
+    ) -> Option<RayHit> {
         let dir = dir.normalize_or_zero();
         if dir == Vec3::ZERO {
             return None;
         }
         let ball = Ball::new(radius.max(1e-4));
-        let options = ShapeCastOptions { compute_impact_geometry_on_penetration: true, ..ShapeCastOptions::with_max_time_of_impact(max) };
+        let options = ShapeCastOptions {
+            compute_impact_geometry_on_penetration: true,
+            ..ShapeCastOptions::with_max_time_of_impact(max)
+        };
         let (h, hit) = self.world.cast_shape(
             &rpose(origin, Quat::IDENTITY),
             rv(dir),
@@ -468,7 +490,12 @@ impl PhysicsApi for CollisionWorld {
         )?;
         let entity = *self.by_collider.get(&h)?;
         let distance = hit.time_of_impact;
-        let point = self.world.colliders.get(h).map(|c| gv(c.position().transform_point(hit.witness2))).unwrap_or(origin + dir * distance);
+        let point = self
+            .world
+            .colliders
+            .get(h)
+            .map(|c| gv(c.position().transform_point(hit.witness2)))
+            .unwrap_or(origin + dir * distance);
         Some(RayHit { entity, distance, point, normal: -gv(hit.normal1) })
     }
     fn contacts(&self, e: Entity) -> Vec<Entity> {

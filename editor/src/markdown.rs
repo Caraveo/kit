@@ -43,7 +43,9 @@ fn blocks(text: &str) -> Vec<Block<'_>> {
         if (1..=4).contains(&heading) && line[heading..].starts_with(' ') {
             flush(&mut para, &mut out);
             out.push(Block::Heading(heading as u8, line[heading..].trim()));
-        } else if let Some(rest) = line.strip_prefix("- ").or_else(|| line.strip_prefix("* ")).or_else(|| line.strip_prefix("• ")) {
+        } else if let Some(rest) =
+            line.strip_prefix("- ").or_else(|| line.strip_prefix("* ")).or_else(|| line.strip_prefix("• "))
+        {
             flush(&mut para, &mut out);
             out.push(Block::Bullet(indent / 2, rest));
         } else if let Some((num, rest)) = numbered(line) {
@@ -84,7 +86,13 @@ fn inline(text: &str, size: f32, base: Color32, strong_base: bool) -> (LayoutJob
     let fmt = |bold: bool, italic: bool, code: bool, link: bool| {
         let mut f = TextFormat {
             font_id: if code { FontId::monospace(size - 1.0) } else { FontId::proportional(size) },
-            color: if link { ACCENT() } else if bold || strong_base { TEXT_STRONG() } else { base },
+            color: if link {
+                ACCENT()
+            } else if bold || strong_base {
+                TEXT_STRONG()
+            } else {
+                base
+            },
             italics: italic,
             ..Default::default()
         };
@@ -247,7 +255,11 @@ pub fn show(ui: &mut Ui, text: &str) {
                     .inner_margin(Margin { left: 12, right: 8, top: 4, bottom: 4 })
                     .show(ui, |ui| {
                         let r = ui.max_rect();
-                        ui.painter().vline(r.left() - 10.0, r.y_range(), Stroke::new(3.0, ACCENT().gamma_multiply(0.6)));
+                        ui.painter().vline(
+                            r.left() - 10.0,
+                            r.y_range(),
+                            Stroke::new(3.0, ACCENT().gamma_multiply(0.6)),
+                        );
                         text_line(ui, t, BODY, LABEL(), false);
                     });
             }
@@ -266,7 +278,9 @@ mod tests {
 
     #[test]
     fn splits_markdown_into_blocks() {
-        let b = blocks("## Steps\n\n1. Add a **Collider**\n2. Tick `Trigger`\n\n- one\n  - nested\n> tip\nPlain text\ncontinues");
+        let b = blocks(
+            "## Steps\n\n1. Add a **Collider**\n2. Tick `Trigger`\n\n- one\n  - nested\n> tip\nPlain text\ncontinues",
+        );
         assert_eq!(b[0], Block::Heading(2, "Steps"));
         assert_eq!(b[1], Block::Gap);
         assert_eq!(b[2], Block::Numbered(0, "1".into(), "Add a **Collider**"));
@@ -284,7 +298,12 @@ mod tests {
 
     #[test]
     fn inline_formatting_and_links() {
-        let (job, links) = inline("Use **Speed** in `player_move.x`, see [docs](https://kit.example/x) or *maybe* not snake_case_name", 13.0, Color32::WHITE, false);
+        let (job, links) = inline(
+            "Use **Speed** in `player_move.x`, see [docs](https://kit.example/x) or *maybe* not snake_case_name",
+            13.0,
+            Color32::WHITE,
+            false,
+        );
         let text: String = job.text.clone();
         assert!(text.contains("Speed") && !text.contains("**") && !text.contains('`'));
         assert!(text.contains("snake_case_name"), "underscores inside words stay");

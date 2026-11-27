@@ -69,6 +69,7 @@ pub fn add_default_modules(app: &mut App, project_root: std::path::PathBuf, conf
         .add_module(kit_audio::AudioModule { device: true })
         // After scripts and physics, so emitters follow this frame's moves.
         .add_module(kit_particles::ParticlesModule)
+        .add_module(kit_fog::FogModule)
         // Circuits with engine-side runtimes. Each does nothing unless the
         // project has that Circuit installed and enabled (circuits.lock).
         .add_module(kit_multiplayer::MultiplayerModule)
@@ -202,7 +203,8 @@ impl Runner {
         self.last = now;
         if let Some(gpu) = &self.gpu {
             let size = gpu.window.inner_size();
-            let screen = kit_xui::runtime::UiScreen::window([size.width, size.height], gpu.window.scale_factor() as f32);
+            let screen =
+                kit_xui::runtime::UiScreen::window([size.width, size.height], gpu.window.scale_factor() as f32);
             self.app.world.insert_resource(screen);
         }
         self.app.update(dt);
@@ -276,14 +278,23 @@ impl ApplicationHandler for Runner {
         }
     }
 
-    fn device_event(&mut self, _event_loop: &ActiveEventLoop, _id: winit::event::DeviceId, event: winit::event::DeviceEvent) {
+    fn device_event(
+        &mut self,
+        _event_loop: &ActiveEventLoop,
+        _id: winit::event::DeviceId,
+        event: winit::event::DeviceEvent,
+    ) {
         winit_input::handle_device_event(&self.app.world, &event);
     }
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
         if let Some(gpu) = &self.gpu {
             let size = gpu.window.inner_size();
-            winit_input::set_view(&self.app.world, glam::Vec2::ZERO, glam::Vec2::new(size.width as f32, size.height as f32));
+            winit_input::set_view(
+                &self.app.world,
+                glam::Vec2::ZERO,
+                glam::Vec2::new(size.width as f32, size.height as f32),
+            );
             let focused = gpu.window.has_focus();
             winit_input::apply_pointer(&gpu.window, &self.app.world, focused, &mut self.pointer);
             gpu.window.request_redraw();

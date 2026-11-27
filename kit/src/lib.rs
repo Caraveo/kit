@@ -28,23 +28,25 @@ pub use kit_audio as audio;
 pub use kit_collider as collider;
 pub use kit_core as core;
 pub use kit_diagram as diagram;
-pub use kit_rigg as rigg;
 pub use kit_ecs as ecs;
 pub use kit_engine as engine;
 pub use kit_gamedata as gamedata;
 pub use kit_gamesys as gamesys;
 pub use kit_graphics as graphics;
 pub use kit_input as input;
-pub use kit_path as path;
+pub use kit_light as light;
 pub use kit_particles as particles;
+pub use kit_fog as fog;
+pub use kit_path as path;
 pub use kit_physics as physics;
+pub use kit_preview as preview;
 pub use kit_render as render;
 pub use kit_resource as resource;
+pub use kit_rigg as rigg;
 pub use kit_scene as scene;
 pub use kit_script as script;
 pub use kit_x as x;
 pub use kit_xui as xui;
-pub use kit_preview as preview;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub use kit_core::{BUILD_ID, BUILD_MARKER};
@@ -55,12 +57,12 @@ pub mod prelude {
     pub use kit_core::{App, Console, Module, RunMode, Stage, Time};
     pub use kit_ecs::{Entity, World};
     pub use kit_engine::{EngineConfig, run};
+    pub use kit_gamesys::InterfaceAttachment;
     pub use kit_gamesys::{
         BodyKind, Camera, Collider, ColliderShape, Light, MeshKind, Model, PathFollow, PathLoop, Physics, Projection,
         RigidBody, Script, Sprite,
     };
     pub use kit_input::Input;
-    pub use kit_gamesys::InterfaceAttachment;
-    pub use kit_xui::{InterfaceFile, XuiModule};
     pub use kit_scene::{GlobalTransform, Name, Transform, set_parent, spawn_node};
+    pub use kit_xui::{InterfaceFile, XuiModule};
 }

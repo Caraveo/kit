@@ -58,7 +58,10 @@ impl ScriptState {
     pub(crate) fn feature_name(&self) -> String {
         match &self.object {
             Some(Value::Instance(i)) => i.class.name().to_string(),
-            _ => std::path::Path::new(&self.path).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default(),
+            _ => std::path::Path::new(&self.path)
+                .file_stem()
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_default(),
         }
     }
 }
@@ -378,7 +381,14 @@ fn take_timers(state: &mut ScriptState, commands: &mut Vec<Command>) {
 }
 
 /// Start requested coroutines and run every one that's due until its next WAIT.
-fn run_coroutines(world: &mut World, e: Entity, st: &mut ScriptState, res: &Option<Resources>, states: &mut States, now: f64) {
+fn run_coroutines(
+    world: &mut World,
+    e: Entity,
+    st: &mut ScriptState,
+    res: &Option<Resources>,
+    states: &mut States,
+    now: f64,
+) {
     if st.failed {
         return;
     }
@@ -435,7 +445,10 @@ fn apply_commands(world: &mut World, commands: Vec<Command>) {
             Command::Despawn(e) => kit_scene::despawn_recursive(world, e),
             Command::Scene(op) => kit_gamesys::scenes::request(world, op),
             // Timers are taken by the script that asked (see `take_timers`).
-            Command::AddTimer(_) | Command::CancelTimer(_) | Command::StartCoroutine { .. } | Command::StopCoroutine(_) => {}
+            Command::AddTimer(_)
+            | Command::CancelTimer(_)
+            | Command::StartCoroutine { .. }
+            | Command::StopCoroutine(_) => {}
         }
     }
 }
@@ -448,7 +461,12 @@ fn runs(world: &World, e: Entity) -> bool {
 
 /// Run `f` on one object's script with the others reachable (it's taken out
 /// of the map meanwhile, so it can't be called into while it runs).
-fn with_state(rt: &mut ScriptRuntime, world: &mut World, e: Entity, f: impl FnOnce(&mut World, &mut ScriptState, &mut States)) {
+fn with_state(
+    rt: &mut ScriptRuntime,
+    world: &mut World,
+    e: Entity,
+    f: impl FnOnce(&mut World, &mut ScriptState, &mut States),
+) {
     let Some(mut st) = rt.states.remove(&e) else { return };
     f(world, &mut st, &mut rt.states);
     if world.is_alive(e) {
@@ -569,11 +587,17 @@ pub fn run_scripts(world: &mut World) {
     }
 
     // 2. Diagrams' Run Script nodes: run the function, send the result back.
-    let calls = world.try_resource_mut::<kit_gamesys::ScriptCalls>().map(|mut c| std::mem::take(&mut c.pending)).unwrap_or_default();
+    let calls = world
+        .try_resource_mut::<kit_gamesys::ScriptCalls>()
+        .map(|mut c| std::mem::take(&mut c.pending))
+        .unwrap_or_default();
     for call in calls {
         let e = call.target;
         let result = if !rt.states.contains_key(&e) || !world.is_alive(e) {
-            Err(format!("{} has no script running", world.get::<kit_scene::Name>(e).map(|n| n.0.clone()).unwrap_or_default()))
+            Err(format!(
+                "{} has no script running",
+                world.get::<kit_scene::Name>(e).map(|n| n.0.clone()).unwrap_or_default()
+            ))
         } else if !runs(world, e) {
             Err("that object or its script is switched off".to_owned())
         } else {
@@ -593,7 +617,8 @@ pub fn run_scripts(world: &mut World) {
     for &e in &active {
         let due: Vec<host::Timer> = match rt.states.get_mut(&e) {
             Some(st) => {
-                let (due, wait): (Vec<_>, Vec<_>) = std::mem::take(&mut st.timers).into_iter().partition(|t| t.due <= elapsed);
+                let (due, wait): (Vec<_>, Vec<_>) =
+                    std::mem::take(&mut st.timers).into_iter().partition(|t| t.due <= elapsed);
                 st.timers = wait;
                 for t in &due {
                     if let Some(every) = t.every {
@@ -657,7 +682,8 @@ fn hook_arity(state: &ScriptState, name: &str) -> usize {
 /// world positions brought up to date (cameras that follow things go here).
 pub fn late_scripts(world: &mut World) {
     let Some(mut rt) = world.remove_resource::<ScriptRuntime>() else { return };
-    let late: Vec<Entity> = rt.states.iter().filter(|(_, s)| s.initialized && has_hook(s, "LateUpdate")).map(|(e, _)| *e).collect();
+    let late: Vec<Entity> =
+        rt.states.iter().filter(|(_, s)| s.initialized && has_hook(s, "LateUpdate")).map(|(e, _)| *e).collect();
     if !late.is_empty() {
         let res = world.try_resource::<Resources>().map(|r| r.clone());
         let dt = world.resource::<Time>().delta;

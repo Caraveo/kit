@@ -7,24 +7,24 @@
 
 mod camera;
 mod canvas;
+mod cinematic_ui;
 mod circuit_manager;
 mod circuit_ui;
-mod cinematic_ui;
 mod code;
 mod controls;
 mod diagram_view;
-mod markdown;
-mod rex_panel;
-mod rigg_mode;
-mod rigg_timeline;
 mod export;
 mod export_wizard;
 mod gizmos;
 mod hooks;
+mod markdown;
 mod model_import;
 mod move_gizmo;
-mod preview;
 mod new_project;
+mod preview;
+mod rex_panel;
+mod rigg_mode;
+mod rigg_timeline;
 mod settings;
 mod state;
 mod templates;
@@ -495,7 +495,10 @@ impl EditorApp {
                 }
                 Request::CreateProject(path, options) => {
                     let result = (|| -> Result<()> {
-                        anyhow::ensure!(!self.ui.has_unsaved_interface(), "Save or revert the current interface before switching projects.");
+                        anyhow::ensure!(
+                            !self.ui.has_unsaved_interface(),
+                            "Save or revert the current interface before switching projects."
+                        );
                         self.editor.save_if_dirty()?;
                         for index in 0..self.editor.scripts.len() {
                             if self.editor.scripts[index].dirty() {
@@ -918,7 +921,12 @@ impl ApplicationHandler for EditorApp {
         }
     }
 
-    fn device_event(&mut self, _event_loop: &ActiveEventLoop, _id: winit::event::DeviceId, event: winit::event::DeviceEvent) {
+    fn device_event(
+        &mut self,
+        _event_loop: &ActiveEventLoop,
+        _id: winit::event::DeviceId,
+        event: winit::event::DeviceEvent,
+    ) {
         if self.editor.playing && self.ui.viewport_focused {
             kit::engine::winit_input::handle_device_event(&self.editor.app.world, &event);
         }

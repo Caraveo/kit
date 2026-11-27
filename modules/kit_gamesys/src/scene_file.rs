@@ -1,8 +1,8 @@
 //! `.kscene` files: a JSON list of entities with their components.
 
 use crate::{
-    AudioSource, Camera, Collider, Diagram, InterfaceAttachment, Light, Model, PathFollow, PostVolume, RigidBody, Script,
-    Sprite, Terrain, ParticleEmitter,
+    AudioSource, Camera, Collider, Diagram, FogEmitter, InterfaceAttachment, Light, Model, ParticleEmitter, PathFollow, PostVolume,
+    RigidBody, Script, Sprite, Terrain,
 };
 use anyhow::{Context, Result, bail};
 use kit_ecs::{Entity, World};
@@ -33,6 +33,8 @@ pub struct EntityData {
     pub sprite: Option<Sprite>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub particle_emitter: Option<ParticleEmitter>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fog_emitter: Option<FogEmitter>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub light: Option<Light>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -106,6 +108,7 @@ fn entity_data(world: &World, e: Entity, id: u32, parent: Option<u32>) -> Entity
         model: world.get_cloned::<Model>(e),
         sprite: world.get_cloned::<Sprite>(e),
         particle_emitter: world.get_cloned::<ParticleEmitter>(e),
+        fog_emitter: world.get_cloned::<FogEmitter>(e),
         light: world.get_cloned::<Light>(e),
         script: world.get_cloned::<Script>(e),
         collider: world.get_cloned::<Collider>(e),
@@ -173,6 +176,9 @@ pub fn load_scene(world: &mut World, scene: &SceneFile) -> Result<Vec<Entity>> {
             world.insert(e, s.clone());
         }
         if let Some(emitter) = &d.particle_emitter {
+            world.insert(e, emitter.clone());
+        }
+        if let Some(emitter) = &d.fog_emitter {
             world.insert(e, emitter.clone());
         }
         if let Some(l) = d.light {
@@ -294,10 +300,7 @@ mod tests {
         let c = kit_scene::find_by_name(&w2, "Child").unwrap();
         assert_eq!(w2.get::<Model>(c).unwrap().mesh, MeshKind::Sphere);
         let loaded_cam = kit_scene::find_by_name(&w2, "Camera").unwrap();
-        assert_eq!(
-            w2.get::<InterfaceAttachment>(loaded_cam).unwrap().asset,
-            "interfaces/pause-menu.xui"
-        );
+        assert_eq!(w2.get::<InterfaceAttachment>(loaded_cam).unwrap().asset, "interfaces/pause-menu.xui");
         let g = w2.get::<kit_scene::GlobalTransform>(c).unwrap().translation();
         assert!((g - Vec3::new(1.0, 0.0, 0.0)).length() < 1e-5);
     }

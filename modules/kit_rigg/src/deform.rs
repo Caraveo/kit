@@ -37,7 +37,13 @@ impl Motion {
 }
 
 /// Deform `rest` into `out` (same length).
-pub fn deform(rest: &[Vertex], weights: &[Influences], motions: &[Motion], preserve_volume: bool, out: &mut Vec<Vertex>) {
+pub fn deform(
+    rest: &[Vertex],
+    weights: &[Influences],
+    motions: &[Motion],
+    preserve_volume: bool,
+    out: &mut Vec<Vertex>,
+) {
     out.clear();
     out.reserve(rest.len());
     for (v, w) in rest.iter().zip(weights) {

@@ -8,7 +8,7 @@ use crate::widgets::{self, badge, dock_toggle, ghost, primary};
 use anyhow::Context;
 use egui::{Align, Align2, Color32, CornerRadius, Frame, Id, Key, Layout, Margin, RichText, Sense, Stroke, Ui, Vec2};
 use kit::ecs::Entity;
-use kit::gamesys::{Camera, InterfaceAttachment, Light, MeshKind, Model, Projection, Script, Sprite};
+use kit::gamesys::{Camera, FogEmitter, FogKind, InterfaceAttachment, Light, MeshKind, Model, Projection, Script, Sprite};
 use kit::math::{Vec3, Vec4};
 use kit::scene::{Name, Transform};
 use std::collections::HashSet;
@@ -224,7 +224,9 @@ impl InterfaceEditor {
             _ => {}
         }
         let mut parent_path = self.selected.clone().unwrap_or_else(|| "root".into());
-        if find_interface_node_mut(root, &parent_path).is_some_and(|node| !matches!(node.tag.as_str(), "interface" | "panel" | "row" | "grid")) {
+        if find_interface_node_mut(root, &parent_path)
+            .is_some_and(|node| !matches!(node.tag.as_str(), "interface" | "panel" | "row" | "grid"))
+        {
             parent_path.truncate(parent_path.rfind('.').unwrap_or(parent_path.len()));
         }
         let parent = find_interface_node_mut(root, &parent_path)?;
@@ -240,7 +242,10 @@ impl InterfaceEditor {
             return;
         }
         let Some((parent_path, index)) = self.selected.as_deref().and_then(|key| key.rsplit_once('.')) else { return };
-        let Some(parent) = self.document.as_mut().and_then(|doc| find_interface_node_mut(&mut doc.root, parent_path)) else { return };
+        let Some(parent) = self.document.as_mut().and_then(|doc| find_interface_node_mut(&mut doc.root, parent_path))
+        else {
+            return;
+        };
         let Ok(index) = index.parse::<usize>() else { return };
         if index < parent.children.len() {
             parent.children.remove(index);
@@ -543,7 +548,8 @@ fn apply(ed: &mut Editor, st: &mut UiState, actions: Vec<Action>) {
 /// Build the whole editor UI for one frame.
 pub fn draw(root: &mut Ui, ed: &mut Editor, st: &mut UiState) {
     let ctx = root.ctx().clone();
-    if ed.selected != st.last_selected && ed.selected.is_some_and(|e| ed.world().has::<Camera>(e))
+    if ed.selected != st.last_selected
+        && ed.selected.is_some_and(|e| ed.world().has::<Camera>(e))
         && st.interface.as_ref().is_none_or(|interface| !interface.dirty())
     {
         st.interface = None;
@@ -707,58 +713,71 @@ pub fn draw(root: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                     }
                 }
                 {
-                let console_open_before = ed.settings.console;
-                let mut console_open = console_open_before;
-                egui::Panel::bottom("console")
-                    .default_size(150.0)
-                    .size_range(80.0..=500.0)
-                    .resizable(true)
-                    .frame(Frame::NONE.inner_margin(Margin { left: 0, right: 0, top: 8, bottom: 0 }))
-                    .show_separator_line(false)
-                    .show_collapsible(ui, &mut console_open, |ui| {
-                        theme_card().inner_margin(Margin::symmetric(14, 10)).show(ui, |ui| {
-                            ui.set_min_size(ui.available_size());
-                            console(ui, ed, st);
+                    let console_open_before = ed.settings.console;
+                    let mut console_open = console_open_before;
+                    egui::Panel::bottom("console")
+                        .default_size(150.0)
+                        .size_range(80.0..=500.0)
+                        .resizable(true)
+                        .frame(Frame::NONE.inner_margin(Margin { left: 0, right: 0, top: 8, bottom: 0 }))
+                        .show_separator_line(false)
+                        .show_collapsible(ui, &mut console_open, |ui| {
+                            theme_card().inner_margin(Margin::symmetric(14, 10)).show(ui, |ui| {
+                                ui.set_min_size(ui.available_size());
+                                console(ui, ed, st);
+                            });
                         });
-                    });
-                ed.settings.console = console_open;
-                if console_open_before && !ed.settings.console && !st.has_visible(ed) {
-                    ed.settings.console = true;
-                    ed.notify("Keep at least one view open.");
-                }
+                    ed.settings.console = console_open;
+                    if console_open_before && !ed.settings.console && !st.has_visible(ed) {
+                        ed.settings.console = true;
+                        ed.notify("Keep at least one view open.");
+                    }
                 }
                 {
-                if st.center_diagram.is_none() {
-                let diagram_open_before = ed.settings.diagram;
-                let mut diagram_open = diagram_open_before;
-                let diagram_min = if st.views.game { 180.0 } else { 100.0 };
-                egui::Panel::bottom("diagram")
-                    .default_size(if st.views.game { ui.available_height() * 0.6 } else { ui.available_height() }.max(diagram_min))
-                    .size_range(diagram_min..=if st.views.game { ui.available_height() * 0.85 } else { ui.available_height() }.max(diagram_min))
-                    .resizable(true)
-                    .frame(Frame::NONE.inner_margin(Margin { left: 0, right: 0, top: 8, bottom: 0 }))
-                    .show_separator_line(false)
-                    .show_collapsible(ui, &mut diagram_open, |ui| {
-                        theme_card().inner_margin(Margin::symmetric(12, 10)).show(ui, |ui| {
-                            ui.set_min_size(ui.available_size());
-                            diagram_panel(ui, ed, st);
-                        });
-                    });
-                ed.settings.diagram = diagram_open;
-                if diagram_open_before && !ed.settings.diagram && !st.has_visible(ed) {
-                    ed.settings.diagram = true;
-                    ed.notify("Keep at least one view open.");
-                }
-                }
+                    if st.center_diagram.is_none() {
+                        let diagram_open_before = ed.settings.diagram;
+                        let mut diagram_open = diagram_open_before;
+                        let diagram_min = if st.views.game { 180.0 } else { 100.0 };
+                        egui::Panel::bottom("diagram")
+                            .default_size(
+                                if st.views.game { ui.available_height() * 0.6 } else { ui.available_height() }
+                                    .max(diagram_min),
+                            )
+                            .size_range(
+                                diagram_min..=if st.views.game {
+                                    ui.available_height() * 0.85
+                                } else {
+                                    ui.available_height()
+                                }
+                                .max(diagram_min),
+                            )
+                            .resizable(true)
+                            .frame(Frame::NONE.inner_margin(Margin { left: 0, right: 0, top: 8, bottom: 0 }))
+                            .show_separator_line(false)
+                            .show_collapsible(ui, &mut diagram_open, |ui| {
+                                theme_card().inner_margin(Margin::symmetric(12, 10)).show(ui, |ui| {
+                                    ui.set_min_size(ui.available_size());
+                                    diagram_panel(ui, ed, st);
+                                });
+                            });
+                        ed.settings.diagram = diagram_open;
+                        if diagram_open_before && !ed.settings.diagram && !st.has_visible(ed) {
+                            ed.settings.diagram = true;
+                            ed.notify("Keep at least one view open.");
+                        }
+                    }
                 }
                 if let Some(rig) = crate::rigg_mode::target(ed).filter(|_| {
-                ed.settings.rig && !ed.playing && st.rigg.timeline.open && st.rigg.tool == crate::rigg_mode::RigTool::Pose
+                    ed.settings.rig
+                        && !ed.playing
+                        && st.rigg.timeline.open
+                        && st.rigg.tool == crate::rigg_mode::RigTool::Pose
                 }) {
-                egui::Panel::bottom("rig_animation")
-                    .default_size(170.0)
-                    .size_range(130.0..=360.0)
-                    .resizable(true)
-                    .show(ui, |ui| crate::rigg_timeline::show(ui, ed, &mut st.rigg.timeline, rig));
+                    egui::Panel::bottom("rig_animation")
+                        .default_size(170.0)
+                        .size_range(130.0..=360.0)
+                        .resizable(true)
+                        .show(ui, |ui| crate::rigg_timeline::show(ui, ed, &mut st.rigg.timeline, rig));
                 }
             }
             let game_open_before = st.views.game;
@@ -1041,7 +1060,7 @@ fn shortcuts(ctx: &egui::Context, ed: &mut Editor, st: &mut UiState) {
                 if let Some(id) = interface.selected.take() {
                     if let Some(doc) = interface.document.as_mut() {
                         if doc.root.remove(&id) {
-                                    interface.refresh();
+                            interface.refresh();
                         }
                     }
                 }
@@ -1092,7 +1111,10 @@ fn header(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                 if ed.playing { ed.stop() } else { ed.play() }
             }
             if ed.project.is_some() && crate::circuit_ui::networked() {
-                if ghost(ui, "👥 +1 player").on_hover_text("Open another game window that joins the same world (to test multiplayer)").clicked() {
+                if ghost(ui, "👥 +1 player")
+                    .on_hover_text("Open another game window that joins the same world (to test multiplayer)")
+                    .clicked()
+                {
                     crate::circuit_ui::launch_player(ed);
                 }
             }
@@ -1163,7 +1185,9 @@ fn header(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                 ui.separator();
                 ui.menu_button("View", |ui| {
                     for (pane, label) in ViewPane::ALL {
-                        if matches!(pane, ViewPane::Rex) && !ed.rex_enabled() { continue; }
+                        if matches!(pane, ViewPane::Rex) && !ed.rex_enabled() {
+                            continue;
+                        }
                         let label = if matches!(pane, ViewPane::Rex) { ed.rex_label() } else { label };
                         let mut visible = st.pane_visible(ed, pane);
                         if ui
@@ -1183,7 +1207,11 @@ fn header(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                     st.settings.open(ed);
                     ui.close();
                 }
-                if ui.add_enabled(ed.project.is_some(), egui::Button::new("Circuit Manager…")).on_hover_text("Install and update Circuits (extensions) for this project").clicked() {
+                if ui
+                    .add_enabled(ed.project.is_some(), egui::Button::new("Circuit Manager…"))
+                    .on_hover_text("Install and update Circuits (extensions) for this project")
+                    .clicked()
+                {
                     st.circuits.show_for(ed);
                     ui.close();
                 }
@@ -1203,13 +1231,21 @@ fn header(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
             let can_redo = st.interface.as_ref().map_or_else(|| ed.can_redo(), |interface| !interface.redo.is_empty());
             ui.add_enabled_ui(can_redo, |ui| {
                 if ghost(ui, "↷").on_hover_text(format!("Redo ({})", ed.controls.label(Shortcut::Redo))).clicked() {
-                    if let Some(interface) = st.interface.as_mut() { interface.history(true); } else { ed.redo(); }
+                    if let Some(interface) = st.interface.as_mut() {
+                        interface.history(true);
+                    } else {
+                        ed.redo();
+                    }
                 }
             });
             let can_undo = st.interface.as_ref().map_or_else(|| ed.can_undo(), |interface| !interface.undo.is_empty());
             ui.add_enabled_ui(can_undo, |ui| {
                 if ghost(ui, "↶").on_hover_text(format!("Undo ({})", ed.controls.label(Shortcut::Undo))).clicked() {
-                    if let Some(interface) = st.interface.as_mut() { interface.history(false); } else { ed.undo(); }
+                    if let Some(interface) = st.interface.as_mut() {
+                        interface.history(false);
+                    } else {
+                        ed.undo();
+                    }
                 }
             });
         });
@@ -1237,12 +1273,19 @@ fn project_filter(ui: &mut Ui, filter: &mut String) {
                         .desired_width(370.0),
                 );
                 mark(ui, "project_filter", response.rect);
-                if ui.add_enabled(!filter.is_empty(), egui::Button::new(RichText::new("×").size(20.0)).frame(false).min_size(egui::vec2(28.0, 28.0))).on_hover_text("Clear search").clicked() {
+                if ui
+                    .add_enabled(
+                        !filter.is_empty(),
+                        egui::Button::new(RichText::new("×").size(20.0)).frame(false).min_size(egui::vec2(28.0, 28.0)),
+                    )
+                    .on_hover_text("Clear search")
+                    .clicked()
+                {
                     filter.clear();
                     response.request_focus();
                 }
             });
-    });
+        });
 }
 
 fn matches_project_filter(query: &str, label: &str, category: &str) -> bool {
@@ -1559,7 +1602,9 @@ fn tree_row(ui: &mut Ui, ed: &mut Editor, st: &UiState, row: &Row, actions: &mut
     st_row_rect(ui, e, rect);
 
     if resp.clicked() {
-        let on_arrow = st.project_filter.trim().is_empty() && row.has_children && resp.interact_pointer_pos().is_some_and(|p| p.x < x0 + 12.0);
+        let on_arrow = st.project_filter.trim().is_empty()
+            && row.has_children
+            && resp.interact_pointer_pos().is_some_and(|p| p.x < x0 + 12.0);
         if on_arrow {
             actions.push(Action::ToggleCollapse(e));
         } else {
@@ -1702,211 +1747,198 @@ fn assets(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
         .auto_shrink([false, false])
         .scroll_bar_visibility(asset_scrollbar)
         .show(ui, |ui| {
-        ui.spacing_mut().item_spacing.y = 1.0;
-        if ed.project.is_none() {
-            ui.label(RichText::new("No project open").color(MUTED()).size(12.0));
-            return;
-        }
-        let mut any_matches = false;
-        for group in &crate::state::ASSET_GROUPS {
-            let files: Vec<String> = ed
-                .assets
-                .iter()
-                .filter(|a| crate::state::asset_group(a).is_some_and(|g| g.name == group.name))
-                .filter(|a| !searching || matches_project_filter(&query, a, group.name))
-                .cloned()
-                .collect();
-            // Scenes and scripts always show (with their + button); other groups when they have files.
-            let creatable = match group.name {
-                "Scenes" => Some(AssetKind::Scene),
-                "Scripts" => Some(AssetKind::Script),
-                "Interface" => Some(AssetKind::Interface),
-                _ => None,
-            };
-            if files.is_empty() && (searching || (creatable.is_none() && group.name != "Models")) {
-                continue;
+            ui.spacing_mut().item_spacing.y = 1.0;
+            if ed.project.is_none() {
+                ui.label(RichText::new("No project open").color(MUTED()).size(12.0));
+                return;
             }
-            any_matches = true;
-            let id = Id::new(("asset_group", group.name, searching));
-            let state = egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), id, true);
-            let header = state.show_header(ui, |ui| {
-                ui.label(RichText::new(group.icon).size(12.0).color(ACCENT()));
-                ui.label(RichText::new(group.name).size(12.0).strong().color(TEXT_STRONG()));
-                ui.label(RichText::new(files.len().to_string()).size(11.0).color(MUTED()));
-                if let Some(kind) = creatable {
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        let r = ui
-                            .add(egui::Button::new(RichText::new("+").size(12.0).color(ACCENT())).frame(false))
-                            .on_hover_text(format!(
-                                "New {}",
+            let mut any_matches = false;
+            for group in &crate::state::ASSET_GROUPS {
+                let files: Vec<String> = ed
+                    .assets
+                    .iter()
+                    .filter(|a| crate::state::asset_group(a).is_some_and(|g| g.name == group.name))
+                    .filter(|a| !searching || matches_project_filter(&query, a, group.name))
+                    .cloned()
+                    .collect();
+                // Scenes and scripts always show (with their + button); other groups when they have files.
+                let creatable = match group.name {
+                    "Scenes" => Some(AssetKind::Scene),
+                    "Scripts" => Some(AssetKind::Script),
+                    "Interface" => Some(AssetKind::Interface),
+                    _ => None,
+                };
+                if files.is_empty() && (searching || (creatable.is_none() && group.name != "Models")) {
+                    continue;
+                }
+                any_matches = true;
+                let id = Id::new(("asset_group", group.name, searching));
+                let state = egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), id, true);
+                let header = state.show_header(ui, |ui| {
+                    ui.label(RichText::new(group.icon).size(12.0).color(ACCENT()));
+                    ui.label(RichText::new(group.name).size(12.0).strong().color(TEXT_STRONG()));
+                    ui.label(RichText::new(files.len().to_string()).size(11.0).color(MUTED()));
+                    if let Some(kind) = creatable {
+                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            let r = ui
+                                .add(egui::Button::new(RichText::new("+").size(12.0).color(ACCENT())).frame(false))
+                                .on_hover_text(format!(
+                                    "New {}",
+                                    match kind {
+                                        AssetKind::Scene => "scene",
+                                        AssetKind::Script => "script",
+                                        AssetKind::Interface => "Interface",
+                                    }
+                                ));
+                            mark(
+                                ui,
                                 match kind {
-                                    AssetKind::Scene => "scene",
-                                    AssetKind::Script => "script",
-                                    AssetKind::Interface => "Interface",
-                                }
-                            ));
-                        mark(
-                            ui,
-                            match kind {
-                                AssetKind::Scene => "group_new_scene",
-                                AssetKind::Script => "group_new_script",
-                                AssetKind::Interface => "group_new_interface",
-                            },
-                            r.rect,
-                        );
-                        if r.clicked() {
-                            begin_new_asset(ed, st, kind);
-                        }
+                                    AssetKind::Scene => "group_new_scene",
+                                    AssetKind::Script => "group_new_script",
+                                    AssetKind::Interface => "group_new_interface",
+                                },
+                                r.rect,
+                            );
+                            if r.clicked() {
+                                begin_new_asset(ed, st, kind);
+                            }
                         });
-                }
-            });
-            header.body(|ui| {
-                if files.is_empty() {
-                    if group.name == "Models" {
-                        let import = ui.button("Import 3D models…");
-                        mark(ui, "import_models", import.rect);
-                        if import.clicked() {
-                            st.requests.push(Request::ImportModels);
-                        }
-                    } else {
-                        ui.label(RichText::new("None yet").size(11.0).color(MUTED()));
                     }
-                }
-                for path in files {
-                    let is_current = current_scene.as_deref() == Some(path.as_str());
-                    // Just "name.ext" (the full path shows on hover).
-                    let file = path.rsplit_once('/').map_or(path.clone(), |(_, f)| f.to_string());
-                    let mut job = egui::text::LayoutJob::default();
-                    let importable = group.name == "Models"
-                        && (crate::model_import::is_obj(std::path::Path::new(&path))
-                            || kit::render::is_model_bundle(std::path::Path::new(&path)));
-                    let active_preview = st.asset_preview.as_ref().is_some_and(|preview| preview.path == path);
-                    let color = if is_current || active_preview {
-                        PRESSED_TEXT()
-                    } else if group.supported || importable {
-                        LABEL()
-                    } else {
-                        MUTED()
-                    };
-                    job.append(
-                        &file,
-                        0.0,
-                        egui::TextFormat { font_id: egui::FontId::proportional(12.0), color, ..Default::default() },
-                    );
-                    let sound = group.name == "Sounds";
-                    let previewing = sound && ed.preview_playing() == Some(path.as_str());
-                    let mut r = ui.add(egui::Button::selectable(is_current || previewing || active_preview, job).frame_when_inactive(false));
-                    if sound {
-                        // Sounds can be dragged onto the viewport or onto an object.
-                        r = r.interact(Sense::drag());
-                        mark(ui, "sound_asset", r.rect);
-                        if r.drag_started() && !ed.playing {
-                            egui::DragAndDrop::set_payload(ui.ctx(), SoundDrag(path.clone()));
-                        }
-                        if r.dragged() && egui::DragAndDrop::has_payload_of_type::<SoundDrag>(ui.ctx()) {
-                            if let Some(pos) = ui.ctx().pointer_interact_pos() {
-                                let layer = egui::LayerId::new(egui::Order::Tooltip, Id::new("sound_drag"));
-                                let painter = ui.ctx().layer_painter(layer);
-                                let galley = painter.layout_no_wrap(
-                                    format!("♪ {file}"),
-                                    egui::FontId::proportional(13.0),
-                                    PRESSED_TEXT(),
-                                );
-                                let r = egui::Rect::from_min_size(pos + Vec2::new(12.0, 4.0), galley.size() + Vec2::new(16.0, 8.0));
-                                painter.rect_filled(r, 7.0, DIALOG_BG());
-                                painter.rect_stroke(r, 7.0, Stroke::new(1.0, ACCENT()), egui::StrokeKind::Inside);
-                                painter.galley(r.min + Vec2::new(8.0, 4.0), galley, PRESSED_TEXT());
+                });
+                header.body(|ui| {
+                    if files.is_empty() {
+                        if group.name == "Models" {
+                            let import = ui.button("Import 3D models…");
+                            mark(ui, "import_models", import.rect);
+                            if import.clicked() {
+                                st.requests.push(Request::ImportModels);
                             }
-                        }
-                    }
-                    r = match group.name {
-                        "Sounds" => r.on_hover_text(format!("{path}\nClick to preview · Double-click to add to the scene")),
-                        "Models" | "Sprites" => {
-                            if importable { mark(ui, "model_asset", r.rect); }
-                            r.on_hover_text(format!("{path}\nClick to preview · Double-click to add to the scene"))
-                        }
-                        "Scenes" => r.on_hover_text(format!("{path}\nOpen in Game View")),
-                        "Scripts" | "Interface" => r.on_hover_text(format!("{path}\nClick to preview · Double-click to open")),
-                        "Diagrams" => r.on_hover_text(format!("{path}\nOpen in Diagram View")),
-                        _ => r.on_hover_text(&path),
-                    };
-                    #[cfg(test)]
-                    ui.ctx().data_mut(|data| data.insert_temp(Id::new(("asset_preview_row", &path)), r.rect));
-                    // Rename: right-click menu, or F2 while hovering.
-                    let start_rename = |st: &mut UiState| {
-                        let stem = Path::new(&path).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
-                        st.rename_asset = Some((path.clone(), stem, true));
-                        st.rename_error = None;
-                    };
-                    if r.hovered() && !ed.playing && ui.input(|i| i.key_pressed(Key::F2)) {
-                        start_rename(st);
-                    }
-                    r.context_menu(|ui| {
-                        if group.name == "Sprites" && kit::preview::extension(&path) != "svg"
-                            && ui.add_enabled(!ed.playing, egui::Button::new("Use as selected object's texture")).clicked()
-                        {
-                            apply_texture(ed, &path);
-                            ui.close();
-                        }
-                        if ui.add_enabled(!ed.playing, egui::Button::new("Rename…")).on_disabled_hover_text("Stop the game first").clicked() {
-                            start_rename(st);
-                            ui.close();
-                        }
-                        if ui.add_enabled(!ed.playing, egui::Button::new("Delete…")).on_disabled_hover_text("Stop the game first").clicked() {
-                            st.delete_asset = Some(path.clone());
-                            st.delete_error = None;
-                            ui.close();
-                        }
-                    });
-                    if group.name == "Scenes" && (r.clicked() || r.double_clicked()) {
-                        if ed.playing {
-                            ed.notify("Stop the game before switching scenes.");
-                        } else if st.has_unsaved_interface() {
-                            ed.notify("Save or revert the current interface before switching scenes.");
                         } else {
-                            let result = if is_current { Ok(()) } else {
-                                ed.save_if_dirty().and_then(|_| ed.open_scene(&path))
-                            };
-                            if result.is_ok() {
-                                st.close_interface();
-                                st.show_game_view(ed);
-                            }
-                            ed.report(result);
+                            ui.label(RichText::new("None yet").size(11.0).color(MUTED()));
                         }
-                    } else if group.name == "Fabs" && r.double_clicked() {
-                        let result = ed.place_fab(&path, None);
-                        ed.report(result);
-                    } else if active_preview && (r.double_clicked() || r.triple_clicked()) {
-                        match group.name {
-                            "Scripts" => ed.open_script(&path),
-                            "Interface" => {
-                                if st.interface.as_ref().is_some_and(|interface| interface.path == path) {
-                                    st.show_game_view(ed);
-                                } else if st.has_unsaved_interface() {
-                                    ed.notify("Save or revert the current interface before opening another one.");
-                                } else {
-                                    match InterfaceEditor::open(ed, &path) {
-                                        Ok(editor) => {
-                                            st.show_game_view(ed);
-                                            st.interface = Some(editor);
-                                            st.interface_collapsed.clear();
-                                        }
-                                        Err(error) => ed.report(Err(error)),
-                                    }
+                    }
+                    for path in files {
+                        let is_current = current_scene.as_deref() == Some(path.as_str());
+                        // Just "name.ext" (the full path shows on hover).
+                        let file = path.rsplit_once('/').map_or(path.clone(), |(_, f)| f.to_string());
+                        let mut job = egui::text::LayoutJob::default();
+                        let importable = group.name == "Models"
+                            && (crate::model_import::is_obj(std::path::Path::new(&path))
+                                || kit::render::is_model_bundle(std::path::Path::new(&path)));
+                        let active_preview = st.asset_preview.as_ref().is_some_and(|preview| preview.path == path);
+                        let color = if is_current || active_preview {
+                            PRESSED_TEXT()
+                        } else if group.supported || importable {
+                            LABEL()
+                        } else {
+                            MUTED()
+                        };
+                        job.append(
+                            &file,
+                            0.0,
+                            egui::TextFormat { font_id: egui::FontId::proportional(12.0), color, ..Default::default() },
+                        );
+                        let sound = group.name == "Sounds";
+                        let previewing = sound && ed.preview_playing() == Some(path.as_str());
+                        let mut r = ui.add(
+                            egui::Button::selectable(is_current || previewing || active_preview, job)
+                                .frame_when_inactive(false),
+                        );
+                        if sound {
+                            // Sounds can be dragged onto the viewport or onto an object.
+                            r = r.interact(Sense::drag());
+                            mark(ui, "sound_asset", r.rect);
+                            if r.drag_started() && !ed.playing {
+                                egui::DragAndDrop::set_payload(ui.ctx(), SoundDrag(path.clone()));
+                            }
+                            if r.dragged() && egui::DragAndDrop::has_payload_of_type::<SoundDrag>(ui.ctx()) {
+                                if let Some(pos) = ui.ctx().pointer_interact_pos() {
+                                    let layer = egui::LayerId::new(egui::Order::Tooltip, Id::new("sound_drag"));
+                                    let painter = ui.ctx().layer_painter(layer);
+                                    let galley = painter.layout_no_wrap(
+                                        format!("♪ {file}"),
+                                        egui::FontId::proportional(13.0),
+                                        PRESSED_TEXT(),
+                                    );
+                                    let r = egui::Rect::from_min_size(
+                                        pos + Vec2::new(12.0, 4.0),
+                                        galley.size() + Vec2::new(16.0, 8.0),
+                                    );
+                                    painter.rect_filled(r, 7.0, DIALOG_BG());
+                                    painter.rect_stroke(r, 7.0, Stroke::new(1.0, ACCENT()), egui::StrokeKind::Inside);
+                                    painter.galley(r.min + Vec2::new(8.0, 4.0), galley, PRESSED_TEXT());
                                 }
                             }
-                            "Sprites" | "Sounds" | "Models" if !ed.playing => {
-                                if st.has_unsaved_interface() {
-                                    ed.notify("Save or revert the current interface before placing an asset.");
-                                    continue;
+                        }
+                        r = match group.name {
+                            "Sounds" => {
+                                r.on_hover_text(format!("{path}\nClick to preview · Double-click to add to the scene"))
+                            }
+                            "Models" | "Sprites" => {
+                                if importable {
+                                    mark(ui, "model_asset", r.rect);
                                 }
-                                let result = match group.name {
-                                    "Sprites" => ed.place_image_asset(&path),
-                                    "Models" => ed.place_model_asset(&path),
-                                    _ => {
-                                        ed.place_sound(&path, None);
-                                        Ok(())
-                                    }
+                                r.on_hover_text(format!("{path}\nClick to preview · Double-click to add to the scene"))
+                            }
+                            "Scenes" => r.on_hover_text(format!("{path}\nOpen in Game View")),
+                            "Scripts" | "Interface" => {
+                                r.on_hover_text(format!("{path}\nClick to preview · Double-click to open"))
+                            }
+                            "Diagrams" => r.on_hover_text(format!("{path}\nOpen in Diagram View")),
+                            _ => r.on_hover_text(&path),
+                        };
+                        #[cfg(test)]
+                        ui.ctx().data_mut(|data| data.insert_temp(Id::new(("asset_preview_row", &path)), r.rect));
+                        // Rename: right-click menu, or F2 while hovering.
+                        let start_rename = |st: &mut UiState| {
+                            let stem = Path::new(&path)
+                                .file_stem()
+                                .map(|s| s.to_string_lossy().into_owned())
+                                .unwrap_or_default();
+                            st.rename_asset = Some((path.clone(), stem, true));
+                            st.rename_error = None;
+                        };
+                        if r.hovered() && !ed.playing && ui.input(|i| i.key_pressed(Key::F2)) {
+                            start_rename(st);
+                        }
+                        r.context_menu(|ui| {
+                            if group.name == "Sprites"
+                                && kit::preview::extension(&path) != "svg"
+                                && ui
+                                    .add_enabled(!ed.playing, egui::Button::new("Use as selected object's texture"))
+                                    .clicked()
+                            {
+                                apply_texture(ed, &path);
+                                ui.close();
+                            }
+                            if ui
+                                .add_enabled(!ed.playing, egui::Button::new("Rename…"))
+                                .on_disabled_hover_text("Stop the game first")
+                                .clicked()
+                            {
+                                start_rename(st);
+                                ui.close();
+                            }
+                            if ui
+                                .add_enabled(!ed.playing, egui::Button::new("Delete…"))
+                                .on_disabled_hover_text("Stop the game first")
+                                .clicked()
+                            {
+                                st.delete_asset = Some(path.clone());
+                                st.delete_error = None;
+                                ui.close();
+                            }
+                        });
+                        if group.name == "Scenes" && (r.clicked() || r.double_clicked()) {
+                            if ed.playing {
+                                ed.notify("Stop the game before switching scenes.");
+                            } else if st.has_unsaved_interface() {
+                                ed.notify("Save or revert the current interface before switching scenes.");
+                            } else {
+                                let result = if is_current {
+                                    Ok(())
+                                } else {
+                                    ed.save_if_dirty().and_then(|_| ed.open_scene(&path))
                                 };
                                 if result.is_ok() {
                                     st.close_interface();
@@ -1914,19 +1946,60 @@ fn assets(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                                 }
                                 ed.report(result);
                             }
-                            _ => {}
+                        } else if group.name == "Fabs" && r.double_clicked() {
+                            let result = ed.place_fab(&path, None);
+                            ed.report(result);
+                        } else if active_preview && (r.double_clicked() || r.triple_clicked()) {
+                            match group.name {
+                                "Scripts" => ed.open_script(&path),
+                                "Interface" => {
+                                    if st.interface.as_ref().is_some_and(|interface| interface.path == path) {
+                                        st.show_game_view(ed);
+                                    } else if st.has_unsaved_interface() {
+                                        ed.notify("Save or revert the current interface before opening another one.");
+                                    } else {
+                                        match InterfaceEditor::open(ed, &path) {
+                                            Ok(editor) => {
+                                                st.show_game_view(ed);
+                                                st.interface = Some(editor);
+                                                st.interface_collapsed.clear();
+                                            }
+                                            Err(error) => ed.report(Err(error)),
+                                        }
+                                    }
+                                }
+                                "Sprites" | "Sounds" | "Models" if !ed.playing => {
+                                    if st.has_unsaved_interface() {
+                                        ed.notify("Save or revert the current interface before placing an asset.");
+                                        continue;
+                                    }
+                                    let result = match group.name {
+                                        "Sprites" => ed.place_image_asset(&path),
+                                        "Models" => ed.place_model_asset(&path),
+                                        _ => {
+                                            ed.place_sound(&path, None);
+                                            Ok(())
+                                        }
+                                    };
+                                    if result.is_ok() {
+                                        st.close_interface();
+                                        st.show_game_view(ed);
+                                    }
+                                    ed.report(result);
+                                }
+                                _ => {}
+                            }
+                        } else if r.clicked() {
+                            st.preview_asset(ed, &path);
                         }
-                    } else if r.clicked() {
-                        st.preview_asset(ed, &path);
                     }
-                }
-                ui.add_space(4.0);
-            });
-        }
-        if searching && !any_matches {
-            ui.label("No matching assets.");
-        }
-    });
+                    ui.add_space(4.0);
+                });
+            }
+            if searching && !any_matches {
+                ui.label("No matching assets.");
+            }
+        });
 }
 
 /// Explicit asset action to assign a texture to the selected object.
@@ -1999,7 +2072,9 @@ fn rename_asset_dialog(ctx: &egui::Context, ed: &mut Editor, st: &mut UiState) {
                         let ext_w = if ext.is_empty() {
                             0.0
                         } else {
-                            ui.fonts_mut(|f| f.layout_no_wrap(ext.clone(), egui::FontId::proportional(14.0), MUTED()).size().x) + 22.0
+                            ui.fonts_mut(|f| {
+                                f.layout_no_wrap(ext.clone(), egui::FontId::proportional(14.0), MUTED()).size().x
+                            }) + 22.0
                         };
                         let r = ui.add(
                             egui::TextEdit::singleline(name)
@@ -2033,9 +2108,11 @@ fn rename_asset_dialog(ctx: &egui::Context, ed: &mut Editor, st: &mut UiState) {
                 });
             ui.add_space(6.0);
             ui.label(
-                RichText::new("Scenes, Diagrams and scripts that use it are updated too. Enter to rename · Esc to cancel.")
-                    .size(11.0)
-                    .color(MUTED()),
+                RichText::new(
+                    "Scenes, Diagrams and scripts that use it are updated too. Enter to rename · Esc to cancel.",
+                )
+                .size(11.0)
+                .color(MUTED()),
             );
             if let Some(err) = &st.rename_error {
                 ui.add_space(4.0);
@@ -2088,7 +2165,10 @@ fn rename_asset_dialog(ctx: &egui::Context, ed: &mut Editor, st: &mut UiState) {
                 1 => " · 1 reference updated".into(),
                 n => format!(" · {n} references updated"),
             };
-            ed.notify(format!("Renamed to {}{refs}", Path::new(&new).file_name().unwrap_or_default().to_string_lossy()));
+            ed.notify(format!(
+                "Renamed to {}{refs}",
+                Path::new(&new).file_name().unwrap_or_default().to_string_lossy()
+            ));
         }
         Err(e) => {
             st.rename_error = Some(format!("{e:#}"));
@@ -2314,10 +2394,20 @@ fn color_row(ui: &mut Ui, label: &str, c: &mut Vec4) -> bool {
 
 /// The Particle Emitter's settings.
 fn particle_rows(ui: &mut Ui, images: &[String], p: &mut kit::gamesys::ParticleEmitter) {
-    let row = |ui: &mut Ui, label: &str, hint: &str, value: &mut f32, speed: f64, range: std::ops::RangeInclusive<f32>, suffix: &str| {
+    let row = |ui: &mut Ui,
+               label: &str,
+               hint: &str,
+               value: &mut f32,
+               speed: f64,
+               range: std::ops::RangeInclusive<f32>,
+               suffix: &str| {
         ui.horizontal(|ui| {
-            ui.add_sized([62.0, 20.0], egui::Label::new(RichText::new(label).size(12.0).color(LABEL()))).on_hover_text(hint);
-            ui.add_sized([ui.available_width(), 22.0], egui::DragValue::new(value).speed(speed).range(range).suffix(suffix));
+            ui.add_sized([62.0, 20.0], egui::Label::new(RichText::new(label).size(12.0).color(LABEL())))
+                .on_hover_text(hint);
+            ui.add_sized(
+                [ui.available_width(), 22.0],
+                egui::DragValue::new(value).speed(speed).range(range).suffix(suffix),
+            );
         });
     };
     row(ui, "Rate", "Particles per second (0 = none)", &mut p.rate, 0.5, 0.0..=10_000.0, " /s");
@@ -2327,11 +2417,56 @@ fn particle_rows(ui: &mut Ui, images: &[String], p: &mut kit::gamesys::ParticleE
     row(ui, "Lifetime", "Seconds each particle lives (it fades out)", &mut p.lifetime, 0.02, 0.01..=60.0, " s");
     row(ui, "Speed", "Launch speed", &mut p.speed, 0.05, 0.0..=1000.0, "");
     vec3_row(ui, "Direction", &mut p.direction, 0.02);
-    row(ui, "Spread", "Cone around the direction (0 = a line, 180 = all around)", &mut p.spread_degrees, 0.5, 0.0..=180.0, "°");
+    row(
+        ui,
+        "Spread",
+        "Cone around the direction (0 = a line, 180 = all around)",
+        &mut p.spread_degrees,
+        0.5,
+        0.0..=180.0,
+        "°",
+    );
     vec3_row(ui, "Gravity", &mut p.gravity, 0.05);
     row(ui, "Size", "Width of a particle", &mut p.size, 0.005, 0.0..=100.0, "");
     color_row(ui, "Color", &mut p.color);
     texture_row(ui, images, "particle_tex", &mut p.texture);
+}
+
+fn fog_rows(ui: &mut Ui, images: &[String], fog: &mut FogEmitter) {
+    let row = |ui: &mut Ui,
+               label: &str,
+               hint: &str,
+               value: &mut f32,
+               speed: f64,
+               range: std::ops::RangeInclusive<f32>,
+               suffix: &str| {
+        ui.horizontal(|ui| {
+            ui.add_sized([72.0, 20.0], egui::Label::new(RichText::new(label).size(12.0).color(LABEL())))
+                .on_hover_text(hint);
+            ui.add_sized(
+                [ui.available_width(), 22.0],
+                egui::DragValue::new(value).speed(speed).range(range).suffix(suffix),
+            );
+        });
+    };
+    ui.horizontal(|ui| {
+        ui.add_sized([72.0, 20.0], egui::Label::new(RichText::new("Style").size(12.0).color(LABEL())));
+        for kind in FogKind::ALL {
+            ui.selectable_value(&mut fog.kind, kind, kind.label());
+        }
+    });
+    row(ui, "Rate", "Clouds emitted per second", &mut fog.rate, 0.25, 0.0..=1000.0, " /s");
+    let mut burst = fog.burst as f32;
+    row(ui, "Burst", "Clouds created when the emitter starts", &mut burst, 1.0, 0.0..=1000.0, "");
+    fog.burst = burst.round().max(0.0) as u32;
+    row(ui, "Lifetime", "Seconds each cloud remains visible", &mut fog.lifetime, 0.05, 0.05..=120.0, " s");
+    row(ui, "Size", "Diameter of each cloud", &mut fog.size, 0.02, 0.01..=100.0, "");
+    row(ui, "Variation", "Random size variation", &mut fog.size_variation, 0.01, 0.0..=1.0, "");
+    vec3_row(ui, "Drift", &mut fog.drift, 0.02);
+    row(ui, "Turbulence", "Soft wandering motion", &mut fog.turbulence, 0.02, 0.0..=20.0, "");
+    row(ui, "Density", "Opacity of each cloud", &mut fog.density, 0.01, 0.0..=4.0, "");
+    color_row(ui, "Color", &mut fog.color);
+    texture_row(ui, images, "fog_tex", &mut fog.texture);
 }
 
 fn texture_row(ui: &mut Ui, images: &[String], id: &str, tex: &mut String) {
@@ -2348,7 +2483,14 @@ fn texture_row(ui: &mut Ui, images: &[String], id: &str, tex: &mut String) {
 }
 
 /// A collapsible component section with a remove button. Returns `false` when removed.
-pub(crate) fn section(ui: &mut Ui, id: &str, title: &str, icon: &str, removable: bool, body: impl FnOnce(&mut Ui)) -> bool {
+pub(crate) fn section(
+    ui: &mut Ui,
+    id: &str,
+    title: &str,
+    icon: &str,
+    removable: bool,
+    body: impl FnOnce(&mut Ui),
+) -> bool {
     let mut keep = true;
     let state =
         egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), Id::new(("section", id)), true);
@@ -2419,7 +2561,9 @@ fn interface_hierarchy(ui: &mut Ui, st: &mut UiState) {
     widgets::section_label(ui, "INTERFACE");
     let can_edit = st.interface.as_ref().is_some_and(|interface| interface.error.is_none() && !interface.live_preview);
     ui.horizontal_wrapped(|ui| {
-        for (tag, label) in [("panel", "Panel"), ("row", "Row"), ("label", "Label"), ("button", "Button"), ("image", "Sprite")] {
+        for (tag, label) in
+            [("panel", "Panel"), ("row", "Row"), ("label", "Label"), ("button", "Button"), ("image", "Sprite")]
+        {
             if ui.add_enabled(can_edit, egui::Button::new(format!("+ {label}")).small()).clicked() {
                 if let Some(parent) = st.interface.as_mut().and_then(|interface| interface.add(tag)) {
                     st.interface_collapsed.remove(&parent);
@@ -2442,65 +2586,77 @@ fn interface_hierarchy(ui: &mut Ui, st: &mut UiState) {
             .auto_shrink([false, false])
             .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
             .show(ui, |ui| {
-            fn matching_paths(node: &kit::xui::Node, query: &str, path: &str, matches: &mut HashSet<String>) -> bool {
-                let mut found = matches_project_filter(query, node.attr("id").unwrap_or(""), &node.tag)
-                    || node.attr("text").is_some_and(|text| matches_project_filter(query, text, &node.tag));
-                for (i, child) in node.children.iter().enumerate() {
-                    found |= matching_paths(child, query, &format!("{path}.{i}"), matches);
+                fn matching_paths(
+                    node: &kit::xui::Node,
+                    query: &str,
+                    path: &str,
+                    matches: &mut HashSet<String>,
+                ) -> bool {
+                    let mut found = matches_project_filter(query, node.attr("id").unwrap_or(""), &node.tag)
+                        || node.attr("text").is_some_and(|text| matches_project_filter(query, text, &node.tag));
+                    for (i, child) in node.children.iter().enumerate() {
+                        found |= matching_paths(child, query, &format!("{path}.{i}"), matches);
+                    }
+                    if found {
+                        matches.insert(path.to_owned());
+                    }
+                    found
                 }
-                if found {
-                    matches.insert(path.to_owned());
-                }
-                found
-            }
-            fn rows(ui: &mut Ui, st: &mut UiState, node: &kit::xui::Node, depth: usize, path: &str, matches: Option<&HashSet<String>>) {
-                if matches.is_some_and(|matches| !matches.contains(path)) {
-                    return;
-                }
-                if node.tag != "interface" {
-                    let id = node.attr("id").map_or_else(|| format!("<{}>", node.tag), str::to_owned);
-                    let selected = st.interface.as_ref().and_then(|i| i.selected.as_deref()) == Some(path);
-                    let has_children = !node.children.is_empty();
-                    let is_collapsed = matches.is_none() && st.interface_collapsed.contains(path);
-                    ui.horizontal(|ui| {
-                        if has_children {
-                            let arrow = if is_collapsed { "▸" } else { "▾" };
-                            if ui.add_enabled(matches.is_none(), egui::Button::new(arrow).small()).clicked() {
-                                if is_collapsed {
-                                    st.interface_collapsed.remove(path);
-                                } else {
-                                    st.interface_collapsed.insert(path.to_owned());
+                fn rows(
+                    ui: &mut Ui,
+                    st: &mut UiState,
+                    node: &kit::xui::Node,
+                    depth: usize,
+                    path: &str,
+                    matches: Option<&HashSet<String>>,
+                ) {
+                    if matches.is_some_and(|matches| !matches.contains(path)) {
+                        return;
+                    }
+                    if node.tag != "interface" {
+                        let id = node.attr("id").map_or_else(|| format!("<{}>", node.tag), str::to_owned);
+                        let selected = st.interface.as_ref().and_then(|i| i.selected.as_deref()) == Some(path);
+                        let has_children = !node.children.is_empty();
+                        let is_collapsed = matches.is_none() && st.interface_collapsed.contains(path);
+                        ui.horizontal(|ui| {
+                            if has_children {
+                                let arrow = if is_collapsed { "▸" } else { "▾" };
+                                if ui.add_enabled(matches.is_none(), egui::Button::new(arrow).small()).clicked() {
+                                    if is_collapsed {
+                                        st.interface_collapsed.remove(path);
+                                    } else {
+                                        st.interface_collapsed.insert(path.to_owned());
+                                    }
+                                }
+                            } else {
+                                ui.add_space(22.0);
+                            }
+                            let row = ui.selectable_label(selected, format!("{}{}", "  ".repeat(depth), id));
+                            if row.clicked() {
+                                if let Some(interface) = st.interface.as_mut() {
+                                    interface.selected = Some(path.to_owned());
                                 }
                             }
-                        } else {
-                            ui.add_space(22.0);
-                        }
-                        let row = ui.selectable_label(selected, format!("{}{}", "  ".repeat(depth), id));
-                        if row.clicked() {
-                            if let Some(interface) = st.interface.as_mut() {
-                                interface.selected = Some(path.to_owned());
+                        });
+                        if has_children && !is_collapsed {
+                            for (i, child) in node.children.iter().enumerate() {
+                                rows(ui, st, child, depth + 1, &format!("{path}.{i}"), matches);
                             }
                         }
-                    });
-                    if has_children && !is_collapsed {
+                    } else {
                         for (i, child) in node.children.iter().enumerate() {
                             rows(ui, st, child, depth + 1, &format!("{path}.{i}"), matches);
                         }
                     }
-                } else {
-                    for (i, child) in node.children.iter().enumerate() {
-                        rows(ui, st, child, depth + 1, &format!("{path}.{i}"), matches);
-                    }
                 }
-            }
-            let query = st.project_filter.trim().to_lowercase();
-            let mut matches = HashSet::new();
-            if !query.is_empty() && !matching_paths(&root, &query, "root", &mut matches) {
-                ui.label("No matching elements.");
-                return;
-            }
-            rows(ui, st, &root, 0, "root", (!query.is_empty()).then_some(&matches));
-        });
+                let query = st.project_filter.trim().to_lowercase();
+                let mut matches = HashSet::new();
+                if !query.is_empty() && !matching_paths(&root, &query, "root", &mut matches) {
+                    ui.label("No matching elements.");
+                    return;
+                }
+                rows(ui, st, &root, 0, "root", (!query.is_empty()).then_some(&matches));
+            });
     }
 }
 
@@ -2544,14 +2700,17 @@ fn interface_inspector(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                         changed = true;
                     }
                 });
-                egui::ComboBox::from_id_salt("interface_sprite").selected_text("Choose project sprite").show_ui(ui, |ui| {
-                    for asset in ed.assets_with(&["png", "jpg", "jpeg"]) {
-                        if ui.selectable_label(sprite == asset, &asset).clicked() {
-                            node.set_attr("src", asset);
-                            changed = true;
+                egui::ComboBox::from_id_salt("interface_sprite").selected_text("Choose project sprite").show_ui(
+                    ui,
+                    |ui| {
+                        for asset in ed.assets_with(&["png", "jpg", "jpeg"]) {
+                            if ui.selectable_label(sprite == asset, &asset).clicked() {
+                                node.set_attr("src", asset);
+                                changed = true;
+                            }
                         }
-                    }
-                });
+                    },
+                );
             }
             for (name, hint) in [("text", "Text"), ("width", "Width"), ("height", "Height"), ("x", "X"), ("y", "Y")] {
                 let mut value = node_style_value(node, name).unwrap_or_default().to_owned();
@@ -2584,9 +2743,8 @@ fn interface_inspector(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                     changed = true;
                 }
             });
-            let mut radius = node_style_value(node, "border-radius")
-                .and_then(|value| parse_ui_length(value, 16.0))
-                .unwrap_or(0.0);
+            let mut radius =
+                node_style_value(node, "border-radius").and_then(|value| parse_ui_length(value, 16.0)).unwrap_or(0.0);
             ui.horizontal(|ui| {
                 ui.add_sized([72.0, 20.0], egui::Label::new(RichText::new("Rounding").size(12.0).color(LABEL())));
                 if ui.add(egui::Slider::new(&mut radius, 0.0..=64.0).suffix(" px")).changed() {
@@ -2636,9 +2794,7 @@ fn inspector(ui: &mut Ui, ed: &mut Editor, rig_tool: crate::rigg_mode::RigTool) 
                 return;
             }
             if crate::rigg_mode::available(ed) && crate::rigg_mode::target(ed) == Some(e) {
-                crate::rigg_mode::rig_section(ui, ed, e, |ui, body| {
-                    section(ui, "rig", "Rig", "◇", true, body)
-                });
+                crate::rigg_mode::rig_section(ui, ed, e, |ui, body| section(ui, "rig", "Rig", "◇", true, body));
             } else if !ed.playing && crate::rigg_mode::rigging_candidate(ed) == Some(e) {
                 let create = ui.button("Create rig");
                 mark(ui, "create_rig", create.rect);
@@ -2668,10 +2824,12 @@ fn components(
     models: &[String],
     rig_tool: crate::rigg_mode::RigTool,
 ) {
-    let pose_rig = (ed.settings.rig && !ed.playing && rig_tool == crate::rigg_mode::RigTool::Pose
+    let pose_rig = (ed.settings.rig
+        && !ed.playing
+        && rig_tool == crate::rigg_mode::RigTool::Pose
         && ed.world().has::<kit::gamesys::RigVolume>(e))
-        .then(|| crate::rigg_mode::target(ed))
-        .flatten();
+    .then(|| crate::rigg_mode::target(ed))
+    .flatten();
     let interfaces = ed.assets_with(&["xui"]);
     {
         let w = &mut ed.app.world;
@@ -2689,17 +2847,22 @@ fn components(
             let current = w.get::<kit::gamesys::Tags>(e).map(|t| t.0.join(", ")).unwrap_or_default();
             let id = ui.id().with(("tags", e));
             let mut text = ui.data_mut(|d| d.get_temp::<String>(id)).unwrap_or_else(|| current.clone());
-            let r = ui.horizontal(|ui| {
-                ui.label(RichText::new("Tags").size(11.0).color(MUTED()));
-                ui.add(egui::TextEdit::singleline(&mut text).hint_text("Enemy, Pickup").desired_width(f32::INFINITY))
-            }).inner;
+            let r = ui
+                .horizontal(|ui| {
+                    ui.label(RichText::new("Tags").size(11.0).color(MUTED()));
+                    ui.add(
+                        egui::TextEdit::singleline(&mut text).hint_text("Enemy, Pickup").desired_width(f32::INFINITY),
+                    )
+                })
+                .inner;
             mark(ui, "inspector_tags", r.rect);
             if r.changed() {
                 ui.data_mut(|d| d.insert_temp(id, text.clone()));
             }
             if r.lost_focus() || (!r.has_focus() && text != current && !r.changed()) {
                 ui.data_mut(|d| d.remove::<String>(id));
-                let tags: Vec<String> = text.split(',').map(|t| t.trim().to_owned()).filter(|t| !t.is_empty()).collect();
+                let tags: Vec<String> =
+                    text.split(',').map(|t| t.trim().to_owned()).filter(|t| !t.is_empty()).collect();
                 if tags.is_empty() {
                     w.remove::<kit::gamesys::Tags>(e);
                 } else {
@@ -2724,7 +2887,8 @@ fn components(
                 }
                 changed |= vec3_row(ui, "Scale", &mut t.scale, 0.01);
                 if let Some(rig) = pose_rig.filter(|_| moved && t.translation != previous_position) {
-                    let parent = w.get::<kit::scene::Parent>(e)
+                    let parent = w
+                        .get::<kit::scene::Parent>(e)
                         .and_then(|p| w.get::<kit::scene::GlobalTransform>(p.0))
                         .map_or(kit::math::Mat4::IDENTITY, |g| g.0);
                     let position = parent.transform_point3(t.translation);
@@ -2869,10 +3033,43 @@ fn components(
                 let live = w.get::<kit::particles::ParticleState>(e).map_or(0, |s| s.particles.len());
                 ui.horizontal(|ui| {
                     ui.add_space(66.0);
-                    ui.label(RichText::new(format!("{live} live (at most {})", kit::particles::MAX_PER_EMITTER)).size(10.5).color(MUTED()));
+                    ui.label(
+                        RichText::new(format!("{live} live (at most {})", kit::particles::MAX_PER_EMITTER))
+                            .size(10.5)
+                            .color(MUTED()),
+                    );
                 });
                 if *w.get::<kit::gamesys::ParticleEmitter>(e).unwrap() != p {
                     *w.get_mut::<kit::gamesys::ParticleEmitter>(e).unwrap() = p;
+                }
+
+                if w.has::<FogEmitter>(e) {
+                    let mut restart = false;
+                    let keep = section(ui, "fog", "Fog Emitter", "☁", true, |ui| {
+                        let mut fog = w.get_cloned::<FogEmitter>(e).unwrap();
+                        fog_rows(ui, images, &mut fog);
+                        ui.horizontal(|ui| {
+                            ui.add_space(76.0);
+                            ui.checkbox(&mut fog.enabled, "Emitting");
+                            let button = ui.button("↻ Restart").on_hover_text("Start over with a fresh cloud burst");
+                            restart = button.clicked();
+                        });
+                        let live = w.get::<kit::fog::FogState>(e).map_or(0, |state| state.clouds.len());
+                        ui.horizontal(|ui| {
+                            ui.add_space(76.0);
+                            ui.label(RichText::new(format!("{live} visible clouds")).size(10.5).color(MUTED()));
+                        });
+                        if *w.get::<FogEmitter>(e).unwrap() != fog {
+                            *w.get_mut::<FogEmitter>(e).unwrap() = fog;
+                        }
+                    });
+                    if restart {
+                        w.remove::<kit::fog::FogState>(e);
+                    }
+                    if !keep {
+                        w.remove::<FogEmitter>(e);
+                        w.remove::<kit::fog::FogState>(e);
+                    }
                 }
             });
             if restart {
@@ -2950,7 +3147,9 @@ fn components(
                             }
                         });
                 });
-                ui.label(RichText::new("The interface renders over this camera in Game view.").size(11.0).color(MUTED()));
+                ui.label(
+                    RichText::new("The interface renders over this camera in Game view.").size(11.0).color(MUTED()),
+                );
             });
             if attached != before {
                 if attached.is_empty() {
@@ -3126,6 +3325,14 @@ fn volume_section(ui: &mut Ui, ed: &mut Editor, e: Entity) {
                 ui.checkbox(&mut fx.image.fxaa, "FXAA").on_hover_text("Smooths jagged edges (MSAA stays on)");
             });
             slider(ui, "Sharpen", &mut fx.image.sharpen, 0.0..=1.0);
+        }
+        if override_row(ui, "fog", "Fog", &mut fx.fog.mode) {
+            slider(ui, "Density", &mut fx.fog.density, 0.0..=0.2);
+            let mut tint = fx.fog.tint.extend(1.0);
+            color_row(ui, "Tint", &mut tint);
+            fx.fog.tint = tint.truncate();
+            slider(ui, "Scattering", &mut fx.fog.scattering, 0.0..=2.0);
+            slider(ui, "Max distance", &mut fx.fog.max_distance, 1.0..=1000.0);
         }
     });
     let w = &mut ed.app.world;
@@ -3840,6 +4047,12 @@ fn add_component_menu_body(ui: &mut Ui, ed: &mut Editor, e: Entity, sketch_now: 
                 w.insert(e, kit::gamesys::ParticleEmitter::default());
                 ui.close();
             }
+            let has_fog = w.has::<FogEmitter>(e);
+            let fog = ui.add_enabled(!has_fog, egui::Button::new("Fog Emitter"));
+            if fog.clicked() {
+                w.insert(e, FogEmitter::default());
+                ui.close();
+            }
             let has_light = w.has::<Light>(e);
             add(ui, "Light", has_light, &mut || {
                 w.insert(e, Light::default());
@@ -4002,8 +4215,8 @@ fn viewport(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
     } else {
         None
     };
-    let moving = !using_game_cam
-        && crate::move_gizmo::handle_input(&mut st.gizmo, &resp, ui, ed, rect, &editor_view, pose_rig);
+    let moving =
+        !using_game_cam && crate::move_gizmo::handle_input(&mut st.gizmo, &resp, ui, ed, rect, &editor_view, pose_rig);
     // Terrain sculpting: left-drag on a selected terrain; right-drag orbits.
     let sculpting_mode = ed.settings.sculpt.is_some()
         && !ed.playing
@@ -4267,7 +4480,8 @@ fn viewport(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                             let button_icon = if ed.rex_friendly() { "●" } else { "✧" };
                             let r = dock_toggle(ui, button_icon, button_label, ed.settings.rex).on_hover_text(format!(
                                 "{} ({})",
-                                button_label, ed.controls.label(Shortcut::Rex)
+                                button_label,
+                                ed.controls.label(Shortcut::Rex)
                             ));
                             mark(ui, "toggle_rex", r.rect);
                             if r.clicked() {
@@ -4382,13 +4596,22 @@ fn console(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
             ui.horizontal_wrapped(|ui| {
                 ui.label(RichText::new(&line.source).size(11.0).monospace().color(MUTED()));
                 ui.label(RichText::new(&line.text).size(12.0).monospace().color(color));
-                if ed.rex_enabled() && matches!(line.level, kit::core::LogLevel::Error)
+                if ed.rex_enabled()
+                    && matches!(line.level, kit::core::LogLevel::Error)
                     && ui
-                        .add(egui::Button::new(RichText::new(if ed.rex_friendly() { "Ask Rex" } else { "Explain error" }).size(10.5).color(ACCENT())).small())
+                        .add(
+                            egui::Button::new(
+                                RichText::new(if ed.rex_friendly() { "Ask Rex" } else { "Explain error" })
+                                    .size(10.5)
+                                    .color(ACCENT()),
+                            )
+                            .small(),
+                        )
                         .on_hover_text("Ask the assistant to explain this error and suggest a fix")
                         .clicked()
                 {
-                    ask_rex = Some(format!("Help me fix this error from the console:\n[{}] {}", line.source, line.text));
+                    ask_rex =
+                        Some(format!("Help me fix this error from the console:\n[{}] {}", line.source, line.text));
                 }
             });
         }
@@ -4537,10 +4760,16 @@ fn interface_viewport(ui: &mut Ui, ed: &mut Editor, st: &mut UiState, rect: egui
     painter.rect_stroke(rect, CornerRadius::same(16), Stroke::new(1.0, STAGE_BORDER()), egui::StrokeKind::Inside);
     let Some(interface) = st.interface.as_mut() else { return };
     let inner = rect.shrink(16.0);
-    if !inner.is_positive() { return; }
+    if !inner.is_positive() {
+        return;
+    }
     let toolbar = ui.scope_builder(egui::UiBuilder::new().max_rect(inner), |ui| {
         ui.set_clip_rect(ui.clip_rect().intersect(inner));
-        ui.label(RichText::new(format!("{}{}", interface.path, if interface.dirty() { " *" } else { "" })).strong().color(TEXT_STRONG()));
+        ui.label(
+            RichText::new(format!("{}{}", interface.path, if interface.dirty() { " *" } else { "" }))
+                .strong()
+                .color(TEXT_STRONG()),
+        );
         ui.horizontal_wrapped(|ui| {
             if ui.selectable_label(!interface.source_mode, "Canvas").clicked() {
                 interface.source_mode = false;
@@ -4560,7 +4789,11 @@ fn interface_viewport(ui: &mut Ui, ed: &mut Editor, st: &mut UiState, rect: egui
             if ui.add_enabled(!interface.redo.is_empty(), egui::Button::new("Redo")).clicked() {
                 interface.history(true);
             }
-            if ui.add_enabled(interface.dirty(), egui::Button::new("Revert")).on_hover_text("Restore the last saved source. Undo to recover your edits.").clicked() {
+            if ui
+                .add_enabled(interface.dirty(), egui::Button::new("Revert"))
+                .on_hover_text("Restore the last saved source. Undo to recover your edits.")
+                .clicked()
+            {
                 let previous = std::mem::replace(&mut interface.source, interface.saved_source.clone());
                 interface.checkpoint(previous);
                 interface.selected = None;
@@ -4568,25 +4801,31 @@ fn interface_viewport(ui: &mut Ui, ed: &mut Editor, st: &mut UiState, rect: egui
             }
         });
         if let Some(error) = interface.error.as_ref().or(interface.preview_error.as_ref()) {
-            ui.add(egui::Label::new(RichText::new(error).size(11.0).color(ERROR())).truncate())
-                .on_hover_text(error);
+            ui.add(egui::Label::new(RichText::new(error).size(11.0).color(ERROR())).truncate()).on_hover_text(error);
         }
     });
-    let canvas = egui::Rect::from_min_max(
-        egui::pos2(inner.left(), toolbar.response.rect.bottom() + 8.0), inner.right_bottom(),
-    );
-    if !canvas.is_positive() { return; }
+    let canvas =
+        egui::Rect::from_min_max(egui::pos2(inner.left(), toolbar.response.rect.bottom() + 8.0), inner.right_bottom());
+    if !canvas.is_positive() {
+        return;
+    }
     if interface.source_mode {
         let previous = interface.source.clone();
         let changed = ui
             .scope_builder(egui::UiBuilder::new().max_rect(canvas), |ui| {
                 ui.set_clip_rect(ui.clip_rect().intersect(canvas));
-                egui::ScrollArea::vertical().max_height(canvas.height()).show(ui, |ui| {
-                    ui.add(egui::TextEdit::multiline(&mut interface.source)
-                        .font(egui::TextStyle::Monospace)
-                        .desired_width(f32::INFINITY)
-                        .desired_rows(12)).changed()
-                }).inner
+                egui::ScrollArea::vertical()
+                    .max_height(canvas.height())
+                    .show(ui, |ui| {
+                        ui.add(
+                            egui::TextEdit::multiline(&mut interface.source)
+                                .font(egui::TextStyle::Monospace)
+                                .desired_width(f32::INFINITY)
+                                .desired_rows(12),
+                        )
+                        .changed()
+                    })
+                    .inner
             })
             .inner;
         if changed {
@@ -4610,7 +4849,9 @@ fn interface_viewport(ui: &mut Ui, ed: &mut Editor, st: &mut UiState, rect: egui
         y += grid_size;
     }
     let preview = canvas.shrink(24.0);
-    if !preview.is_positive() { return; }
+    if !preview.is_positive() {
+        return;
+    }
     interface.preview_error = None;
     let painter = painter.with_clip_rect(preview);
     let root = interface.document.as_ref().map(|d| d.root.clone());
@@ -4634,7 +4875,9 @@ fn draw_interface_node(
 ) {
     let interactive = ed.playing || interface.live_preview;
     let editing = !interactive && interface.error.is_none() && !path.contains(".include.");
-    if matches!(node.tag.as_str(), "logic" | "add-class") { return; }
+    if matches!(node.tag.as_str(), "logic" | "add-class") {
+        return;
+    }
     if node.tag == "interface" {
         for (i, child) in node.children.iter().enumerate() {
             draw_interface_node(ui, ed, interface, painter, child, rect, &format!("{path}.{i}"), false);
@@ -4658,7 +4901,16 @@ fn draw_interface_node(
             match project.resources.read_text(&include_path).and_then(|source| kit::xui::Document::parse(&source)) {
                 Ok(document) => {
                     for (i, child) in document.root.children.iter().enumerate() {
-                        draw_interface_node(ui, ed, interface, painter, child, rect, &format!("{path}.include.{i}"), false);
+                        draw_interface_node(
+                            ui,
+                            ed,
+                            interface,
+                            painter,
+                            child,
+                            rect,
+                            &format!("{path}.include.{i}"),
+                            false,
+                        );
                     }
                 }
                 Err(error) => interface.preview_error = Some(format!("{include_path}: {error:#}")),
@@ -4674,11 +4926,13 @@ fn draw_interface_node(
     } else {
         (
             node_style_value(node, "width").and_then(|v| parse_ui_length(v, rect.width())).unwrap_or(rect.width()),
-            node_style_value(node, "height").and_then(|v| parse_ui_length(v, rect.height())).unwrap_or(match node.tag.as_str() {
-                "label" => 34.0,
-                "button" => 52.0,
-                _ => rect.height(),
-            }),
+            node_style_value(node, "height").and_then(|v| parse_ui_length(v, rect.height())).unwrap_or(
+                match node.tag.as_str() {
+                    "label" => 34.0,
+                    "button" => 52.0,
+                    _ => rect.height(),
+                },
+            ),
         )
     };
     let x = node_style_value(node, "x").and_then(|v| parse_ui_length(v, rect.width())).unwrap_or(0.0);
@@ -4687,12 +4941,25 @@ fn draw_interface_node(
         rect.min + Vec2::new(x, y),
         Vec2::new(width.clamp(0.0, rect.width()), height.clamp(0.0, rect.height())),
     );
-    if !node_rect.is_positive() || !node_rect.intersects(painter.clip_rect()) { return; }
+    if !node_rect.is_positive() || !node_rect.intersects(painter.clip_rect()) {
+        return;
+    }
     #[cfg(test)]
-    if path == "root.0.0" { mark(ui, "interface_test_node", node_rect); }
+    if path == "root.0.0" {
+        mark(ui, "interface_test_node", node_rect);
+    }
     let id = path.to_owned();
-    let response = ui.interact(node_rect.intersect(painter.clip_rect()), Id::new(("xui_node", &id)),
-        if editing { Sense::click_and_drag() } else if interactive && node.tag == "button" { Sense::click() } else { Sense::hover() });
+    let response = ui.interact(
+        node_rect.intersect(painter.clip_rect()),
+        Id::new(("xui_node", &id)),
+        if editing {
+            Sense::click_and_drag()
+        } else if interactive && node.tag == "button" {
+            Sense::click()
+        } else {
+            Sense::hover()
+        },
+    );
     if editing && (response.clicked() || response.drag_started()) {
         interface.selected = Some(id.clone());
     }
@@ -4718,10 +4985,14 @@ fn draw_interface_node(
         }
     }
     let selected = editing && interface.selected.as_deref() == Some(path);
-    let opacity = node_style_value(node, "opacity").and_then(|value| value.parse::<f32>().ok())
-        .filter(|value| value.is_finite()).unwrap_or(1.0).clamp(0.0, 1.0);
+    let opacity = node_style_value(node, "opacity")
+        .and_then(|value| value.parse::<f32>().ok())
+        .filter(|value| value.is_finite())
+        .unwrap_or(1.0)
+        .clamp(0.0, 1.0);
     let classes = interface.preview_classes.get(path).map(Vec::as_slice).unwrap_or_default();
-    let text_color = parse_ui_color(node_state_style_value(node, "color", hovered, focused, classes)).unwrap_or(TEXT_STRONG());
+    let text_color =
+        parse_ui_color(node_state_style_value(node, "color", hovered, focused, classes)).unwrap_or(TEXT_STRONG());
     let fill = parse_ui_color(
         node_state_style_value(node, "background", hovered, focused, classes)
             .or_else(|| node_state_style_value(node, "background-color", hovered, focused, classes))
@@ -4759,26 +5030,37 @@ fn draw_interface_node(
             let entry = interface.sprites.entry(source.to_owned()).or_insert_with(|| (None, Err(String::new())));
             if entry.0 != modified || matches!(&entry.1, Err(error) if error.is_empty()) {
                 entry.0 = modified;
-                entry.1 = project.resources.read_bytes(source).and_then(|bytes| {
-                    let image = image::load_from_memory(&bytes)?.to_rgba8();
-                    let size = [image.width() as usize, image.height() as usize];
-                    Ok(ui.ctx().load_texture(
-                        format!("xui:{source}"), egui::ColorImage::from_rgba_unmultiplied(size, &image),
-                        egui::TextureOptions::LINEAR,
-                    ))
-                }).map_err(|error| format!("{source}: {error:#}"));
+                entry.1 = project
+                    .resources
+                    .read_bytes(source)
+                    .and_then(|bytes| {
+                        let image = image::load_from_memory(&bytes)?.to_rgba8();
+                        let size = [image.width() as usize, image.height() as usize];
+                        Ok(ui.ctx().load_texture(
+                            format!("xui:{source}"),
+                            egui::ColorImage::from_rgba_unmultiplied(size, &image),
+                            egui::TextureOptions::LINEAR,
+                        ))
+                    })
+                    .map_err(|error| format!("{source}: {error:#}"));
             }
             match &entry.1 {
                 Ok(texture) => {
-                    painter.image(texture.id(), node_rect,
+                    painter.image(
+                        texture.id(),
+                        node_rect,
                         egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
-                        Color32::WHITE.gamma_multiply(opacity));
+                        Color32::WHITE.gamma_multiply(opacity),
+                    );
                 }
                 Err(error) => {
                     painter.rect_filled(node_rect, CornerRadius::same(radius as u8), Color32::from_rgb(90, 24, 42));
                     painter.with_clip_rect(node_rect.intersect(painter.clip_rect())).text(
-                        node_rect.center(), Align2::CENTER_CENTER, "Missing sprite",
-                        egui::FontId::proportional(12.0), Color32::from_rgb(255, 190, 200),
+                        node_rect.center(),
+                        Align2::CENTER_CENTER,
+                        "Missing sprite",
+                        egui::FontId::proportional(12.0),
+                        Color32::from_rgb(255, 190, 200),
                     );
                     interface.preview_error = Some(error.clone());
                 }
@@ -4786,22 +5068,36 @@ fn draw_interface_node(
         } else if editing {
             painter.rect_stroke(node_rect, CornerRadius::same(4), Stroke::new(1.0, MUTED()), egui::StrokeKind::Inside);
             painter.with_clip_rect(node_rect.intersect(painter.clip_rect())).text(
-                node_rect.center(), Align2::CENTER_CENTER, "Choose a sprite",
-                egui::FontId::proportional(12.0), MUTED(),
+                node_rect.center(),
+                Align2::CENTER_CENTER,
+                "Choose a sprite",
+                egui::FontId::proportional(12.0),
+                MUTED(),
             );
         }
     }
     if let Some((width, color)) = parse_css_border(node, node_rect.width()) {
-        painter.rect_stroke(node_rect, CornerRadius::same(radius as u8),
-            Stroke::new(width.max(0.0), color.gamma_multiply(opacity)), egui::StrokeKind::Inside);
+        painter.rect_stroke(
+            node_rect,
+            CornerRadius::same(radius as u8),
+            Stroke::new(width.max(0.0), color.gamma_multiply(opacity)),
+            egui::StrokeKind::Inside,
+        );
     }
     if selected {
-        painter.rect_stroke(node_rect, CornerRadius::same(radius as u8), Stroke::new(2.0, ACCENT()), egui::StrokeKind::Inside);
+        painter.rect_stroke(
+            node_rect,
+            CornerRadius::same(radius as u8),
+            Stroke::new(2.0, ACCENT()),
+            egui::StrokeKind::Inside,
+        );
     }
     if selected {
         let handle = egui::Rect::from_min_size(node_rect.right_bottom() - Vec2::splat(10.0), Vec2::splat(14.0));
         #[cfg(test)]
-        if path == "root.0.0" { mark(ui, "interface_test_resize", handle); }
+        if path == "root.0.0" {
+            mark(ui, "interface_test_resize", handle);
+        }
         let resize = ui.interact(handle.intersect(painter.clip_rect()), Id::new(("xui_resize", &id)), Sense::drag());
         painter.rect_filled(handle, CornerRadius::same(2), ACCENT());
         if resize.drag_started() {
@@ -4814,9 +5110,13 @@ fn draw_interface_node(
                 if let Some(doc) = interface.document.as_mut() {
                     if let Some(target) = find_interface_node_mut(&mut doc.root, &origin_id) {
                         let delta = resize.total_drag_delta().unwrap_or_default();
-                        set_interface_geometry(target,
-                            "width", (origin_width + delta.x).max(12.0),
-                            "height", (origin_height + delta.y).max(12.0));
+                        set_interface_geometry(
+                            target,
+                            "width",
+                            (origin_width + delta.x).max(12.0),
+                            "height",
+                            (origin_height + delta.y).max(12.0),
+                        );
                     }
                 }
             }
@@ -4824,17 +5124,23 @@ fn draw_interface_node(
     }
     if matches!(node.tag.as_str(), "label" | "button") {
         let text = node.attr("text").or_else(|| node.attr("_text")).unwrap_or(node.tag.as_str());
-        let font_size = node_style_value(node, "font-size").and_then(|value| parse_ui_length(value, 16.0)).unwrap_or(18.0);
-        let label = painter.layout(text.to_owned(), egui::FontId::proportional(font_size.clamp(1.0, 256.0)),
-            text_color.gamma_multiply(opacity), (node_rect.width() - 8.0).max(1.0));
+        let font_size =
+            node_style_value(node, "font-size").and_then(|value| parse_ui_length(value, 16.0)).unwrap_or(18.0);
+        let label = painter.layout(
+            text.to_owned(),
+            egui::FontId::proportional(font_size.clamp(1.0, 256.0)),
+            text_color.gamma_multiply(opacity),
+            (node_rect.width() - 8.0).max(1.0),
+        );
         let pos = node_rect.center() - label.size() / 2.0;
         painter.with_clip_rect(node_rect.intersect(painter.clip_rect())).galley(pos, label, text_color);
-
     }
     if node.tag == "button" && interactive && response.clicked() {
         apply_local_logic(node, "press", interface, path);
         let classes = interface.preview_classes.entry(path.to_owned()).or_default();
-        if !classes.iter().any(|class| class == "pressed") { classes.push("pressed".into()); }
+        if !classes.iter().any(|class| class == "pressed") {
+            classes.push("pressed".into());
+        }
         if ed.playing {
             if let Some(script) = node.attr("script") {
                 let mut path = script.to_owned();
@@ -4850,16 +5156,17 @@ fn draw_interface_node(
             }
         }
     }
-    let padding = node_style_value(node, "padding")
-        .and_then(|value| parse_ui_length(value, node_rect.width()))
-        .unwrap_or(18.0);
+    let padding =
+        node_style_value(node, "padding").and_then(|value| parse_ui_length(value, node_rect.width())).unwrap_or(18.0);
     let display = node_style_value(node, "display").unwrap_or("");
     let direction = node_style_value(node, "flex-direction").unwrap_or(match node.tag.as_str() {
         "row" | "grid" => "row",
         _ => "column",
     });
     let gap = node_style_value(node, "gap").and_then(|value| parse_ui_length(value, node_rect.width())).unwrap_or(8.0);
-    let is_row = display.eq_ignore_ascii_case("flex") && direction.eq_ignore_ascii_case("row") || node.tag == "row" || node.tag == "grid";
+    let is_row = display.eq_ignore_ascii_case("flex") && direction.eq_ignore_ascii_case("row")
+        || node.tag == "row"
+        || node.tag == "grid";
     let content = node_rect.shrink(padding.clamp(0.0, node_rect.width().min(node_rect.height()) / 2.0));
     let mut cursor = if is_row { content.left() } else { content.top() };
     let flow_count = node.children.iter().filter(|child| participates_in_interface_flow(child)).count().max(1);
@@ -4869,20 +5176,29 @@ fn draw_interface_node(
             draw_interface_node(ui, ed, interface, painter, child, node_rect, &child_path, false);
             continue;
         }
-        if !participates_in_interface_flow(child) { continue; }
+        if !participates_in_interface_flow(child) {
+            continue;
+        }
         let full_width = content.width().max(0.0);
         let full_height = content.height().max(0.0);
-        let child_width = node_style_value(child, "width").and_then(|v| parse_ui_length(v, full_width))
-            .unwrap_or_else(|| if is_row { (full_width - gap * (flow_count - 1) as f32) / flow_count as f32 } else { full_width })
+        let child_width = node_style_value(child, "width")
+            .and_then(|v| parse_ui_length(v, full_width))
+            .unwrap_or_else(|| {
+                if is_row { (full_width - gap * (flow_count - 1) as f32) / flow_count as f32 } else { full_width }
+            })
             .clamp(0.0, full_width);
-        let child_height = node_style_value(child, "height").and_then(|v| parse_ui_length(v, full_height))
-            .unwrap_or(if is_row { full_height } else { 40.0 }).clamp(0.0, full_height);
+        let child_height = node_style_value(child, "height")
+            .and_then(|v| parse_ui_length(v, full_height))
+            .unwrap_or(if is_row { full_height } else { 40.0 })
+            .clamp(0.0, full_height);
         let child_rect = if is_row {
-            let result = egui::Rect::from_min_size(egui::pos2(cursor, content.top()), Vec2::new(child_width, child_height));
+            let result =
+                egui::Rect::from_min_size(egui::pos2(cursor, content.top()), Vec2::new(child_width, child_height));
             cursor += child_width + gap;
             result
         } else {
-            let result = egui::Rect::from_min_size(egui::pos2(content.left(), cursor), Vec2::new(child_width, child_height));
+            let result =
+                egui::Rect::from_min_size(egui::pos2(content.left(), cursor), Vec2::new(child_width, child_height));
             cursor += child_height + gap;
             result
         };
@@ -4902,8 +5218,14 @@ fn participates_in_interface_flow(node: &kit::xui::Node) -> bool {
 }
 
 fn apply_local_logic(node: &kit::xui::Node, event: &str, interface: &mut InterfaceEditor, path: &str) {
-    for logic in node.children.iter().filter(|child| child.tag == "logic" && child.attr("on").is_some_and(|on| on.eq_ignore_ascii_case(event))) {
-        for name in logic.children.iter().filter(|action| action.tag == "add-class").filter_map(|action| action.attr("name")) {
+    for logic in node
+        .children
+        .iter()
+        .filter(|child| child.tag == "logic" && child.attr("on").is_some_and(|on| on.eq_ignore_ascii_case(event)))
+    {
+        for name in
+            logic.children.iter().filter(|action| action.tag == "add-class").filter_map(|action| action.attr("name"))
+        {
             let classes = interface.preview_classes.entry(path.to_owned()).or_default();
             if !classes.iter().any(|class| class == name) {
                 classes.push(name.to_owned());
@@ -4935,7 +5257,13 @@ fn find_interface_node_mut<'a>(root: &'a mut kit::xui::Node, key: &str) -> Optio
     Some(node)
 }
 
-fn node_state_style_value<'a>(node: &'a kit::xui::Node, name: &str, hovered: bool, focused: bool, preview_classes: &[String]) -> Option<&'a str> {
+fn node_state_style_value<'a>(
+    node: &'a kit::xui::Node,
+    name: &str,
+    hovered: bool,
+    focused: bool,
+    preview_classes: &[String],
+) -> Option<&'a str> {
     if hovered {
         if let Some(value) = node_style_value(node, &format!("hover-{name}")) {
             return Some(value);
@@ -4976,7 +5304,10 @@ fn parse_css_shadow(node: &kit::xui::Node, parent: f32) -> Option<(f32, f32, f32
     let offset_x = lengths.next()?;
     let offset_y = lengths.next()?;
     let blur = lengths.next().unwrap_or(0.0);
-    let color = shadow.split_whitespace().find_map(|token| parse_ui_color(Some(token))).unwrap_or(Color32::from_black_alpha(120));
+    let color = shadow
+        .split_whitespace()
+        .find_map(|token| parse_ui_color(Some(token)))
+        .unwrap_or(Color32::from_black_alpha(120));
     Some((offset_x, offset_y, blur, color))
 }
 
@@ -5027,7 +5358,9 @@ fn parse_ui_color(value: Option<&str>) -> Option<Color32> {
     if value.len() != 6 && value.len() != 8 {
         return None;
     }
-    if !value.is_ascii() { return None; }
+    if !value.is_ascii() {
+        return None;
+    }
     let r = u8::from_str_radix(&value[0..2], 16).ok()?;
     let g = u8::from_str_radix(&value[2..4], 16).ok()?;
     let b = u8::from_str_radix(&value[4..6], 16).ok()?;
@@ -5076,7 +5409,8 @@ fn draw_debug_lines(painter: &egui::Painter, ed: &Editor, rect: egui::Rect, edit
     let view = game.as_ref().unwrap_or(editor_view);
     let vp = view.view_proj();
     for l in &debug.lines {
-        let (Some(a), Some(b)) = (crate::canvas::to_screen(vp, rect, l.from), crate::canvas::to_screen(vp, rect, l.to)) else {
+        let (Some(a), Some(b)) = (crate::canvas::to_screen(vp, rect, l.from), crate::canvas::to_screen(vp, rect, l.to))
+        else {
             continue;
         };
         let c = l.color.clamp(kit::math::Vec4::ZERO, kit::math::Vec4::ONE) * 255.0;

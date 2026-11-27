@@ -81,7 +81,10 @@ pub fn set_property(source: &str, doc: &Document, path: &[usize], name: &str, va
         }
     }
     if !done {
-        splices.push(Splice { range: node.attr_insert..node.attr_insert, text: format!(" {name}=\"{}\"", escape_attr(value)) });
+        splices.push(Splice {
+            range: node.attr_insert..node.attr_insert,
+            text: format!(" {name}=\"{}\"", escape_attr(value)),
+        });
     }
     Ok(apply(source, splices))
 }
@@ -203,7 +206,10 @@ pub fn insert_child(source: &str, doc: &Document, parent: &[usize], index: usize
         }
         node.close.start
     };
-    let text = format!("\n{block}\n{}", if index >= node.children.len() { parent_indent.as_str() } else { child_indent.as_str() });
+    let text = format!(
+        "\n{block}\n{}",
+        if index >= node.children.len() { parent_indent.as_str() } else { child_indent.as_str() }
+    );
     Ok(apply(source, vec![Splice { range: at..at, text }]))
 }
 
@@ -233,7 +239,13 @@ pub fn remove_element(source: &str, doc: &Document, path: &[usize]) -> Result<St
 
 /// Move the element at `from` to be child `index` of `to_parent` (a path in
 /// the document *before* the move). Returns the new source and the element's new path.
-pub fn move_element(source: &str, doc: &Document, from: &[usize], to_parent: &[usize], index: usize) -> Result<(String, Vec<usize>)> {
+pub fn move_element(
+    source: &str,
+    doc: &Document,
+    from: &[usize],
+    to_parent: &[usize],
+    index: usize,
+) -> Result<(String, Vec<usize>)> {
     if from.is_empty() {
         bail!("can't move the root element");
     }

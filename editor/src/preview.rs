@@ -3,7 +3,11 @@
 use crate::{state::Editor, theme::*};
 use anyhow::{Context, Result, ensure};
 use egui::{Color32, Pos2, Rect, RichText, Sense, Stroke, TextureHandle, Ui, Vec2};
-use kit::{math::{Quat, Vec3}, preview, resource::Resources};
+use kit::{
+    math::{Quat, Vec3},
+    preview,
+    resource::Resources,
+};
 use std::{path::PathBuf, sync::mpsc, time::Duration};
 
 enum Content {
@@ -48,17 +52,25 @@ impl AssetPreview {
             match receiver.try_recv() {
                 Ok(result) => self.content = result.unwrap_or_else(|error| Content::Error(format!("{error:#}"))),
                 Err(mpsc::TryRecvError::Empty) => ui.ctx().request_repaint_after(Duration::from_millis(30)),
-                Err(mpsc::TryRecvError::Disconnected) => self.content = Content::Error("The preview could not be loaded.".into()),
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    self.content = Content::Error("The preview could not be loaded.".into())
+                }
             }
         }
         ui.push_id(&self.path, |ui| {
             ui.label(RichText::new(&self.path).color(MUTED()).size(12.0));
             ui.add_space(8.0);
             match &mut self.content {
-                Content::Loading(_) => { ui.spinner(); }
-                Content::Error(error) => { ui.colored_label(ERROR(), error); }
+                Content::Loading(_) => {
+                    ui.spinner();
+                }
+                Content::Error(error) => {
+                    ui.colored_label(ERROR(), error);
+                }
                 Content::Image { pixels, texture } => {
-                    if let Some(pixels) = pixels.take() { upload(ui, texture, pixels); }
+                    if let Some(pixels) = pixels.take() {
+                        upload(ui, texture, pixels);
+                    }
                     if let Some(texture) = texture {
                         let size = texture.size();
                         ui.label(format!("{} × {}", size[0], size[1]));
@@ -68,7 +80,9 @@ impl AssetPreview {
                 Content::Model(model) => {
                     ui.horizontal_wrapped(|ui| {
                         ui.label(format!("{} triangles", model.total));
-                        if model.triangles.len() < model.total { ui.label("Sampled geometry"); }
+                        if model.triangles.len() < model.total {
+                            ui.label("Sampled geometry");
+                        }
                         ui.label("Drag to orbit · Scroll to zoom");
                         if ui.small_button("Reset view").clicked() {
                             self.orbit = Vec2::new(-0.6, 0.3);
@@ -85,14 +99,19 @@ impl AssetPreview {
                         }
                         ui.label(format!("{duration:.1} s"));
                     });
-                    if playing { ui.ctx().request_repaint_after(Duration::from_millis(100)); }
+                    if playing {
+                        ui.ctx().request_repaint_after(Duration::from_millis(100));
+                    }
                     let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 136.0), Sense::hover());
                     let painter = ui.painter_at(rect);
                     painter.rect_filled(rect, 8.0, STAGE_BG());
                     for (i, peak) in peaks.iter().enumerate() {
                         let x = rect.left() + (i as f32 + 0.5) / peaks.len() as f32 * rect.width();
                         let h = peak * rect.height() * 0.43;
-                        painter.line_segment([Pos2::new(x, rect.center().y - h), Pos2::new(x, rect.center().y + h)], Stroke::new(1.0, ACCENT()));
+                        painter.line_segment(
+                            [Pos2::new(x, rect.center().y - h), Pos2::new(x, rect.center().y + h)],
+                            Stroke::new(1.0, ACCENT()),
+                        );
                     }
                 }
                 Content::Video { file, player, texture, note } => {
@@ -103,12 +122,17 @@ impl AssetPreview {
                                 note.clear();
                             } else {
                                 ed.stop_preview();
-                                let audio_rate = ed.app.world.try_resource_mut::<kit::audio::Audio>()
+                                let audio_rate = ed
+                                    .app
+                                    .world
+                                    .try_resource_mut::<kit::audio::Audio>()
                                     .and_then(|mut audio| audio.preview_output_rate());
                                 match preview::video::Video::start(file, audio_rate) {
                                     Ok(mut video) => {
                                         if let Some(receiver) = video.take_audio() {
-                                            if let Some(mut audio) = ed.app.world.try_resource_mut::<kit::audio::Audio>() {
+                                            if let Some(mut audio) =
+                                                ed.app.world.try_resource_mut::<kit::audio::Audio>()
+                                            {
                                                 audio.preview_stream(receiver);
                                             }
                                         }
@@ -122,34 +146,52 @@ impl AssetPreview {
                         ui.label(note.as_str());
                     });
                     if let Some(video) = player {
-                        if let Some(frame) = video.frame() { upload(ui, texture, frame); }
+                        if let Some(frame) = video.frame() {
+                            upload(ui, texture, frame);
+                        }
                         match video.finished() {
                             Ok(None) => ui.ctx().request_repaint_after(Duration::from_millis(25)),
                             Ok(Some(ok)) => {
                                 *player = None;
-                                *note = if ok { "Playback ended".into() } else { "The local decoder could not play this video.".into() };
+                                *note = if ok {
+                                    "Playback ended".into()
+                                } else {
+                                    "The local decoder could not play this video.".into()
+                                };
                             }
-                            Err(error) => { *player = None; *note = error.to_string(); }
+                            Err(error) => {
+                                *player = None;
+                                *note = error.to_string();
+                            }
                         }
                     }
-                    if let Some(texture) = texture { show_image(ui, texture); }
+                    if let Some(texture) = texture {
+                        show_image(ui, texture);
+                    }
                 }
                 Content::Text { text, format, truncated } => {
-                    if *truncated { ui.label("Showing the first 256 KiB"); }
-                    egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
-                        match format {
-                            TextFormat::Markdown => {
-                                ui.set_max_width(ui.available_width().min(840.0));
-                                show_markdown(ui, text);
-                            }
-                            TextFormat::Script => {
-                                ui.add(egui::Label::new(crate::code::highlight(text)).selectable(true).wrap_mode(egui::TextWrapMode::Extend));
-                            }
-                            TextFormat::Plain => {
-                                let mut text = text.as_str();
-                                ui.add(egui::TextEdit::multiline(&mut text).font(egui::TextStyle::Monospace)
-                                    .desired_width(f32::INFINITY));
-                            }
+                    if *truncated {
+                        ui.label("Showing the first 256 KiB");
+                    }
+                    egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| match format {
+                        TextFormat::Markdown => {
+                            ui.set_max_width(ui.available_width().min(840.0));
+                            show_markdown(ui, text);
+                        }
+                        TextFormat::Script => {
+                            ui.add(
+                                egui::Label::new(crate::code::highlight(text))
+                                    .selectable(true)
+                                    .wrap_mode(egui::TextWrapMode::Extend),
+                            );
+                        }
+                        TextFormat::Plain => {
+                            let mut text = text.as_str();
+                            ui.add(
+                                egui::TextEdit::multiline(&mut text)
+                                    .font(egui::TextStyle::Monospace)
+                                    .desired_width(f32::INFINITY),
+                            );
                         }
                     });
                 }
@@ -169,7 +211,11 @@ fn load(resources: &Resources, asset: &str) -> Result<Content> {
     let ext = preview::extension(asset);
     if preview::IMAGES.contains(&ext.as_str()) {
         let image = preview::read_image(resources, asset)?;
-        let image = if image.width().max(image.height()) > 2048 { image.resize(2048, 2048, image::imageops::FilterType::Triangle) } else { image };
+        let image = if image.width().max(image.height()) > 2048 {
+            image.resize(2048, 2048, image::imageops::FilterType::Triangle)
+        } else {
+            image
+        };
         return Ok(Content::Image { pixels: Some(image.into_rgba8()), texture: None });
     }
     if matches!(ext.as_str(), "ttf" | "otf") {
@@ -181,22 +227,32 @@ fn load(resources: &Resources, asset: &str) -> Result<Content> {
         let model = if matches!(ext.as_str(), "fbx" | "usdz" | "stl") {
             let temp = tempfile::tempdir()?;
             let manifest = crate::model_import::convert(&resources.resolve(asset)?, temp.path())?;
-            preview::model(&Resources::new(temp.path()), manifest.file_name().and_then(|name| name.to_str()).context("Missing converted model name")?)?
+            preview::model(
+                &Resources::new(temp.path()),
+                manifest.file_name().and_then(|name| name.to_str()).context("Missing converted model name")?,
+            )?
         } else {
             preview::model(resources, asset)?
         };
         return Ok(Content::Model(model));
     }
     if preview::VIDEOS.contains(&ext.as_str()) {
-        return Ok(Content::Video { file: resources.resolve(asset)?.canonicalize()?, player: None, texture: None, note: String::new() });
+        return Ok(Content::Video {
+            file: resources.resolve(asset)?.canonicalize()?,
+            player: None,
+            texture: None,
+            note: String::new(),
+        });
     }
     if kit::gamesys::is_sound(asset) {
         let (bytes, truncated) = preview::sample(resources, asset, 64 * 1024 * 1024)?;
         ensure!(!truncated, "This audio file exceeds the 64 MiB preview limit");
         let clip = kit::audio::decode(bytes, &ext)?;
-        let peaks = clip.frames.chunks(clip.frames.len().div_ceil(256).max(1)).map(|chunk| {
-            chunk.iter().flatten().map(|sample| sample.abs()).fold(0.0_f32, f32::max).min(1.0)
-        }).collect();
+        let peaks = clip
+            .frames
+            .chunks(clip.frames.len().div_ceil(256).max(1))
+            .map(|chunk| chunk.iter().flatten().map(|sample| sample.abs()).fold(0.0_f32, f32::max).min(1.0))
+            .collect();
         return Ok(Content::Audio { peaks, duration: clip.duration() });
     }
     let (mut bytes, truncated) = preview::sample(resources, asset, 256 * 1024)?;
@@ -232,7 +288,9 @@ fn font_sample(bytes: Vec<u8>) -> Result<image::RgbaImage> {
         let mut previous = None;
         for ch in text.chars() {
             let id = scaled.glyph_id(ch);
-            if let Some(previous) = previous { x += scaled.kern(previous, id); }
+            if let Some(previous) = previous {
+                x += scaled.kern(previous, id);
+            }
             let glyph = id.with_scale_and_position(size, point(x, baseline));
             if let Some(outline) = font.outline_glyph(glyph) {
                 let bounds = outline.px_bounds();
@@ -266,7 +324,9 @@ fn show_image(ui: &mut Ui, texture: &TextureHandle) {
     let available = ui.available_size();
     let size = texture.size_vec2();
     let scale = (available.x / size.x).min(available.y / size.y).min(2.0);
-    if scale <= 0.0 { return; }
+    if scale <= 0.0 {
+        return;
+    }
     let (rect, _) = ui.allocate_exact_size(available, Sense::hover());
     let painter = ui.painter_at(rect);
     let image_rect = Rect::from_center_size(rect.center(), size * scale);
@@ -282,7 +342,9 @@ fn show_image(ui: &mut Ui, texture: &TextureHandle) {
 
 fn show_model(ui: &mut Ui, model: &preview::Model, orbit: &mut Vec2, zoom: &mut f32) {
     let (rect, response) = ui.allocate_exact_size(ui.available_size(), Sense::drag());
-    if !rect.is_positive() { return; }
+    if !rect.is_positive() {
+        return;
+    }
     *orbit += response.drag_delta() * 0.012;
     orbit.y = orbit.y.clamp(-1.56, 1.56);
     if response.hovered() {
@@ -298,7 +360,9 @@ fn show_model(ui: &mut Ui, model: &preview::Model, orbit: &mut Vec2, zoom: &mut 
     for triangle in &model.triangles {
         let points = triangle.positions.map(|point| rotation * point);
         let normal = (points[1] - points[0]).cross(points[2] - points[0]);
-        if normal.z <= 0.0 { continue; }
+        if normal.z <= 0.0 {
+            continue;
+        }
         let shade = normal.normalize_or_zero().dot(light).max(0.0) * 0.58 + 0.42;
         let [r, g, b, _] = triangle.color;
         let color = Color32::from_rgb(
@@ -313,7 +377,9 @@ fn show_model(ui: &mut Ui, model: &preview::Model, orbit: &mut Vec2, zoom: &mut 
     let mut mesh = egui::Mesh::default();
     for (_, screen, color) in faces {
         let index = mesh.vertices.len() as u32;
-        for point in screen { mesh.colored_vertex(point, color); }
+        for point in screen {
+            mesh.colored_vertex(point, color);
+        }
         mesh.add_triangle(index, index + 1, index + 2);
     }
     painter.add(egui::Shape::mesh(mesh));
@@ -329,14 +395,20 @@ fn show_markdown(ui: &mut Ui, text: &str) {
             let delimiter = &trimmed[..3];
             let mut code = String::new();
             for line in lines.by_ref() {
-                if line.trim_start().starts_with(delimiter) { break; }
+                if line.trim_start().starts_with(delimiter) {
+                    break;
+                }
                 code.push_str(line);
                 code.push('\n');
             }
             crate::theme::card().show(ui, |ui| {
-                if !fence.trim().is_empty() { ui.label(RichText::new(fence.trim()).color(MUTED())); }
+                if !fence.trim().is_empty() {
+                    ui.label(RichText::new(fence.trim()).color(MUTED()));
+                }
                 let mut text = code.as_str();
-                ui.add(egui::TextEdit::multiline(&mut text).font(egui::TextStyle::Monospace).desired_width(f32::INFINITY));
+                ui.add(
+                    egui::TextEdit::multiline(&mut text).font(egui::TextStyle::Monospace).desired_width(f32::INFINITY),
+                );
             });
         } else {
             prose.push_str(line);

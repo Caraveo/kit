@@ -109,10 +109,8 @@ pub fn length(node: &Node, name: &str) -> Option<Length> {
 
 /// `padding: 1em` / `1em 2em` / `1px 2px 3px 4px` → (top, right, bottom, left).
 pub fn edges(value: &str, parent: f32, scale: f32) -> [f32; 4] {
-    let parts: Vec<f32> = value
-        .split_whitespace()
-        .filter_map(|p| Length::parse(p).and_then(|l| l.resolve(parent, scale)))
-        .collect();
+    let parts: Vec<f32> =
+        value.split_whitespace().filter_map(|p| Length::parse(p).and_then(|l| l.resolve(parent, scale))).collect();
     match parts.as_slice() {
         [a] => [*a; 4],
         [v, h] => [*v, *h, *v, *h],
@@ -133,18 +131,31 @@ pub fn color(value: &str) -> Option<Color32> {
         let short = |c: &str| digit(c).map(|d| d * 17);
         return match hex.len() {
             3 => Some(Color32::from_rgb(short(&hex[0..1])?, short(&hex[1..2])?, short(&hex[2..3])?)),
-            4 => Some(Color32::from_rgba_unmultiplied(short(&hex[0..1])?, short(&hex[1..2])?, short(&hex[2..3])?, short(&hex[3..4])?)),
+            4 => Some(Color32::from_rgba_unmultiplied(
+                short(&hex[0..1])?,
+                short(&hex[1..2])?,
+                short(&hex[2..3])?,
+                short(&hex[3..4])?,
+            )),
             6 => Some(Color32::from_rgb(digit(&hex[0..2])?, digit(&hex[2..4])?, digit(&hex[4..6])?)),
-            8 => Some(Color32::from_rgba_unmultiplied(digit(&hex[0..2])?, digit(&hex[2..4])?, digit(&hex[4..6])?, digit(&hex[6..8])?)),
+            8 => Some(Color32::from_rgba_unmultiplied(
+                digit(&hex[0..2])?,
+                digit(&hex[2..4])?,
+                digit(&hex[4..6])?,
+                digit(&hex[6..8])?,
+            )),
             _ => None,
         };
     }
     let lower = v.to_ascii_lowercase();
-    if let Some(args) = lower.strip_prefix("rgba(").or_else(|| lower.strip_prefix("rgb(")).and_then(|s| s.strip_suffix(')')) {
+    if let Some(args) =
+        lower.strip_prefix("rgba(").or_else(|| lower.strip_prefix("rgb(")).and_then(|s| s.strip_suffix(')'))
+    {
         let parts: Vec<&str> = args.split(',').map(str::trim).collect();
         let channel = |s: &str| s.parse::<f32>().ok().map(|n| n.clamp(0.0, 255.0) as u8);
         let (r, g, b) = (channel(parts.first()?)?, channel(parts.get(1)?)?, channel(parts.get(2)?)?);
-        let a = parts.get(3).and_then(|a| a.parse::<f32>().ok()).map_or(255, |a| (a.clamp(0.0, 1.0) * 255.0).round() as u8);
+        let a =
+            parts.get(3).and_then(|a| a.parse::<f32>().ok()).map_or(255, |a| (a.clamp(0.0, 1.0) * 255.0).round() as u8);
         return Some(Color32::from_rgba_unmultiplied(r, g, b, a));
     }
     Some(match lower.as_str() {
@@ -172,7 +183,9 @@ pub fn border(value: &str, parent: f32, scale: f32) -> Option<(f32, Color32)> {
     let mut width = None;
     let mut col = None;
     for part in value.split_whitespace() {
-        if let Some(c) = color(part).filter(|_| part.starts_with('#') || part.starts_with("rgb") || part.chars().all(char::is_alphabetic) && part != "solid") {
+        if let Some(c) = color(part).filter(|_| {
+            part.starts_with('#') || part.starts_with("rgb") || part.chars().all(char::is_alphabetic) && part != "solid"
+        }) {
             col = Some(c);
         } else if let Some(l) = Length::parse(part).and_then(|l| l.resolve(parent, scale)) {
             width = Some(l);
@@ -380,6 +393,9 @@ mod tests {
         let b = &doc.root.children[0];
         assert_eq!(prop_in(b, "background", State::default()), Some("#111"));
         assert_eq!(prop_in(b, "background", State { hovered: true, ..Default::default() }), Some("#222"));
-        assert_eq!(prop_in(b, "background", State { hovered: true, pressed: true, ..Default::default() }), Some("#333"));
+        assert_eq!(
+            prop_in(b, "background", State { hovered: true, pressed: true, ..Default::default() }),
+            Some("#333")
+        );
     }
 }

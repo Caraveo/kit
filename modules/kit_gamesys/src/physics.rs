@@ -183,7 +183,14 @@ pub trait PhysicsApi: Any {
     fn add_force(&mut self, e: Entity, force: Vec3);
     fn raycast(&self, origin: Vec3, dir: Vec3, max_distance: f32, exclude: Option<Entity>) -> Option<RayHit>;
     /// Like [`PhysicsApi::raycast`], only hitting colliders on these layers (bit mask).
-    fn raycast_layers(&self, origin: Vec3, dir: Vec3, max_distance: f32, exclude: Option<Entity>, layers: u32) -> Option<RayHit> {
+    fn raycast_layers(
+        &self,
+        origin: Vec3,
+        dir: Vec3,
+        max_distance: f32,
+        exclude: Option<Entity>,
+        layers: u32,
+    ) -> Option<RayHit> {
         let _ = layers;
         self.raycast(origin, dir, max_distance, exclude)
     }
@@ -192,7 +199,15 @@ pub trait PhysicsApi: Any {
         Vec::new()
     }
     /// Sweep a sphere along `dir`; the first collider it would touch.
-    fn sphere_cast(&self, _origin: Vec3, _dir: Vec3, _radius: f32, _max: f32, _exclude: Option<Entity>, _layers: u32) -> Option<RayHit> {
+    fn sphere_cast(
+        &self,
+        _origin: Vec3,
+        _dir: Vec3,
+        _radius: f32,
+        _max: f32,
+        _exclude: Option<Entity>,
+        _layers: u32,
+    ) -> Option<RayHit> {
         None
     }
     /// Entities currently touching `e`.

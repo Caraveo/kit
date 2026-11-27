@@ -19,6 +19,10 @@ struct Params {
     ambient: vec4<f32>,
     // fxaa, sharpen, -, -
     image: vec4<f32>,
+    // density, tint.rgb
+    fog: vec4<f32>,
+    // scattering, max distance, -, -
+    fog_extra: vec4<f32>,
 };
 
 struct Volume {
@@ -46,6 +50,9 @@ struct Post {
     info: vec4<f32>,
     base: Params,
     objects: array<Volume, 8>,
+    light_dir: vec4<f32>,
+    light_color: vec4<f32>,
+    shadow_view_proj: mat4x4<f32>,
 };
 
 struct Pass {
@@ -61,6 +68,7 @@ struct Pass {
 @group(0) @binding(3) var tex_a: texture_2d<f32>;
 @group(0) @binding(4) var tex_b: texture_2d<f32>;
 @group(0) @binding(5) var depth_tex: texture_depth_multisampled_2d;
+@group(0) @binding(6) var shadow_tex: texture_depth_2d;
 
 const LUMA: vec3<f32> = vec3<f32>(0.2126, 0.7152, 0.0722);
 
@@ -181,7 +189,61 @@ fn apply(s_in: Params, v: Volume, t: f32) -> Params {
     // Image
     if (v.modes_b.y == 1.0) { s.image = vec4<f32>(blend(s.image, v.p.image, t).xy, 0.0, 0.0); }
     if (v.modes_b.y == 2.0) { s.image = vec4<f32>(s.image.xy * (1.0 - t), 0.0, 0.0); }
+    if (v.modes_b.z == 1.0) {
+        s.fog = blend(s.fog, v.p.fog, t);
+        s.fog_extra = blend(s.fog_extra, v.p.fog_extra, t);
+    }
+    if (v.modes_b.z == 2.0) {
+        s.fog.x = s.fog.x * (1.0 - t);
+        s.fog_extra.x = s.fog_extra.x * (1.0 - t);
+    }
     return s;
+}
+
+// ---------------------------------------------------------- Volumetric fog
+
+fn shadow_at(p: vec3<f32>) -> f32 {
+    let clip = post.shadow_view_proj * vec4<f32>(p, 1.0);
+    if (clip.w <= 0.0) { return 1.0; }
+    let ndc = clip.xy / clip.w;
+    let uv = ndc * 0.5 + 0.5;
+    if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) { return 1.0; }
+    let size = vec2<f32>(f32(textureDimensions(shadow_tex).x), f32(textureDimensions(shadow_tex).y));
+    let px = vec2<i32>(clamp(uv * size, vec2<f32>(0.0), size - vec2<f32>(1.0)));
+    let map_depth = textureLoad(shadow_tex, px, 0);
+    return select(0.15, 1.0, clip.z / clip.w <= map_depth + 0.002);
+}
+
+@fragment
+fn fs_fog(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
+    let uv = uv_of(pos);
+    let source = sample_a(uv);
+    let s = params_at(uv);
+    let density = max(s.fog.x, 0.0);
+    if (density <= 0.00001) { return source; }
+    let depth = depth_at(uv);
+    var end = post.camera_pos.xyz + post.camera_fwd.xyz * max(s.fog_extra.y, 0.0);
+    if (!is_sky(depth)) {
+        end = world_at(uv, depth);
+    }
+    let ray = end - post.camera_pos.xyz;
+    let distance = min(length(ray), max(s.fog_extra.y, 0.0));
+    if (distance <= 0.0) { return source; }
+    let step_len = distance / 12.0;
+    var transmittance = 1.0;
+    var inscatter = vec3<f32>(0.0);
+    for (var i = 0u; i < 12u; i = i + 1u) {
+        let p = post.camera_pos.xyz + ray * ((f32(i) + 0.5) / 12.0);
+        let shadow = shadow_at(p);
+        // `light_dir` is the direction light travels. Scattering toward the
+        // camera is strongest when the camera looks back along that path.
+        let view_light = max(dot(-normalize(post.light_dir.xyz), normalize(ray)), 0.0);
+        let phase = 0.2 + 1.2 * view_light * max(s.fog_extra.x, 0.0);
+        let amount = 1.0 - exp(-density * step_len);
+        inscatter = inscatter + transmittance * amount * s.fog.yzw * post.light_color.rgb * phase * shadow;
+        transmittance = transmittance * (1.0 - amount);
+    }
+    return vec4<f32>(source.rgb * transmittance + inscatter, source.a);
 }
 
 // Settings at a pixel: the camera's, then "Objects inside" volumes around

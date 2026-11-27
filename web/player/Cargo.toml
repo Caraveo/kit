@@ -29,6 +29,7 @@ kit_path.workspace = true
 kit_audio = { workspace = true, default-features = false }
 kit_cinematics = { path = "../../circuit/cinematics/runtime" }
 kit_particles.workspace = true
+kit_fog.workspace = true
 glam.workspace = true
 anyhow.workspace = true
 log.workspace = true

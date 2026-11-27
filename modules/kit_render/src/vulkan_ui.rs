@@ -86,9 +86,18 @@ impl Renderer {
                 .size(std::mem::size_of::<UiPush>() as u32)];
             let layouts = [self.set1_layout];
             let layout = unsafe {
-                gfx.device.create_pipeline_layout(&vk::PipelineLayoutCreateInfo::default().set_layouts(&layouts).push_constant_ranges(&push), None)?
+                gfx.device.create_pipeline_layout(
+                    &vk::PipelineLayoutCreateInfo::default().set_layouts(&layouts).push_constant_ranges(&push),
+                    None,
+                )?
             };
-            self.ui = Some(UiGpu { shader, layout, pipelines: HashMap::new(), font: None, buffers: (0..FRAMES).map(|_| None).collect() });
+            self.ui = Some(UiGpu {
+                shader,
+                layout,
+                pipelines: HashMap::new(),
+                font: None,
+                buffers: (0..FRAMES).map(|_| None).collect(),
+            });
         }
         Ok(self.ui.as_mut().unwrap())
     }
@@ -103,8 +112,9 @@ impl Renderer {
         if current == Some(frame.revision) {
             return;
         }
-        let made = Image::texture_rgba8(gfx, frame.size[0] as u32, frame.size[1] as u32, &frame.rgba, true, "ui font atlas")
-            .and_then(|image| Ok(Texture { set: self.texture_set(gfx, image.view)?, image, modified: None }));
+        let made =
+            Image::texture_rgba8(gfx, frame.size[0] as u32, frame.size[1] as u32, &frame.rgba, true, "ui font atlas")
+                .and_then(|image| Ok(Texture { set: self.texture_set(gfx, image.view)?, image, modified: None }));
         match made {
             Ok(tex) => {
                 let old = self.ui_gpu(gfx).ok().and_then(|ui| ui.font.replace((frame.revision, tex)));
@@ -117,20 +127,31 @@ impl Renderer {
     }
 
     /// Draw this frame's interface over `target` (after [`Renderer::render`]).
-    pub fn draw_ui(&mut self, gfx: &Gfx, cmd: vk::CommandBuffer, frame_index: usize, target: &Target, world: &World) -> Result<()> {
+    pub fn draw_ui(
+        &mut self,
+        gfx: &Gfx,
+        cmd: vk::CommandBuffer,
+        frame_index: usize,
+        target: &Target,
+        world: &World,
+    ) -> Result<()> {
         let Some(frame) = world.try_resource::<UiFrame>().map(|f| f.clone()) else { return Ok(()) };
         if frame.meshes.is_empty() || target.extent.width == 0 || target.extent.height == 0 {
             return Ok(());
         }
         let format = target.format;
-        let (vcount, icount) = frame.meshes.iter().fold((0, 0), |(v, i), m| (v + m.vertices.len(), i + m.indices.len()));
+        let (vcount, icount) =
+            frame.meshes.iter().fold((0, 0), |(v, i), m| (v + m.vertices.len(), i + m.indices.len()));
         let slot = frame_index % FRAMES;
         // Textures per mesh (resolved before borrowing the UI state).
         let sets: Vec<(vk::DescriptorSet, bool)> = frame
             .meshes
             .iter()
             .map(|m| match &m.texture {
-                UiTexture::Font => (self.ui.as_ref().and_then(|u| u.font.as_ref().map(|(_, t)| t.set)).unwrap_or(self.white.set), false),
+                UiTexture::Font => (
+                    self.ui.as_ref().and_then(|u| u.font.as_ref().map(|(_, t)| t.set)).unwrap_or(self.white.set),
+                    false,
+                ),
                 UiTexture::Image(path) => (self.texture(path), true),
             })
             .collect();
@@ -145,7 +166,11 @@ impl Renderer {
                     layout: ui.layout,
                     vertex: Some(VertexLayout {
                         stride: std::mem::size_of::<UiVertex>() as u32,
-                        attributes: vec![(0, vk::Format::R32G32_SFLOAT, 0), (1, vk::Format::R32G32_SFLOAT, 8), (2, vk::Format::R8G8B8A8_UNORM, 16)],
+                        attributes: vec![
+                            (0, vk::Format::R32G32_SFLOAT, 0),
+                            (1, vk::Format::R32G32_SFLOAT, 8),
+                            (2, vk::Format::R8G8B8A8_UNORM, 16),
+                        ],
                     }),
                     topology: vk::PrimitiveTopology::TRIANGLE_LIST,
                     cull: vk::CullModeFlags::NONE,
@@ -169,8 +194,20 @@ impl Renderer {
                 i.destroy(gfx);
             }
             let grow = |n: u64| n.next_power_of_two().max(64 * 1024);
-            let v = Buffer::new(gfx, grow(vbytes), vk::BufferUsageFlags::VERTEX_BUFFER, MemoryLocation::CpuToGpu, "ui vertices")?;
-            let i = Buffer::new(gfx, grow(ibytes), vk::BufferUsageFlags::INDEX_BUFFER, MemoryLocation::CpuToGpu, "ui indices")?;
+            let v = Buffer::new(
+                gfx,
+                grow(vbytes),
+                vk::BufferUsageFlags::VERTEX_BUFFER,
+                MemoryLocation::CpuToGpu,
+                "ui vertices",
+            )?;
+            let i = Buffer::new(
+                gfx,
+                grow(ibytes),
+                vk::BufferUsageFlags::INDEX_BUFFER,
+                MemoryLocation::CpuToGpu,
+                "ui indices",
+            )?;
             ui.buffers[slot] = Some((v, i));
         }
         let (vb, ib) = ui.buffers[slot].as_mut().unwrap();
@@ -198,7 +235,10 @@ impl Renderer {
             vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
             vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
             (vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT, vk::AccessFlags::COLOR_ATTACHMENT_WRITE),
-            (vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT, vk::AccessFlags::COLOR_ATTACHMENT_READ | vk::AccessFlags::COLOR_ATTACHMENT_WRITE),
+            (
+                vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+                vk::AccessFlags::COLOR_ATTACHMENT_READ | vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
+            ),
         );
         unsafe {
             let color = [vk::RenderingAttachmentInfo::default()
@@ -207,12 +247,22 @@ impl Renderer {
                 .load_op(vk::AttachmentLoadOp::LOAD)
                 .store_op(vk::AttachmentStoreOp::STORE)];
             let area = vk::Rect2D { offset: vk::Offset2D::default(), extent: target.extent };
-            device.cmd_begin_rendering(cmd, &vk::RenderingInfo::default().render_area(area).layer_count(1).color_attachments(&color));
+            device.cmd_begin_rendering(
+                cmd,
+                &vk::RenderingInfo::default().render_area(area).layer_count(1).color_attachments(&color),
+            );
             device.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::GRAPHICS, pipeline);
             device.cmd_set_viewport(
                 cmd,
                 0,
-                &[vk::Viewport { x: 0.0, y: 0.0, width: target.extent.width as f32, height: target.extent.height as f32, min_depth: 0.0, max_depth: 1.0 }],
+                &[vk::Viewport {
+                    x: 0.0,
+                    y: 0.0,
+                    width: target.extent.width as f32,
+                    height: target.extent.height as f32,
+                    min_depth: 0.0,
+                    max_depth: 1.0,
+                }],
             );
             device.cmd_bind_vertex_buffers(cmd, 0, &[vbuf], &[0]);
             device.cmd_bind_index_buffer(cmd, ibuf, 0, vk::IndexType::UINT32);
@@ -230,11 +280,20 @@ impl Renderer {
                 device.cmd_set_scissor(
                     cmd,
                     0,
-                    &[vk::Rect2D { offset: vk::Offset2D { x: x0 as i32, y: y0 as i32 }, extent: vk::Extent2D { width: (x1 - x0) as u32, height: (y1 - y0) as u32 } }],
+                    &[vk::Rect2D {
+                        offset: vk::Offset2D { x: x0 as i32, y: y0 as i32 },
+                        extent: vk::Extent2D { width: (x1 - x0) as u32, height: (y1 - y0) as u32 },
+                    }],
                 );
                 device.cmd_bind_descriptor_sets(cmd, vk::PipelineBindPoint::GRAPHICS, layout, 0, &[*set], &[]);
                 let push = UiPush { screen: frame.size, flags: gamma | if *straight { 2 } else { 0 }, pad: 0 };
-                device.cmd_push_constants(cmd, layout, vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT, 0, bytemuck::bytes_of(&push));
+                device.cmd_push_constants(
+                    cmd,
+                    layout,
+                    vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT,
+                    0,
+                    bytemuck::bytes_of(&push),
+                );
                 device.cmd_draw_indexed(cmd, *n, 1, *io, *vo, 0);
             }
             device.cmd_end_rendering(cmd);

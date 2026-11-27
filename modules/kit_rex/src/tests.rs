@@ -36,9 +36,15 @@ fn parses_the_stream_protocol() {
         ChatEvent::Start { mode: "fetch".into(), mood: "fetch".into(), model: "Code".into() }
     );
     assert_eq!(parse_stream_event(r#"{"delta":"Woof"}"#).unwrap().unwrap(), ChatEvent::Delta("Woof".into()));
-    let done = parse_stream_event(r#"{"done":true,"credits":2,"balance":{"plan":"free","monthly":20,"topup":0,"total":20,"periodEnd":5}}"#).unwrap().unwrap();
+    let done = parse_stream_event(
+        r#"{"done":true,"credits":2,"balance":{"plan":"free","monthly":20,"topup":0,"total":20,"periodEnd":5}}"#,
+    )
+    .unwrap()
+    .unwrap();
     assert!(matches!(done, ChatEvent::Done { credits: 2, ref balance } if balance.total == 20));
-    let err = parse_stream_event(r#"{"error":{"code":"ai_interrupted","message":"Rex lost the thread."}}"#).unwrap().unwrap_err();
+    let err = parse_stream_event(r#"{"error":{"code":"ai_interrupted","message":"Rex lost the thread."}}"#)
+        .unwrap()
+        .unwrap_err();
     assert_eq!(err.code, "ai_interrupted");
     assert!(parse_stream_event("not json").is_none());
 }

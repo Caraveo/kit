@@ -119,12 +119,54 @@ pub fn builtin_modes() -> Vec<ModeInfo> {
         examples: examples.iter().map(|s| s.to_string()).collect(),
     };
     vec![
-        m("buddy", "Buddy", "Chat about anything in your game", "happy", "Hi! I'm Rex 🐾 Ask me anything about your game.", &["How do I make a door open when the player gets close?"]),
-        m("fetch", "Fetch", "Fetches you a ready-to-use x script", "fetch", "Throw me an idea and I'll fetch you a script! 🐾", &["A player that moves with WASD and jumps with Space"]),
-        m("sniff", "Sniff", "Sniffs out bugs and explains errors", "sniff", "*sniff sniff* Paste the error or the script and I'll track it down 🔍", &["My object falls through the floor"]),
-        m("dig", "Dig", "Digs up a Diagram: visual logic, no code", "dig", "Ooh, let me dig! ✨ Describe what should happen and I'll build a Diagram.", &["When the player touches this, turn it green and float up"]),
-        m("zoomies", "Zoomies", "Zooms through game ideas with you", "zoomies", "ZOOMIES TIME! ⚡ What kind of game are you dreaming about?", &["Give me 5 tiny game ideas I can build in a weekend"]),
-        m("sit", "Sit & Learn", "A patient teacher, one step at a time", "sit", "*sits nicely* Ready to learn together! 🎓", &["Teach me x scripting from zero"]),
+        m(
+            "buddy",
+            "Buddy",
+            "Chat about anything in your game",
+            "happy",
+            "Hi! I'm Rex 🐾 Ask me anything about your game.",
+            &["How do I make a door open when the player gets close?"],
+        ),
+        m(
+            "fetch",
+            "Fetch",
+            "Fetches you a ready-to-use x script",
+            "fetch",
+            "Throw me an idea and I'll fetch you a script! 🐾",
+            &["A player that moves with WASD and jumps with Space"],
+        ),
+        m(
+            "sniff",
+            "Sniff",
+            "Sniffs out bugs and explains errors",
+            "sniff",
+            "*sniff sniff* Paste the error or the script and I'll track it down 🔍",
+            &["My object falls through the floor"],
+        ),
+        m(
+            "dig",
+            "Dig",
+            "Digs up a Diagram: visual logic, no code",
+            "dig",
+            "Ooh, let me dig! ✨ Describe what should happen and I'll build a Diagram.",
+            &["When the player touches this, turn it green and float up"],
+        ),
+        m(
+            "zoomies",
+            "Zoomies",
+            "Zooms through game ideas with you",
+            "zoomies",
+            "ZOOMIES TIME! ⚡ What kind of game are you dreaming about?",
+            &["Give me 5 tiny game ideas I can build in a weekend"],
+        ),
+        m(
+            "sit",
+            "Sit & Learn",
+            "A patient teacher, one step at a time",
+            "sit",
+            "*sits nicely* Ready to learn together! 🎓",
+            &["Teach me x scripting from zero"],
+        ),
     ]
 }
 
@@ -179,7 +221,12 @@ impl std::error::Error for RexError {}
 
 impl RexError {
     fn network(e: impl std::fmt::Display) -> Self {
-        Self { status: 0, code: "network".into(), message: format!("Rex can't reach the Kit AI service ({e}). Check your connection."), retry_after: None }
+        Self {
+            status: 0,
+            code: "network".into(),
+            message: format!("Rex can't reach the Kit AI service ({e}). Check your connection."),
+            retry_after: None,
+        }
     }
 }
 
@@ -227,14 +274,20 @@ impl Client {
         format!("{}{path}", self.base)
     }
 
-    fn auth(&self, req: ureq::RequestBuilder<ureq::typestate::WithBody>) -> ureq::RequestBuilder<ureq::typestate::WithBody> {
+    fn auth(
+        &self,
+        req: ureq::RequestBuilder<ureq::typestate::WithBody>,
+    ) -> ureq::RequestBuilder<ureq::typestate::WithBody> {
         match &self.token {
             Some(t) => req.header("authorization", &format!("Bearer {t}")),
             None => req,
         }
     }
 
-    fn auth_get(&self, req: ureq::RequestBuilder<ureq::typestate::WithoutBody>) -> ureq::RequestBuilder<ureq::typestate::WithoutBody> {
+    fn auth_get(
+        &self,
+        req: ureq::RequestBuilder<ureq::typestate::WithoutBody>,
+    ) -> ureq::RequestBuilder<ureq::typestate::WithoutBody> {
         match &self.token {
             Some(t) => req.header("authorization", &format!("Bearer {t}")),
             None => req,
@@ -246,8 +299,15 @@ impl Client {
         let status = resp.status().as_u16();
         let text = resp.body_mut().read_to_string().unwrap_or_default();
         match serde_json::from_str::<ErrorBody>(&text) {
-            Ok(b) => RexError { status, code: b.error.code, message: b.error.message, retry_after: b.error.retry_after },
-            Err(_) => RexError { status, code: format!("http_{status}"), message: format!("The Kit AI service answered {status}."), retry_after: None },
+            Ok(b) => {
+                RexError { status, code: b.error.code, message: b.error.message, retry_after: b.error.retry_after }
+            }
+            Err(_) => RexError {
+                status,
+                code: format!("http_{status}"),
+                message: format!("The Kit AI service answered {status}."),
+                retry_after: None,
+            },
         }
     }
 

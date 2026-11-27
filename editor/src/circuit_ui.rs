@@ -7,8 +7,8 @@
 //! component's id (Kit keeps unknown scene fields), so removing a Circuit
 //! never damages a scene and reinstalling brings its components back.
 
-use std::path::PathBuf;
 use std::cell::RefCell;
+use std::path::PathBuf;
 use std::time::SystemTime;
 
 use egui::{Color32, CornerRadius, Frame, Id, Margin, RichText, Stroke, Ui};
@@ -66,7 +66,11 @@ pub fn add_component_section(ui: &mut Ui, ed: &mut Editor, e: Entity) {
         for c in &m.components {
             let has = extra.0.contains_key(&c.id);
             let resp = ui.add_enabled(!has, egui::Button::new(format!("⚡ {}", c.name)));
-            let resp = if c.description.is_empty() { resp } else { resp.on_hover_text(format!("{} (from {})", c.description, m.circuit.name)) };
+            let resp = if c.description.is_empty() {
+                resp
+            } else {
+                resp.on_hover_text(format!("{} (from {})", c.description, m.circuit.name))
+            };
             if resp.clicked() {
                 let mut x = extra.clone();
                 x.0.insert(c.id.clone(), c.defaults());
@@ -108,7 +112,13 @@ pub fn inspector_sections(ui: &mut Ui, ed: &mut Editor, e: Entity) {
 }
 
 /// One field editor. Returns true when the value changed.
-fn field(ui: &mut Ui, id: impl std::hash::Hash + std::fmt::Debug, key: &str, f: &ConfigField, values: &mut Map<String, Value>) -> bool {
+fn field(
+    ui: &mut Ui,
+    id: impl std::hash::Hash + std::fmt::Debug,
+    key: &str,
+    f: &ConfigField,
+    values: &mut Map<String, Value>,
+) -> bool {
     let label = if f.label.is_empty() { key.replace('_', " ") } else { f.label.clone() };
     let v = values.entry(key.to_owned()).or_insert_with(|| f.default_json());
     let mut changed = false;
@@ -177,9 +187,14 @@ fn secrets(ed: &Editor) -> Option<PathBuf> {
 
 /// Project menu items: one per enabled Circuit that has settings or a dashboard.
 pub fn project_menu(ui: &mut Ui, ed: &mut Editor, win: &mut SettingsWindow) {
-    let circuits: Vec<Manifest> = active().into_iter().filter(|m| !m.config.is_empty() || m.circuit.dashboard.is_some()).collect();
+    let circuits: Vec<Manifest> =
+        active().into_iter().filter(|m| !m.config.is_empty() || m.circuit.dashboard.is_some()).collect();
     for m in circuits {
-        if ui.button(format!("{}…", m.circuit.name)).on_hover_text(format!("{} settings for this project", m.circuit.name)).clicked() {
+        if ui
+            .button(format!("{}…", m.circuit.name))
+            .on_hover_text(format!("{} settings for this project", m.circuit.name))
+            .clicked()
+        {
             let root = ed.project.as_ref().map(|p| p.root().to_path_buf());
             match root.map(|r| kit_circuit::settings::load(&r, secrets(ed).as_deref(), &m)) {
                 Some(Ok(values)) => {
@@ -223,7 +238,11 @@ pub fn settings_window(ctx: &egui::Context, ed: &mut Editor, win: &mut SettingsW
                         ui.label(RichText::new(&f.description).size(10.5).color(MUTED()));
                     }
                 }
-                ui.label(RichText::new("Saved in circuits.settings.toml (secret fields stay on this computer).").size(10.5).color(MUTED()));
+                ui.label(
+                    RichText::new("Saved in circuits.settings.toml (secret fields stay on this computer).")
+                        .size(10.5)
+                        .color(MUTED()),
+                );
             }
             if let Some(url) = &m.circuit.dashboard {
                 ui.add_space(8.0);
@@ -272,9 +291,13 @@ pub fn networked() -> bool {
 /// Open another game window on this project (another player), using its saved files.
 pub fn launch_player(ed: &mut Editor) {
     let Some(root) = ed.project.as_ref().map(|p| p.root().to_path_buf()) else { return };
-    let exe = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join(if cfg!(windows) { "kit-player.exe" } else { "kit-player" })));
+    let exe = std::env::current_exe()
+        .ok()
+        .and_then(|e| e.parent().map(|d| d.join(if cfg!(windows) { "kit-player.exe" } else { "kit-player" })));
     let Some(player) = exe.filter(|p| p.is_file()) else {
-        ed.notify("kit-player wasn't found next to the editor. Reinstall Kit (or build it with cargo build -p kit-player).");
+        ed.notify(
+            "kit-player wasn't found next to the editor. Reinstall Kit (or build it with cargo build -p kit-player).",
+        );
         return;
     };
     match std::process::Command::new(&player).arg(&root).spawn() {

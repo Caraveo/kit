@@ -14,9 +14,11 @@ use kit_realtime::{Channel, Config, Realtime};
 
 fn main() {
     let env = |k: &str| std::env::var(k).unwrap_or_else(|_| panic!("set {k}"));
-    let tokens: Vec<String> = std::fs::read_to_string(env("KIT_RT_TOKENS")).unwrap().lines().map(str::to_owned).collect();
+    let tokens: Vec<String> =
+        std::fs::read_to_string(env("KIT_RT_TOKENS")).unwrap().lines().map(str::to_owned).collect();
     let secs: f64 = std::env::var("KIT_RT_SECONDS").ok().and_then(|s| s.parse().ok()).unwrap_or(20.0);
-    let cfg = Config { connect_url: env("KIT_RT_URL"), environment: env("KIT_RT_ENV"), world: "load".into(), party: None };
+    let cfg =
+        Config { connect_url: env("KIT_RT_URL"), environment: env("KIT_RT_ENV"), world: "load".into(), party: None };
     let n = tokens.len();
     let mut clients: Vec<Realtime> = tokens
         .into_iter()
@@ -30,12 +32,20 @@ fn main() {
     let mut ready = vec![false; n];
     let mut scopes = std::collections::BTreeMap::<String, usize>::new();
     while ready.iter().any(|r| !r) {
-        assert!(start.elapsed() < Duration::from_secs(120), "only {} of {n} joined", ready.iter().filter(|r| **r).count());
+        assert!(
+            start.elapsed() < Duration::from_secs(120),
+            "only {} of {n} joined",
+            ready.iter().filter(|r| **r).count()
+        );
         for (i, rt) in clients.iter_mut().enumerate() {
             rt.flush();
             for (ch, e) in rt.poll() {
-                if let (Channel::Sector, Event::Welcome { scope, .. }) = (&ch, &e) { *scopes.entry(scope.clone()).or_default() += 1; }
-                if ch == Channel::Sector && e == Event::Ready { ready[i] = true; }
+                if let (Channel::Sector, Event::Welcome { scope, .. }) = (&ch, &e) {
+                    *scopes.entry(scope.clone()).or_default() += 1;
+                }
+                if ch == Channel::Sector && e == Event::Ready {
+                    ready[i] = true;
+                }
             }
         }
         std::thread::sleep(Duration::from_millis(2));
@@ -45,7 +55,11 @@ fn main() {
     // Everyone spawns a player at a pseudo-random spot.
     let spot = |i: usize, t: f32| {
         let a = i as f32 * 2.399 + t * 0.5;
-        Vec3::new((i as f32 * 37.0 % 200.0) - 100.0 + a.cos() * 3.0, 0.0, (i as f32 * 61.0 % 200.0) - 100.0 + a.sin() * 3.0)
+        Vec3::new(
+            (i as f32 * 37.0 % 200.0) - 100.0 + a.cos() * 3.0,
+            0.0,
+            (i as f32 * 61.0 % 200.0) - 100.0 + a.sin() * 3.0,
+        )
     };
     let mut ids = vec![0u32; n];
     for (i, rt) in clients.iter_mut().enumerate() {
@@ -61,7 +75,9 @@ fn main() {
     while run.elapsed().as_secs_f64() < secs {
         let t = run.elapsed().as_secs_f64();
         let send = t >= next_send;
-        if send { next_send += 0.05; }
+        if send {
+            next_send += 0.05;
+        }
         for (i, rt) in clients.iter_mut().enumerate() {
             if send && ids[i] != 0 {
                 let p = spot(i, t as f32);

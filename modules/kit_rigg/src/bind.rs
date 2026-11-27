@@ -63,8 +63,13 @@ pub fn weights(vertices: &[Vertex], volumes: &[BindVolume]) -> Vec<Influences> {
 }
 
 fn influences_at(p: Vec3, volumes: &[BindVolume], inv: &[Mat4]) -> Influences {
-    let mut all: Vec<(u16, f32)> =
-        volumes.iter().zip(inv).enumerate().map(|(i, (v, inv))| (i as u16, pull(v, inv, p))).filter(|(_, w)| *w > 1e-5).collect();
+    let mut all: Vec<(u16, f32)> = volumes
+        .iter()
+        .zip(inv)
+        .enumerate()
+        .map(|(i, (v, inv))| (i as u16, pull(v, inv, p)))
+        .filter(|(_, w)| *w > 1e-5)
+        .collect();
     if all.is_empty() {
         // Out of reach of every volume: follow the nearest surface.
         let nearest = volumes

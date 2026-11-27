@@ -40,7 +40,12 @@ fn bursts_on_start_then_emits_at_its_rate_and_fades() {
     assert!(st.particles.iter().all(|p| p.position.y > 2.0 - 1.0));
     let newest = st.particles.last().unwrap();
     let oldest = st.particles.first().unwrap();
-    assert!(newest.opacity() > 0.95 && oldest.opacity() < 0.55, "fade over life: {} {}", newest.opacity(), oldest.opacity());
+    assert!(
+        newest.opacity() > 0.95 && oldest.opacity() < 0.55,
+        "fade over life: {} {}",
+        newest.opacity(),
+        oldest.opacity()
+    );
     drop(st);
     // After the lifetime the burst is gone; only the steady stream is left.
     step(&mut app, 120);
@@ -81,7 +86,14 @@ fn gravity_pulls_and_paused_game_time_freezes() {
     app.mode = RunMode::Play;
     let e = emitter(
         &mut app,
-        ParticleEmitter { rate: 0.0, burst: 1, speed: 0.0, gravity: Vec3::new(0.0, -10.0, 0.0), lifetime: 10.0, ..Default::default() },
+        ParticleEmitter {
+            rate: 0.0,
+            burst: 1,
+            speed: 0.0,
+            gravity: Vec3::new(0.0, -10.0, 0.0),
+            lifetime: 10.0,
+            ..Default::default()
+        },
     );
     step(&mut app, 60);
     let y = app.world.get::<ParticleState>(e).unwrap().particles[0].position.y;
@@ -99,7 +111,8 @@ fn gravity_pulls_and_paused_game_time_freezes() {
 fn counts_stay_bounded() {
     let mut app = app();
     app.mode = RunMode::Play;
-    let e = emitter(&mut app, ParticleEmitter { rate: 100_000.0, burst: 1_000_000, lifetime: 60.0, ..Default::default() });
+    let e =
+        emitter(&mut app, ParticleEmitter { rate: 100_000.0, burst: 1_000_000, lifetime: 60.0, ..Default::default() });
     step(&mut app, 30);
     assert_eq!(count(&app, e), MAX_PER_EMITTER);
     // Many emitters share one world budget.

@@ -48,7 +48,11 @@ pub fn load(project: &Path, secrets: Option<&Path>, m: &Manifest) -> Result<Map<
     let mut out = Map::new();
     for (key, field) in &m.config {
         let source = if field.secret { &secret } else { &saved };
-        let v = source.get(id).and_then(|t| t.get(key)).and_then(|v| serde_json::to_value(v).ok()).unwrap_or_else(|| field.default_json());
+        let v = source
+            .get(id)
+            .and_then(|t| t.get(key))
+            .and_then(|v| serde_json::to_value(v).ok())
+            .unwrap_or_else(|| field.default_json());
         out.insert(key.clone(), v);
     }
     Ok(out)
@@ -62,17 +66,29 @@ pub fn save(project: &Path, secrets: Option<&Path>, m: &Manifest, values: &Map<S
     for (key, field) in &m.config {
         let Some(v) = values.get(key) else { continue };
         let Ok(tv) = toml::Value::try_from(v.clone()) else { continue };
-        if field.secret { secret.insert(key.clone(), tv) } else { public.insert(key.clone(), tv) };
+        if field.secret {
+            secret.insert(key.clone(), tv)
+        } else {
+            public.insert(key.clone(), tv)
+        };
     }
     let path = project.join(FILE);
     let mut all = read_table(&path)?;
     all.insert(id.clone(), toml::Value::Table(public));
-    write_table(&path, &all, "# Circuit settings for this project (Project menu → each Circuit). Commit it with the project.\n")?;
+    write_table(
+        &path,
+        &all,
+        "# Circuit settings for this project (Project menu → each Circuit). Commit it with the project.\n",
+    )?;
     if let Some(p) = secrets {
         if !secret.is_empty() || p.exists() {
             let mut all = read_table(p)?;
             all.insert(id.clone(), toml::Value::Table(secret));
-            write_table(p, &all, "# Secret Circuit settings for one project on this machine. Never commit or ship this.\n")?;
+            write_table(
+                p,
+                &all,
+                "# Secret Circuit settings for one project on this machine. Never commit or ship this.\n",
+            )?;
         }
     }
     Ok(())

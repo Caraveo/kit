@@ -28,8 +28,8 @@ use glam::{Mat4, Vec3};
 use kit_core::{App, Module, RunMode, Stage};
 use kit_ecs::{Entity, World};
 use kit_gamesys::{Model, Rig, RigVolume};
-use kit_render::draw::{Deformed, DeformedMesh, ImportedGeometry, MeshPart};
 use kit_render::Vertex;
+use kit_render::draw::{Deformed, DeformedMesh, ImportedGeometry, MeshPart};
 use kit_resource::Resources;
 use kit_scene::{GlobalTransform, Name, Parent, Transform};
 use std::collections::HashMap;
@@ -107,7 +107,8 @@ fn load_rest(model: &Model, res: Option<&Resources>) -> Option<RestMesh> {
         (vertices, parts)
     } else {
         let geometry = ImportedGeometry::load(res?, &model.mesh_asset).map_err(|e| log::warn!("rig: {e:#}")).ok()?;
-        let frame = geometry.asset.as_ref().and_then(|a| a.rest).unwrap_or(0).min(geometry.frames.len().saturating_sub(1));
+        let frame =
+            geometry.asset.as_ref().and_then(|a| a.rest).unwrap_or(0).min(geometry.frames.len().saturating_sub(1));
         let mut vertices = Vec::new();
         let mut parts = Vec::new();
         for part in geometry.frames.get(frame)? {
@@ -132,7 +133,10 @@ fn load_rest(model: &Model, res: Option<&Resources>) -> Option<RestMesh> {
 
 /// The rig's volumes (descendants of the rig object with a [`RigVolume`]).
 pub fn volumes_of(world: &World, rig: Entity) -> Vec<Entity> {
-    kit_scene::descendants_and_self(world, rig).into_iter().filter(|e| *e != rig && world.has::<RigVolume>(*e)).collect()
+    kit_scene::descendants_and_self(world, rig)
+        .into_iter()
+        .filter(|e| *e != rig && world.has::<RigVolume>(*e))
+        .collect()
 }
 
 /// A volume's transform in rig space (relative to the rig object).
@@ -184,9 +188,8 @@ pub fn move_control(world: &mut World, rig: Entity, control: Entity, position: V
     let mut moved_parent = None;
     for (node, center) in chain.into_iter().rev() {
         let position = model.transform_point3(center);
-        let parent = world.get::<Parent>(node)
-            .and_then(|p| world.get::<GlobalTransform>(p.0))
-            .map_or(Mat4::IDENTITY, |g| g.0);
+        let parent =
+            world.get::<Parent>(node).and_then(|p| world.get::<GlobalTransform>(p.0)).map_or(Mat4::IDENTITY, |g| g.0);
         let origin = moved_parent.unwrap_or_else(|| parent.w_axis.truncate());
         let translation = parent.inverse().transform_vector3(position - origin);
         if translation.is_finite() {
@@ -246,7 +249,8 @@ pub fn mirror(world: &mut World, rig: Entity, volume: Entity) -> Option<Entity> 
     } else {
         return None;
     };
-    let other = volumes_of(world, rig).into_iter().find(|e| world.get::<Name>(*e).is_some_and(|n| n.0 == other_name))?;
+    let other =
+        volumes_of(world, rig).into_iter().find(|e| world.get::<Name>(*e).is_some_and(|n| n.0 == other_name))?;
     kit_scene::propagate_transforms(world);
     let flip = Mat4::from_scale(Vec3::new(-1.0, 1.0, 1.0));
     let mirrored = flip * rig_space(world, rig, volume) * flip;
@@ -266,7 +270,9 @@ pub fn mirror(world: &mut World, rig: Entity, volume: Entity) -> Option<Entity> 
 pub fn save_pose(world: &mut World, rig: Entity, name: &str) {
     let volumes: Vec<(String, [f32; 10])> = volumes_of(world, rig)
         .into_iter()
-        .filter_map(|v| Some((world.get::<Name>(v)?.0.clone(), kit_gamesys::rig::pack_transform(&*world.get::<Transform>(v)?))))
+        .filter_map(|v| {
+            Some((world.get::<Name>(v)?.0.clone(), kit_gamesys::rig::pack_transform(&*world.get::<Transform>(v)?)))
+        })
         .collect();
     if let Some(mut r) = world.get_mut::<Rig>(rig) {
         r.poses.retain(|p| p.name != name);
@@ -276,7 +282,9 @@ pub fn save_pose(world: &mut World, rig: Entity, name: &str) {
 
 /// Apply a saved pose (volumes it doesn't mention stay put).
 pub fn apply_pose(world: &mut World, rig: Entity, name: &str) -> bool {
-    let Some(pose) = world.get::<Rig>(rig).and_then(|r| r.poses.iter().find(|p| p.name == name).cloned()) else { return false };
+    let Some(pose) = world.get::<Rig>(rig).and_then(|r| r.poses.iter().find(|p| p.name == name).cloned()) else {
+        return false;
+    };
     let by_name: HashMap<String, Entity> =
         volumes_of(world, rig).into_iter().filter_map(|v| Some((world.get::<Name>(v)?.0.clone(), v))).collect();
     for (n, t) in &pose.volumes {
@@ -369,7 +377,12 @@ pub fn animate_rigs(world: &mut World) {
     if start {
         let auto: Vec<(Entity, String)> = world
             .storage::<Rig>()
-            .map(|s| s.iter().filter(|(_, r)| r.enabled && !r.autoplay.is_empty()).map(|(e, r)| (e, r.autoplay.clone())).collect())
+            .map(|s| {
+                s.iter()
+                    .filter(|(_, r)| r.enabled && !r.autoplay.is_empty())
+                    .map(|(e, r)| (e, r.autoplay.clone()))
+                    .collect()
+            })
             .unwrap_or_default();
         let mut rt = world.resource_mut::<RigRuntime>();
         rt.started = true;
@@ -377,8 +390,10 @@ pub fn animate_rigs(world: &mut World) {
             rt.playing.insert(e, (clip, now));
         }
     }
-    let playing: Vec<(Entity, String, f64)> =
-        world.try_resource::<RigRuntime>().map(|rt| rt.playing.iter().map(|(e, (c, t))| (*e, c.clone(), *t)).collect()).unwrap_or_default();
+    let playing: Vec<(Entity, String, f64)> = world
+        .try_resource::<RigRuntime>()
+        .map(|rt| rt.playing.iter().map(|(e, (c, t))| (*e, c.clone(), *t)).collect())
+        .unwrap_or_default();
     for (rig, name, started) in playing {
         let clip = world.get::<Rig>(rig).and_then(|r| r.clips.iter().find(|c| c.name == name).cloned());
         let Some(clip) = clip else { continue };
@@ -465,7 +480,10 @@ pub fn deform_rigs(world: &mut World) {
         let rebound = rt.bindings.get(&rig).is_none_or(|b| b.key != bind_key || b.mesh != key);
         if rebound {
             let weights = bind::weights(&rest.vertices, &bind);
-            rt.bindings.insert(rig, Binding { key: bind_key, mesh: key.clone(), volumes: volumes.clone(), weights, pose_key: 0 });
+            rt.bindings.insert(
+                rig,
+                Binding { key: bind_key, mesh: key.clone(), volumes: volumes.clone(), weights, pose_key: 0 },
+            );
         }
         let binding = rt.bindings.get_mut(&rig).unwrap();
         if binding.pose_key == pose_key && deformed.meshes.contains_key(&rig) {
@@ -502,7 +520,9 @@ pub fn deform_rigs(world: &mut World) {
                 .collect()
         });
         rt.revision += 1;
-        deformed.meshes.insert(rig, DeformedMesh { revision: rt.revision, vertices, parts: rest.parts.clone(), colors });
+        deformed
+            .meshes
+            .insert(rig, DeformedMesh { revision: rt.revision, vertices, parts: rest.parts.clone(), colors });
     }
     world.insert_resource(deformed);
     world.insert_resource(rt);

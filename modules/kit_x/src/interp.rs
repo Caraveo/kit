@@ -72,17 +72,8 @@ impl Host for StdHost {
 
 /// Modules implemented by the interpreter itself.
 const INTERNAL_MODULES: &[&str] = &["Math", "Rotation"];
-const BUILTINS: &[&str] = &[
-    "RANGE",
-    "LENGTH",
-    "TYPEOF",
-    "GetFeature",
-    "AddFeature",
-    "RemoveFeature",
-    "HasFeature",
-    "BeActive",
-    "IsActive",
-];
+const BUILTINS: &[&str] =
+    &["RANGE", "LENGTH", "TYPEOF", "GetFeature", "AddFeature", "RemoveFeature", "HasFeature", "BeActive", "IsActive"];
 
 /// Built-ins that work on objects in the game, answered by [`Host::feature`].
 pub const FEATURE_FUNCTIONS: &[&str] =
@@ -613,7 +604,9 @@ impl Interpreter {
     pub fn start_coroutine(&mut self, instance: &Value, name: &str, args: Vec<Value>) -> R<Coroutine> {
         let (f, this) = match instance {
             Value::Instance(i) => (
-                i.class.method(name).ok_or_else(|| self.located(rt(0, format!("`{}` has no method `{name}`", i.class.name()))))?,
+                i.class
+                    .method(name)
+                    .ok_or_else(|| self.located(rt(0, format!("`{}` has no method `{name}`", i.class.name()))))?,
                 Some(i.clone()),
             ),
             _ => match self.globals.get(name) {
@@ -622,7 +615,10 @@ impl Interpreter {
             },
         };
         if args.len() != f.params.len() {
-            return Err(self.located(rt(f.line, format!("`{}` expects {} argument(s), got {}", f.name, f.params.len(), args.len()))));
+            return Err(self.located(rt(
+                f.line,
+                format!("`{}` expects {} argument(s), got {}", f.name, f.params.len(), args.len()),
+            )));
         }
         let mut scope = Vec::new();
         for (p, a) in f.params.iter().zip(args) {
@@ -679,7 +675,11 @@ impl Interpreter {
                             }
                         }
                         Stmt::Loop { cond, body, line } => {
-                            co.stack.push(Cursor::Loop { cond: cond.clone(), body: Rc::new(body.clone()), line: *line });
+                            co.stack.push(Cursor::Loop {
+                                cond: cond.clone(),
+                                body: Rc::new(body.clone()),
+                                line: *line,
+                            });
                         }
                         Stmt::Grab { var, iter, body, line } => {
                             let items: Vec<Value> = match self.eval(iter, &mut co.frame, host)? {
@@ -687,7 +687,9 @@ impl Interpreter {
                                 Value::Str(s) => s.chars().map(|c| Value::Str(c.to_string().into())).collect(),
                                 Value::Object(o) => o.borrow().iter().map(|(k, _)| Value::Str(k.clone())).collect(),
                                 Value::Int(n) => (0..n.max(0)).map(Value::Int).collect(),
-                                other => return Err(rt(*line, format!("cannot GRAB items from {}", other.type_name()))),
+                                other => {
+                                    return Err(rt(*line, format!("cannot GRAB items from {}", other.type_name())));
+                                }
                             };
                             co.stack.push(Cursor::Grab {
                                 var: var.clone(),
@@ -1228,7 +1230,11 @@ impl Interpreter {
                     (Value::Vector(x), Value::Vector(y)) => {
                         let d: [f64; 3] = std::array::from_fn(|i| y[i] - x[i]);
                         let l = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
-                        Ok(Value::Vector(if l <= max || l == 0.0 { *y } else { std::array::from_fn(|i| x[i] + d[i] / l * max) }))
+                        Ok(Value::Vector(if l <= max || l == 0.0 {
+                            *y
+                        } else {
+                            std::array::from_fn(|i| x[i] + d[i] / l * max)
+                        }))
                     }
                     _ => {
                         let (c, t) = (num(0)?, num(1)?);

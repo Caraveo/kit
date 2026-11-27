@@ -157,7 +157,11 @@ impl CircuitManager {
             let c = client();
             let source = c.download_url(&id, &version);
             let cached = cache_dir().map(|d| d.join(format!("{}.kitcircuit", rel.package.sha256)));
-            let bytes = match cached.as_ref().and_then(|p| std::fs::read(p).ok()).filter(|b| kit_circuit::package::sha256_hex(b) == rel.package.sha256) {
+            let bytes = match cached
+                .as_ref()
+                .and_then(|p| std::fs::read(p).ok())
+                .filter(|b| kit_circuit::package::sha256_hex(b) == rel.package.sha256)
+            {
                 Some(b) => b,
                 None => {
                     let _ = tx.send(Msg::Progress(format!("Downloading {name} {version}"), 0.0));
@@ -172,7 +176,11 @@ impl CircuitManager {
                     match r {
                         Ok(b) => b,
                         Err(e) => {
-                            let _ = tx.send(Msg::Finished(Err(if e.needs_sign_in() { "Your Kit sign-in is missing or expired. Sign in and try again.".into() } else { e.message })));
+                            let _ = tx.send(Msg::Finished(Err(if e.needs_sign_in() {
+                                "Your Kit sign-in is missing or expired. Sign in and try again.".into()
+                            } else {
+                                e.message
+                            })));
                             return;
                         }
                     }
@@ -188,7 +196,9 @@ impl CircuitManager {
                 let _ = std::fs::write(p, &bytes);
             }
             let _ = tx.send(Msg::Progress(format!("Installing {name} {version}"), 0.92));
-            let r = install::install(&root, &rel, &bytes, &keys, &source).map(|()| format!("{name} {version} is installed in this project.")).map_err(|e| format!("{e:#}. Nothing was changed."));
+            let r = install::install(&root, &rel, &bytes, &keys, &source)
+                .map(|()| format!("{name} {version} is installed in this project."))
+                .map_err(|e| format!("{e:#}. Nothing was changed."));
             let _ = tx.send(Msg::Finished(r));
         });
     }
@@ -227,7 +237,14 @@ impl CircuitManager {
 
 fn newest_compatible(releases: &[Release]) -> Option<&Release> {
     let (kit, platform) = (kit_version(), host_platform());
-    releases.iter().filter(|r| !r.summary.yanked && r.summary.channel == "stable" && r.release.manifest.incompatibility(&kit, platform).is_none()).max_by(|a, b| version(&a.summary.version).cmp(&version(&b.summary.version)))
+    releases
+        .iter()
+        .filter(|r| {
+            !r.summary.yanked
+                && r.summary.channel == "stable"
+                && r.release.manifest.incompatibility(&kit, platform).is_none()
+        })
+        .max_by(|a, b| version(&a.summary.version).cmp(&version(&b.summary.version)))
 }
 
 fn version(v: &str) -> Version {
@@ -235,9 +252,13 @@ fn version(v: &str) -> Version {
 }
 
 fn badge(ui: &mut egui::Ui, text: &str, color: Color32) {
-    Frame::new().stroke(Stroke::new(1.0, color)).corner_radius(CornerRadius::same(6)).inner_margin(Margin::symmetric(5, 1)).show(ui, |ui| {
-        ui.label(RichText::new(text).size(10.5).color(color));
-    });
+    Frame::new()
+        .stroke(Stroke::new(1.0, color))
+        .corner_radius(CornerRadius::same(6))
+        .inner_margin(Margin::symmetric(5, 1))
+        .show(ui, |ui| {
+            ui.label(RichText::new(text).size(10.5).color(color));
+        });
 }
 
 pub fn window(ctx: &egui::Context, ed: &mut Editor, cm: &mut CircuitManager, rex: &mut crate::rex_panel::RexPanel) {
@@ -245,7 +266,8 @@ pub fn window(ctx: &egui::Context, ed: &mut Editor, cm: &mut CircuitManager, rex
         return;
     }
     cm.poll(ed);
-    if cm.job.is_some() || matches!(cm.list, Load::Loading) || cm.releases.values().any(|r| matches!(r, Load::Loading)) {
+    if cm.job.is_some() || matches!(cm.list, Load::Loading) || cm.releases.values().any(|r| matches!(r, Load::Loading))
+    {
         ctx.request_repaint_after(std::time::Duration::from_millis(100));
     }
     let mut open = cm.open;
@@ -276,10 +298,17 @@ fn body(ui: &mut egui::Ui, ed: &mut Editor, cm: &mut CircuitManager, rex: &mut c
         ui.selectable_value(&mut cm.tab, Tab::Available, "Available");
         ui.selectable_value(&mut cm.tab, Tab::Installed, format!("Installed ({})", cm.installed.len()));
         let updates = updates(cm).len();
-        ui.selectable_value(&mut cm.tab, Tab::Updates, if updates > 0 { format!("Updates ({updates})") } else { "Updates".into() });
+        ui.selectable_value(
+            &mut cm.tab,
+            Tab::Updates,
+            if updates > 0 { format!("Updates ({updates})") } else { "Updates".into() },
+        );
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if !signed_in {
-                if crate::widgets::primary(ui, "Sign in to Kit", None).on_hover_text("Uses your Kit (Rex) account").clicked() {
+                if crate::widgets::primary(ui, "Sign in to Kit", None)
+                    .on_hover_text("Uses your Kit (Rex) account")
+                    .clicked()
+                {
                     rex.sign_in();
                 }
                 ui.label(RichText::new("Sign in to download Circuits").color(MUTED()).size(12.0));
@@ -293,7 +322,9 @@ fn body(ui: &mut egui::Ui, ed: &mut Editor, cm: &mut CircuitManager, rex: &mut c
     ui.horizontal(|ui| {
         let r = ui.add(egui::TextEdit::singleline(&mut cm.search).hint_text("Search Circuits").desired_width(260.0));
         ui.checkbox(&mut cm.official_only, "Official only");
-        if (r.changed() || cm.searched.1 != cm.official_only) && (cm.searched.0 != cm.search || cm.searched.1 != cm.official_only) {
+        if (r.changed() || cm.searched.1 != cm.official_only)
+            && (cm.searched.0 != cm.search || cm.searched.1 != cm.official_only)
+        {
             cm.fetch_list();
         }
     });
@@ -330,11 +361,14 @@ fn body(ui: &mut egui::Ui, ed: &mut Editor, cm: &mut CircuitManager, rex: &mut c
                 _ => {}
             }
             if rows.is_empty() && !matches!(cm.list, Load::Loading) {
-                ui.label(RichText::new(match cm.tab {
-                    Tab::Available => "No Circuits match.",
-                    Tab::Installed => "No Circuits installed in this project.",
-                    Tab::Updates => "Everything is up to date.",
-                }).color(MUTED()));
+                ui.label(
+                    RichText::new(match cm.tab {
+                        Tab::Available => "No Circuits match.",
+                        Tab::Installed => "No Circuits installed in this project.",
+                        Tab::Updates => "Everything is up to date.",
+                    })
+                    .color(MUTED()),
+                );
             }
             for row in &rows {
                 let selected = cm.selected.as_deref() == Some(row.id.as_str());
@@ -357,7 +391,18 @@ fn body(ui: &mut egui::Ui, ed: &mut Editor, cm: &mut CircuitManager, rex: &mut c
                             }
                         });
                         ui.label(RichText::new(&row.description).size(12.0).color(TEXT()));
-                        ui.label(RichText::new(format!("{} · {}", row.publisher, row.latest.as_deref().map(|v| format!("latest {v}")).unwrap_or_else(|| "no releases yet".into()))).size(11.0).color(MUTED()));
+                        ui.label(
+                            RichText::new(format!(
+                                "{} · {}",
+                                row.publisher,
+                                row.latest
+                                    .as_deref()
+                                    .map(|v| format!("latest {v}"))
+                                    .unwrap_or_else(|| "no releases yet".into())
+                            ))
+                            .size(11.0)
+                            .color(MUTED()),
+                        );
                     })
                     .response
                     .interact(egui::Sense::click());
@@ -422,7 +467,14 @@ fn updates(cm: &CircuitManager) -> Vec<String> {
     let Load::Ready(listed) = &cm.list else { return Vec::new() };
     cm.installed
         .iter()
-        .filter(|i| listed.iter().any(|c| c.id == i.lock.id && c.latest.as_ref().is_some_and(|l| l.channel == "stable" && !l.yanked && version(&l.version) > version(&i.lock.version))))
+        .filter(|i| {
+            listed.iter().any(|c| {
+                c.id == i.lock.id
+                    && c.latest.as_ref().is_some_and(|l| {
+                        l.channel == "stable" && !l.yanked && version(&l.version) > version(&i.lock.version)
+                    })
+            })
+        })
         .map(|i| i.lock.id.clone())
         .collect()
 }
@@ -449,7 +501,15 @@ fn detail(ui: &mut egui::Ui, ed: &mut Editor, cm: &mut CircuitManager) {
     ui.label(RichText::new(&circuit.description).color(TEXT()));
     ui.add_space(4.0);
     ui.horizontal_wrapped(|ui| {
-        ui.label(RichText::new(format!("{} {}", circuit.publisher.name, if circuit.publisher.verified { "✔ verified" } else { "" })).size(12.0).color(MUTED()));
+        ui.label(
+            RichText::new(format!(
+                "{} {}",
+                circuit.publisher.name,
+                if circuit.publisher.verified { "✔ verified" } else { "" }
+            ))
+            .size(12.0)
+            .color(MUTED()),
+        );
         if let Some(l) = &circuit.license {
             ui.label(RichText::new(format!("· {l}")).size(12.0).color(MUTED()));
         }
@@ -483,18 +543,34 @@ fn detail(ui: &mut egui::Ui, ed: &mut Editor, cm: &mut CircuitManager) {
         ui.label(RichText::new("No published releases yet.").color(MUTED()));
         return;
     }
-    let default = newest_compatible(&releases).map(|r| r.summary.version.clone()).unwrap_or_else(|| releases[0].summary.version.clone());
+    let default = newest_compatible(&releases)
+        .map(|r| r.summary.version.clone())
+        .unwrap_or_else(|| releases[0].summary.version.clone());
     let chosen = cm.chosen.entry(id.clone()).or_insert(default).clone();
     egui::ComboBox::from_id_salt(("circuit_version", &id)).selected_text(&chosen).show_ui(ui, |ui| {
         for r in &releases {
-            let label = format!("{} · {}{}", r.summary.version, r.summary.channel, if r.summary.yanked { " · withdrawn" } else { "" });
+            let label = format!(
+                "{} · {}{}",
+                r.summary.version,
+                r.summary.channel,
+                if r.summary.yanked { " · withdrawn" } else { "" }
+            );
             ui.selectable_value(cm.chosen.get_mut(&id).unwrap(), r.summary.version.clone(), label);
         }
     });
     let Some(release) = releases.iter().find(|r| r.summary.version == chosen) else { return };
     let m = &release.release.manifest;
     let problem = m.incompatibility(&kit_version(), host_platform());
-    ui.label(RichText::new(format!("Kit {} · {} · {:.1} MB", m.circuit.kit, m.circuit.platforms.join(", "), release.release.package.size as f64 / 1e6)).size(12.0).color(MUTED()));
+    ui.label(
+        RichText::new(format!(
+            "Kit {} · {} · {:.1} MB",
+            m.circuit.kit,
+            m.circuit.platforms.join(", "),
+            release.release.package.size as f64 / 1e6
+        ))
+        .size(12.0)
+        .color(MUTED()),
+    );
     if !m.circuit.permissions.is_empty() {
         ui.label(RichText::new("Asks to:").size(12.0).color(LABEL()));
         for p in &m.circuit.permissions {
@@ -503,7 +579,13 @@ fn detail(ui: &mut egui::Ui, ed: &mut Editor, cm: &mut CircuitManager) {
         }
     }
     if !m.dependencies.is_empty() {
-        ui.label(RichText::new(format!("Needs: {}", m.dependencies.iter().map(|(k, v)| format!("{k} {v}")).collect::<Vec<_>>().join(", "))).size(12.0));
+        ui.label(
+            RichText::new(format!(
+                "Needs: {}",
+                m.dependencies.iter().map(|(k, v)| format!("{k} {v}")).collect::<Vec<_>>().join(", ")
+            ))
+            .size(12.0),
+        );
     }
     if release.release.package.signature.is_some() {
         ui.label(RichText::new("Signed by its publisher").size(12.0).color(Color32::from_rgb(98, 214, 160)));
@@ -519,7 +601,10 @@ fn detail(ui: &mut egui::Ui, ed: &mut Editor, cm: &mut CircuitManager) {
     };
     ui.add_space(4.0);
     let busy = cm.job.is_some();
-    if ui.add_enabled(!busy && problem.is_none() && token().is_some(), egui::Button::new(format!("{action} {chosen}"))).clicked() {
+    if ui
+        .add_enabled(!busy && problem.is_none() && token().is_some(), egui::Button::new(format!("{action} {chosen}")))
+        .clicked()
+    {
         cm.start_install(ed, &circuit, release);
     }
     if let Some(notes) = release.release.notes.as_deref().filter(|n| !n.trim().is_empty()) {
@@ -531,20 +616,34 @@ fn detail(ui: &mut egui::Ui, ed: &mut Editor, cm: &mut CircuitManager) {
 
 fn installed_controls(ui: &mut egui::Ui, ed: &mut Editor, cm: &mut CircuitManager, i: &Installed) {
     let Some(root) = ed.project.as_ref().map(|p| p.root().to_path_buf()) else { return };
-    ui.label(RichText::new(format!("Installed {} in this project", i.lock.version)).color(Color32::from_rgb(98, 214, 160)));
+    ui.label(
+        RichText::new(format!("Installed {} in this project", i.lock.version)).color(Color32::from_rgb(98, 214, 160)),
+    );
     if let Some(p) = &i.problem {
         ui.colored_label(Color32::from_rgb(255, 207, 102), p);
     }
     ui.horizontal(|ui| {
         let mut enabled = i.lock.enabled;
-        if ui.checkbox(&mut enabled, "Enabled").on_hover_text("Disabled Circuits stay installed but the game doesn't load them").changed() {
-            cm.result = Some(install::set_enabled(&root, &i.lock.id, enabled).map(|()| format!("{} {}", i.lock.id, if enabled { "enabled" } else { "disabled" })).map_err(|e| format!("{e:#}")));
+        if ui
+            .checkbox(&mut enabled, "Enabled")
+            .on_hover_text("Disabled Circuits stay installed but the game doesn't load them")
+            .changed()
+        {
+            cm.result = Some(
+                install::set_enabled(&root, &i.lock.id, enabled)
+                    .map(|()| format!("{} {}", i.lock.id, if enabled { "enabled" } else { "disabled" }))
+                    .map_err(|e| format!("{e:#}")),
+            );
             cm.refresh_installed(ed);
         }
         if cm.confirm_uninstall.as_deref() == Some(i.lock.id.as_str()) {
             ui.label("Remove it from this project?");
             if ui.button("Uninstall").clicked() {
-                cm.result = Some(install::uninstall(&root, &i.lock.id).map(|()| format!("{} was removed. Your scenes and scripts were not changed.", i.lock.id)).map_err(|e| format!("{e:#}")));
+                cm.result = Some(
+                    install::uninstall(&root, &i.lock.id)
+                        .map(|()| format!("{} was removed. Your scenes and scripts were not changed.", i.lock.id))
+                        .map_err(|e| format!("{e:#}")),
+                );
                 cm.confirm_uninstall = None;
                 cm.refresh_installed(ed);
             }

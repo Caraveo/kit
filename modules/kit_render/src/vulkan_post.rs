@@ -37,6 +37,9 @@ pub(super) struct PostGpu {
     pipelines: HashMap<(&'static str, vk::Format), vk::Pipeline>,
     targets: Vec<Targets>,
     placeholder: Image,
+    /// Dedicated resource reserved for the directional-light shadow pass.
+    shadow_map: Image,
+    shadow_color: Image,
 }
 
 impl PostGpu {
@@ -59,6 +62,7 @@ impl PostGpu {
             binding(3, vk::DescriptorType::SAMPLED_IMAGE),
             binding(4, vk::DescriptorType::SAMPLED_IMAGE),
             binding(5, vk::DescriptorType::SAMPLED_IMAGE),
+            binding(6, vk::DescriptorType::SAMPLED_IMAGE),
         ];
         let total = (VIEW_SLOTS * MAX_PASSES) as u32;
         unsafe {
@@ -77,7 +81,7 @@ impl PostGpu {
                         descriptor_count: total * 2,
                     },
                     vk::DescriptorPoolSize { ty: vk::DescriptorType::SAMPLER, descriptor_count: total },
-                    vk::DescriptorPoolSize { ty: vk::DescriptorType::SAMPLED_IMAGE, descriptor_count: total * 3 },
+                    vk::DescriptorPoolSize { ty: vk::DescriptorType::SAMPLED_IMAGE, descriptor_count: total * 4 },
                 ]),
                 None,
             )?;
@@ -117,6 +121,22 @@ impl PostGpu {
                 vk::SampleCountFlags::TYPE_1,
                 "post placeholder",
             )?;
+            let shadow_map = Image::new(
+                gfx,
+                vk::Extent2D { width: kit_light::SHADOW_MAP_SIZE, height: kit_light::SHADOW_MAP_SIZE },
+                DEPTH_FORMAT,
+                vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT | vk::ImageUsageFlags::SAMPLED,
+                vk::SampleCountFlags::TYPE_1,
+                "directional shadow map",
+            )?;
+            let shadow_color = Image::new(
+                gfx,
+                vk::Extent2D { width: kit_light::SHADOW_MAP_SIZE, height: kit_light::SHADOW_MAP_SIZE },
+                HDR,
+                vk::ImageUsageFlags::COLOR_ATTACHMENT,
+                vk::SampleCountFlags::TYPE_1,
+                "directional shadow color",
+            )?;
             gfx.one_shot(|cmd| {
                 gfx.image_barrier(
                     cmd,
@@ -141,6 +161,8 @@ impl PostGpu {
                 pipelines: HashMap::new(),
                 targets: Vec::new(),
                 placeholder,
+                shadow_map,
+                shadow_color,
             })
         }
     }
@@ -233,6 +255,8 @@ impl PostGpu {
                 }
             }
             self.placeholder.destroy(gfx);
+            self.shadow_map.destroy(gfx);
+            self.shadow_color.destroy(gfx);
             self.post_ubo.destroy(gfx);
             self.pass_ubo.destroy(gfx);
             gfx.device.destroy_sampler(self.sampler, None);
@@ -245,6 +269,146 @@ impl PostGpu {
 }
 
 impl Renderer {
+    fn shadow_matrix(view: &View, world: &World) -> glam::Mat4 {
+        let light = kit_light::extract(world);
+        let center = view.camera_pos + view.view.inverse().transform_vector3(glam::Vec3::NEG_Z) * 35.0;
+        let eye = center - light.direction * 80.0;
+        let view_m = glam::camera::rh::view::look_at_mat4(eye, center, glam::Vec3::Y);
+        let proj = glam::camera::rh::proj::vulkan::orthographic(-60.0, 60.0, -60.0, 60.0, 0.1, 180.0);
+        proj * view_m
+    }
+
+    /// Render opaque scene geometry from the directional light into the
+    /// renderer-owned depth map. The color attachment is only a Vulkan
+    /// compatibility target; fog samples the resulting depth texture.
+    fn render_shadow(
+        &mut self,
+        gfx: &Gfx,
+        cmd: vk::CommandBuffer,
+        slot: usize,
+        view: &View,
+        world: &World,
+    ) -> Result<glam::Mat4> {
+        let matrix = Self::shadow_matrix(view, world);
+        let (shadow_color, shadow_color_view, shadow_map, shadow_map_view) = {
+            let post = self.post.as_ref().unwrap();
+            (post.shadow_color.image, post.shadow_color.view, post.shadow_map.image, post.shadow_map.view)
+        };
+        let extent = vk::Extent2D { width: kit_light::SHADOW_MAP_SIZE, height: kit_light::SHADOW_MAP_SIZE };
+        gfx.image_barrier(
+            cmd,
+            shadow_color,
+            vk::ImageAspectFlags::COLOR,
+            vk::ImageLayout::UNDEFINED,
+            vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+            (vk::PipelineStageFlags::TOP_OF_PIPE, vk::AccessFlags::empty()),
+            (vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT, vk::AccessFlags::COLOR_ATTACHMENT_WRITE),
+        );
+        gfx.image_barrier(
+            cmd,
+            shadow_map,
+            vk::ImageAspectFlags::DEPTH,
+            vk::ImageLayout::UNDEFINED,
+            vk::ImageLayout::DEPTH_ATTACHMENT_OPTIMAL,
+            (vk::PipelineStageFlags::TOP_OF_PIPE, vk::AccessFlags::empty()),
+            (vk::PipelineStageFlags::EARLY_FRAGMENT_TESTS, vk::AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE),
+        );
+        let mut shadow_view = view.clone();
+        shadow_view.view = matrix.inverse();
+        shadow_view.proj = glam::Mat4::IDENTITY;
+        let mut uniforms = draw::frame_uniforms(world, &shadow_view);
+        uniforms.view_proj = matrix.to_cols_array_2d();
+        self.ubo.write(slot as usize * UBO_STRIDE as usize, std::slice::from_ref(&uniforms));
+        self.pipelines_for(gfx, HDR)?;
+        let pipeline = self.pipelines[&HDR].mesh;
+        let resources = world.try_resource::<Resources>();
+        let list =
+            draw::draw_list(world, &shadow_view, |asset| resources.as_ref().and_then(|r| self.imported(r, asset)));
+        let clear_color = vk::ClearValue { color: vk::ClearColorValue { float32: [1.0; 4] } };
+        let colors = [vk::RenderingAttachmentInfo::default()
+            .image_view(shadow_color_view)
+            .image_layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
+            .load_op(vk::AttachmentLoadOp::CLEAR)
+            .store_op(vk::AttachmentStoreOp::DONT_CARE)
+            .clear_value(clear_color)];
+        let depth = vk::RenderingAttachmentInfo::default()
+            .image_view(shadow_map_view)
+            .image_layout(vk::ImageLayout::DEPTH_ATTACHMENT_OPTIMAL)
+            .load_op(vk::AttachmentLoadOp::CLEAR)
+            .store_op(vk::AttachmentStoreOp::STORE)
+            .clear_value(vk::ClearValue { depth_stencil: vk::ClearDepthStencilValue { depth: 1.0, stencil: 0 } });
+        let area = vk::Rect2D { offset: vk::Offset2D::default(), extent };
+        let offset = slot as u64 * UBO_STRIDE;
+        unsafe {
+            gfx.device.cmd_begin_rendering(
+                cmd,
+                &vk::RenderingInfo::default()
+                    .render_area(area)
+                    .layer_count(1)
+                    .color_attachments(&colors)
+                    .depth_attachment(&depth),
+            );
+            gfx.device.cmd_set_viewport(
+                cmd,
+                0,
+                &[vk::Viewport {
+                    x: 0.0,
+                    y: 0.0,
+                    width: extent.width as f32,
+                    height: extent.height as f32,
+                    min_depth: 0.0,
+                    max_depth: 1.0,
+                }],
+            );
+            gfx.device.cmd_set_scissor(cmd, 0, &[area]);
+            gfx.device.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::GRAPHICS, pipeline);
+            gfx.device.cmd_bind_descriptor_sets(
+                cmd,
+                vk::PipelineBindPoint::GRAPHICS,
+                self.layout,
+                0,
+                &[self.ubo_set, self.white.set],
+                &[offset as u32],
+            );
+            let mut draw_item = |item: &draw::DrawItem| {
+                let Some(mesh) = (match &item.geometry {
+                    draw::Geometry::Builtin(kind) => self.meshes.get(kind),
+                    draw::Geometry::Imported(asset) => resources
+                        .as_ref()
+                        .and_then(|r| r.resolve(asset).ok())
+                        .and_then(|p| self.imported_meshes.get(&p)?.as_ref().map(|m| &m.mesh)),
+                    draw::Geometry::Deformed(e) => self.deformed.get(e).map(|(_, m, _)| m),
+                }) else {
+                    return;
+                };
+                gfx.device.cmd_bind_vertex_buffers(cmd, 0, &[mesh.vertices.buffer], &[0]);
+                gfx.device.cmd_bind_index_buffer(cmd, mesh.indices.buffer, 0, vk::IndexType::UINT32);
+                gfx.device.cmd_push_constants(
+                    cmd,
+                    self.layout,
+                    vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT,
+                    0,
+                    bytemuck::bytes_of(&item.uniforms),
+                );
+                gfx.device.cmd_draw_indexed(cmd, item.count.unwrap_or(mesh.count), 1, item.first, 0, 0);
+            };
+            for item in &list.opaque {
+                draw_item(item);
+            }
+            gfx.device.cmd_end_rendering(cmd);
+        }
+        gfx.image_barrier(
+            cmd,
+            shadow_map,
+            vk::ImageAspectFlags::DEPTH,
+            vk::ImageLayout::DEPTH_ATTACHMENT_OPTIMAL,
+            vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+            (vk::PipelineStageFlags::LATE_FRAGMENT_TESTS, vk::AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE),
+            (vk::PipelineStageFlags::FRAGMENT_SHADER, vk::AccessFlags::SHADER_READ),
+        );
+        Ok(matrix)
+    }
+
     /// Draw the scene into linear HDR, then run the post passes into `target`.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn render_post(
@@ -282,9 +446,12 @@ impl Renderer {
             (vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT, vk::AccessFlags::COLOR_ATTACHMENT_WRITE),
         );
         let scene_target = Target { image: hdr_image, view: hdr_view, extent, format: HDR };
+        let shadow_matrix = self.render_shadow(gfx, cmd, slot, view, world)?;
         let att = self.draw_scene(gfx, cmd, slot, &scene_target, view, world, frame.needs_depth())?;
         let (depth_image, depth_view) = (self.attachments[att].depth.image, self.attachments[att].depth.view);
-        self.run_passes(gfx, cmd, slot, target, frame, ti, (hdr_image, hdr_view), (depth_image, depth_view))
+        let mut uniforms = frame.uniforms;
+        uniforms.shadow_view_proj = shadow_matrix.to_cols_array_2d();
+        self.run_passes(gfx, cmd, slot, target, frame, &uniforms, ti, (hdr_image, hdr_view), (depth_image, depth_view))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -295,6 +462,7 @@ impl Renderer {
         slot: usize,
         target: &Target,
         frame: &PostFrame,
+        uniforms: &PostUniforms,
         ti: usize,
         hdr: (vk::Image, vk::ImageView),
         depth: (vk::Image, vk::ImageView),
@@ -323,7 +491,7 @@ impl Renderer {
             read,
         );
         let post_offset = slot as u64 * POST_STRIDE;
-        post.post_ubo.write(post_offset as usize, std::slice::from_ref(&frame.uniforms));
+        post.post_ubo.write(post_offset as usize, std::slice::from_ref(uniforms));
         let view_of = |post: &PostGpu, s: Slot| -> vk::ImageView {
             match s {
                 Slot::Scene => hdr.1,
@@ -371,7 +539,8 @@ impl Renderer {
                     .image_view(v)
                     .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)]
             };
-            let (ia, ib, id) = (image_info(a), image_info(b), image_info(depth.1));
+            let (ia, ib, id, is) =
+                (image_info(a), image_info(b), image_info(depth.1), image_info(post.shadow_map.view));
             let writes = [
                 vk::WriteDescriptorSet::default()
                     .dst_set(set)
@@ -403,6 +572,11 @@ impl Renderer {
                     .dst_binding(5)
                     .descriptor_type(vk::DescriptorType::SAMPLED_IMAGE)
                     .image_info(&id),
+                vk::WriteDescriptorSet::default()
+                    .dst_set(set)
+                    .dst_binding(6)
+                    .descriptor_type(vk::DescriptorType::SAMPLED_IMAGE)
+                    .image_info(&is),
             ];
             let attachment = [vk::RenderingAttachmentInfo::default()
                 .image_view(image_view)

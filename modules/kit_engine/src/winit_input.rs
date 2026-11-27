@@ -3,8 +3,8 @@
 use kit_ecs::World;
 use kit_input::Input;
 use winit::event::{DeviceEvent, ElementState, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent};
-use winit::window::{CursorGrabMode, Window};
 use winit::keyboard::PhysicalKey;
+use winit::window::{CursorGrabMode, Window};
 
 /// Kit key name for a winit key code (`KeyA` → "a", `ArrowLeft` → "left").
 pub fn key_name(key: PhysicalKey) -> Option<String> {
@@ -92,7 +92,9 @@ pub fn apply_pointer(window: &Window, world: &World, allowed: bool, last: &mut P
     }
     if want.locked {
         // Not every platform can lock; keeping it inside the window is the next best.
-        let _ = window.set_cursor_grab(CursorGrabMode::Locked).or_else(|_| window.set_cursor_grab(CursorGrabMode::Confined));
+        let _ = window
+            .set_cursor_grab(CursorGrabMode::Locked)
+            .or_else(|_| window.set_cursor_grab(CursorGrabMode::Confined));
     } else {
         let _ = window.set_cursor_grab(CursorGrabMode::None);
     }

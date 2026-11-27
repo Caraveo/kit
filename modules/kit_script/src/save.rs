@@ -35,7 +35,8 @@ fn save_path(world: &World) -> Option<PathBuf> {
     }
     let res = world.try_resource::<Resources>()?;
     let name = res.root().file_name()?.to_string_lossy().into_owned();
-    let safe: String = name.chars().map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect();
+    let safe: String =
+        name.chars().map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect();
     Some(data_dir()?.join("Kit").join("saves").join(format!("{safe}.json")))
 }
 
@@ -55,7 +56,12 @@ fn to_json(v: &Value) -> Result<Json, String> {
             }
             Json::Object(m)
         }
-        other => return Err(format!("a {} can't be saved; save numbers, text, vectors, lists or objects", other.type_name())),
+        other => {
+            return Err(format!(
+                "a {} can't be saved; save numbers, text, vectors, lists or objects",
+                other.type_name()
+            ));
+        }
     })
 }
 
@@ -108,7 +114,8 @@ pub fn member(world: &mut World, member: &str, args: &[Value]) -> Result<Value, 
         world.insert_resource(SaveData::default());
     }
     load(world);
-    let key = || args.first().and_then(|v| v.as_str()).map(str::to_owned).ok_or_else(|| format!("{member}(\"key\", ...)"));
+    let key =
+        || args.first().and_then(|v| v.as_str()).map(str::to_owned).ok_or_else(|| format!("{member}(\"key\", ...)"));
     let mut s = world.resource_mut::<SaveData>();
     match member {
         "Set" => {

@@ -130,7 +130,9 @@ impl UiHost {
         let size = res
             .read_bytes(path)
             .ok()
-            .and_then(|b| image::ImageReader::new(std::io::Cursor::new(b)).with_guessed_format().ok()?.into_dimensions().ok())
+            .and_then(|b| {
+                image::ImageReader::new(std::io::Cursor::new(b)).with_guessed_format().ok()?.into_dimensions().ok()
+            })
             .map_or(Vec2::ZERO, |(w, h)| vec2(w as f32, h as f32));
         self.image_sizes.insert(path.to_owned(), size);
         size
@@ -227,22 +229,34 @@ pub fn update_ui(world: &mut World) {
         world.insert_resource(UiHost::default());
     }
     let camera = kit_gamesys::active_camera(world);
-    let asset = camera.and_then(|c| world.get::<InterfaceAttachment>(c).map(|a| a.asset.clone())).filter(|a| !a.is_empty());
+    let asset =
+        camera.and_then(|c| world.get::<InterfaceAttachment>(c).map(|a| a.asset.clone())).filter(|a| !a.is_empty());
     // A cinematic's letterbox, fade and caption draw even without an interface.
     let overlay = world.try_resource::<kit_gamesys::CinematicOverlay>().filter(|o| o.is_visible()).map(|o| o.clone());
     if asset.is_none() && overlay.is_none() {
-        world.insert_resource(UiFrame { size: screen.size, pixels_per_point: screen.pixels_per_point, ..Default::default() });
+        world.insert_resource(UiFrame {
+            size: screen.size,
+            pixels_per_point: screen.pixels_per_point,
+            ..Default::default()
+        });
         return;
     }
     let mut visible = camera
-        .and_then(|camera| world.try_resource::<InterfaceRuntime>().and_then(|r| r.instances.get(&camera).map(|i| (i.visible.clone(), i.classes.clone()))))
+        .and_then(|camera| {
+            world
+                .try_resource::<InterfaceRuntime>()
+                .and_then(|r| r.instances.get(&camera).map(|i| (i.visible.clone(), i.classes.clone())))
+        })
         .unwrap_or_default();
     // Scripts' Interface.Show / Hide / SetText / SetColor.
     let edits = world.try_resource::<kit_gamesys::InterfaceEdits>().map(|e| e.clone()).unwrap_or_default();
     visible.0.extend(edits.visible.iter().map(|(k, v)| (k.clone(), *v)));
     let (mouse, down, pressed_now, released_now, keys) = match world.try_resource::<kit_input::Input>() {
         Some(i) => {
-            let m = pos2((i.mouse.x - screen.mouse_origin[0]) * screen.mouse_scale, (i.mouse.y - screen.mouse_origin[1]) * screen.mouse_scale);
+            let m = pos2(
+                (i.mouse.x - screen.mouse_origin[0]) * screen.mouse_scale,
+                (i.mouse.y - screen.mouse_origin[1]) * screen.mouse_scale,
+            );
             (Some(m), i.down("MouseLeft"), i.pressed("MouseLeft"), i.released("MouseLeft"), i.pressed_keys())
         }
         None => (None, false, false, false, Vec::new()),
@@ -260,9 +274,15 @@ pub fn update_ui(world: &mut World) {
             Some(asset) => host.doc(&res, asset),
             None => Some(Arc::new(Document::parse("<interface />").expect("empty interface"))),
         };
-        let Some(mut doc) = doc.or_else(|| overlay.as_ref().map(|_| Arc::new(Document::parse("<interface />").expect("empty interface")))) else {
+        let Some(mut doc) = doc
+            .or_else(|| overlay.as_ref().map(|_| Arc::new(Document::parse("<interface />").expect("empty interface"))))
+        else {
             drop(host);
-            world.insert_resource(UiFrame { size: screen.size, pixels_per_point: screen.pixels_per_point, ..Default::default() });
+            world.insert_resource(UiFrame {
+                size: screen.size,
+                pixels_per_point: screen.pixels_per_point,
+                ..Default::default()
+            });
             return;
         };
         if let Some(o) = &overlay {
@@ -278,7 +298,8 @@ pub fn update_ui(world: &mut World) {
         let dir = asset.as_deref().and_then(|a| a.rsplit_once('/')).map(|(d, _)| d.to_owned());
         let res2 = res.clone();
         let include = move |p: &str| {
-            let full = if p.contains('/') { p.to_owned() } else { dir.as_ref().map_or(p.to_owned(), |d| format!("{d}/{p}")) };
+            let full =
+                if p.contains('/') { p.to_owned() } else { dir.as_ref().map_or(p.to_owned(), |d| format!("{d}/{p}")) };
             res2.read_text(&full).ok().and_then(|t| Document::parse(&t).ok())
         };
         let screen_rect = Rect::from_min_size(Pos2::ZERO, vec2(screen.size[0], screen.size[1]));
@@ -290,7 +311,9 @@ pub fn update_ui(world: &mut World) {
         };
 
         // Interaction.
-        let over: Vec<&Item> = mouse.map(|m| l.items.iter().filter(|i| i.rect.contains(m) && i.clip.contains(m)).collect()).unwrap_or_default();
+        let over: Vec<&Item> = mouse
+            .map(|m| l.items.iter().filter(|i| i.rect.contains(m) && i.clip.contains(m)).collect())
+            .unwrap_or_default();
         let top_button = over.iter().rev().find(|i| is_button(i)).map(|i| i.path.clone());
         host.hovered = over.iter().map(|i| i.path.clone()).collect();
         if pressed_now {
@@ -300,7 +323,11 @@ pub fn update_ui(world: &mut World) {
             if let (Some(p), Some(t)) = (host.pressed.take(), top_button.as_ref()) {
                 if &p == t {
                     if let Some(item) = l.items.iter().find(|i| &i.path == t && is_button(i)) {
-                        clicks.push((item.node.attr("script").map(str::to_owned), item.path.clone(), item.node.id().map(str::to_owned)));
+                        clicks.push((
+                            item.node.attr("script").map(str::to_owned),
+                            item.path.clone(),
+                            item.node.id().map(str::to_owned),
+                        ));
                     }
                 }
             }
@@ -311,7 +338,11 @@ pub fn update_ui(world: &mut World) {
         for item in l.items.iter().filter(|i| is_button(i)) {
             if let Some(k) = item.node.attr("key") {
                 if keys.iter().any(|pressed| kit_input::normalize_key(pressed) == kit_input::normalize_key(k)) {
-                    clicks.push((item.node.attr("script").map(str::to_owned), item.path.clone(), item.node.id().map(str::to_owned)));
+                    clicks.push((
+                        item.node.attr("script").map(str::to_owned),
+                        item.path.clone(),
+                        item.node.id().map(str::to_owned),
+                    ));
                 }
             }
         }
@@ -362,13 +393,25 @@ pub fn update_ui(world: &mut World) {
                 Some(UiMesh {
                     clip: [p.clip_rect.min.x, p.clip_rect.min.y, p.clip_rect.max.x, p.clip_rect.max.y],
                     texture,
-                    vertices: mesh.vertices.iter().map(|v| UiVertex { pos: [v.pos.x, v.pos.y], uv: [v.uv.x, v.uv.y], color: v.color.to_array() }).collect(),
+                    vertices: mesh
+                        .vertices
+                        .iter()
+                        .map(|v| UiVertex { pos: [v.pos.x, v.pos.y], uv: [v.uv.x, v.uv.y], color: v.color.to_array() })
+                        .collect(),
                     indices: mesh.indices,
                 })
             })
             .collect();
-        let captures = over.iter().any(|i| style::prop(&i.node, "background").is_some() || matches!(i.node.tag.as_str(), "button" | "panel"));
-        UiFrame { meshes, atlas: Arc::new(host.atlas.clone()), size: screen.size, pixels_per_point: screen.pixels_per_point, captures_mouse: captures }
+        let captures = over
+            .iter()
+            .any(|i| style::prop(&i.node, "background").is_some() || matches!(i.node.tag.as_str(), "button" | "panel"));
+        UiFrame {
+            meshes,
+            atlas: Arc::new(host.atlas.clone()),
+            size: screen.size,
+            pixels_per_point: screen.pixels_per_point,
+            captures_mouse: captures,
+        }
     };
     world.insert_resource(frame);
 
@@ -378,7 +421,11 @@ pub fn update_ui(world: &mut World) {
         if let Some(id) = &id {
             let doc = world.resource_mut::<UiHost>().doc(&res, &asset);
             if let Some(node) = doc.as_ref().and_then(|d| d.root.at(&path).cloned()) {
-                for logic in node.children.iter().filter(|c| c.tag == "logic" && c.attr("on").is_some_and(|o| o.eq_ignore_ascii_case("press"))) {
+                for logic in node
+                    .children
+                    .iter()
+                    .filter(|c| c.tag == "logic" && c.attr("on").is_some_and(|o| o.eq_ignore_ascii_case("press")))
+                {
                     for class in logic.children.iter().filter(|a| a.tag == "add-class").filter_map(|a| a.attr("name")) {
                         crate::activate_class(world, camera, id, class);
                     }

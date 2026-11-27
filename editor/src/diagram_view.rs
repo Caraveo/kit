@@ -469,7 +469,13 @@ fn show_pinned(ui: &mut Ui, ed: &mut Editor, view: &mut DiagramView, gd: &GameDa
             }
             if ui.button("+ Node").clicked() {
                 let c = view.scene_rect.map_or(Pos2::ZERO, |r| r.center());
-                view.picker = Some(Picker { at: c, screen: ui.ctx().content_rect().center(), search: String::new(), wire: None, focus: true });
+                view.picker = Some(Picker {
+                    at: c,
+                    screen: ui.ctx().content_rect().center(),
+                    search: String::new(),
+                    wire: None,
+                    focus: true,
+                });
             }
             if let Some(e) = selected.filter(|e| !users.contains(e)) {
                 let name = ed.entity_label(e);
@@ -479,7 +485,9 @@ fn show_pinned(ui: &mut Ui, ed: &mut Editor, view: &mut DiagramView, gd: &GameDa
             }
             let errors = diagnostics.iter().filter(|d| d.severity == Severity::Error).count();
             if errors > 0 {
-                ui.label(RichText::new(format!("● {errors} error{}", if errors == 1 { "" } else { "s" })).color(ERROR()));
+                ui.label(
+                    RichText::new(format!("● {errors} error{}", if errors == 1 { "" } else { "s" })).color(ERROR()),
+                );
             }
         });
     });
@@ -553,9 +561,13 @@ fn canvas(
     });
     let zoom_range = egui::Rangef::new(0.2, 1.6);
     let scene_layer = egui::LayerId::new(ui.layer_id().order, ui.id().with("scene_area"));
-    let wheel = ui.ctx().pointer_hover_pos()
+    let wheel = ui
+        .ctx()
+        .pointer_hover_pos()
         .filter(|&pointer| painter_rect.contains(pointer) && ui.clip_rect().contains(pointer))
-        .filter(|&pointer| ui.ctx().layer_id_at(pointer).is_none_or(|layer| layer == ui.layer_id() || layer == scene_layer))
+        .filter(|&pointer| {
+            ui.ctx().layer_id_at(pointer).is_none_or(|layer| layer == ui.layer_id() || layer == scene_layer)
+        })
         .and_then(|pointer| {
             let scroll = ui.input_mut(|input| std::mem::take(&mut input.smooth_scroll_delta)).y;
             (scroll != 0.0).then_some((pointer, scroll))

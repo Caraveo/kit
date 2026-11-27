@@ -50,14 +50,21 @@ pub fn installed(project: &Path) -> Result<Vec<Installed>> {
 
 /// The enabled Circuits the game should load, in dependency order.
 pub fn enabled(project: &Path) -> Result<Vec<Manifest>> {
-    let mut list: Vec<Manifest> =
-        installed(project)?.into_iter().filter(|i| i.lock.enabled && i.problem.is_none()).filter_map(|i| i.manifest).collect();
+    let mut list: Vec<Manifest> = installed(project)?
+        .into_iter()
+        .filter(|i| i.lock.enabled && i.problem.is_none())
+        .filter_map(|i| i.manifest)
+        .collect();
     // Dependencies first (simple stable topological sort; cycles keep file order).
     let mut ordered: Vec<Manifest> = Vec::new();
     while !list.is_empty() {
         let pos = list
             .iter()
-            .position(|m| m.dependencies.keys().all(|d| ordered.iter().any(|o| &o.circuit.id == d) || !list.iter().any(|l| &l.circuit.id == d)))
+            .position(|m| {
+                m.dependencies
+                    .keys()
+                    .all(|d| ordered.iter().any(|o| &o.circuit.id == d) || !list.iter().any(|l| &l.circuit.id == d))
+            })
             .unwrap_or(0);
         ordered.push(list.remove(pos));
     }
@@ -93,8 +100,22 @@ pub fn check_install(project: &Path, next: &Manifest, kit: &Version, platform: &
 }
 
 /// Install (or update/downgrade to) a verified release.
-pub fn install(project: &Path, release: &ReleaseManifest, bytes: &[u8], keys: &[PublisherKey], source: &str) -> Result<()> {
-    install_with(project, release, bytes, keys, source, &crate::manifest::kit_version(), crate::manifest::host_platform())
+pub fn install(
+    project: &Path,
+    release: &ReleaseManifest,
+    bytes: &[u8],
+    keys: &[PublisherKey],
+    source: &str,
+) -> Result<()> {
+    install_with(
+        project,
+        release,
+        bytes,
+        keys,
+        source,
+        &crate::manifest::kit_version(),
+        crate::manifest::host_platform(),
+    )
 }
 
 pub fn install_with(
@@ -137,7 +158,10 @@ pub fn install_with(
     let had_previous = target.exists();
     if had_previous && Lock::load(project)?.get(id).is_none() {
         let _ = std::fs::remove_dir_all(&fresh);
-        bail!("{} exists but Kit didn't install it, so Kit won't replace it. Move that folder first.", target.display());
+        bail!(
+            "{} exists but Kit didn't install it, so Kit won't replace it. Move that folder first.",
+            target.display()
+        );
     }
     if had_previous {
         std::fs::rename(&target, &previous).context("moving the installed version aside")?;

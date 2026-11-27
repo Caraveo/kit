@@ -141,59 +141,71 @@ pub fn view_tab(ui: &mut Ui, ed: &mut Editor) {
             Some(name) => format!("🎬 {name}"),
             None => "🎬 Cinematic".to_owned(),
         };
-        let menu = ui.menu_button(RichText::new(label).color(if playing_now.is_some() { ACCENT() } else { TEXT() }), |ui| {
-            ui.set_min_width(230.0);
-            if let Some(name) = &playing_now {
-                ui.label(RichText::new(format!("Playing {name}")).size(11.0).color(MUTED()));
-                if ui.button("⏭  Skip").clicked() {
-                    request(ed, CinematicRequest::Skip);
-                    ui.close();
-                }
-                if ui.button("■  Stop cinematic").clicked() {
-                    request(ed, CinematicRequest::Stop);
-                    ui.close();
-                }
-                ui.separator();
-            }
-            let list = cinematics(ed);
-            if list.is_empty() {
-                ui.label(RichText::new("No cinematics in this scene yet.").size(11.0).color(MUTED()));
-            }
-            for (director, name) in &list {
-                let shots = shot_count(ed, *director);
-                ui.horizontal(|ui| {
-                    let play_btn = ui
-                        .add_enabled(shots > 0, egui::Button::new(format!("▶  {name}")))
-                        .on_hover_text(if shots > 0 { "Play it (starts the game if it isn't running)" } else { "Add a shot first" });
-                    if play_btn.clicked() {
-                        play(ed, name);
+        let menu =
+            ui.menu_button(RichText::new(label).color(if playing_now.is_some() { ACCENT() } else { TEXT() }), |ui| {
+                ui.set_min_width(230.0);
+                if let Some(name) = &playing_now {
+                    ui.label(RichText::new(format!("Playing {name}")).size(11.0).color(MUTED()));
+                    if ui.button("⏭  Skip").clicked() {
+                        request(ed, CinematicRequest::Skip);
                         ui.close();
                     }
-                    ui.label(RichText::new(format!("{shots} shot{}", if shots == 1 { "" } else { "s" })).size(11.0).color(MUTED()));
-                });
-                let add = ui
-                    .add_enabled(!ed.playing, egui::Button::new(RichText::new("     + Shot from this view").size(11.5)))
-                    .on_hover_text("A camera framed like the Scene View right now, as the next shot");
-                if add.clicked() {
-                    add_shot(ed, *director);
+                    if ui.button("■  Stop cinematic").clicked() {
+                        request(ed, CinematicRequest::Stop);
+                        ui.close();
+                    }
+                    ui.separator();
+                }
+                let list = cinematics(ed);
+                if list.is_empty() {
+                    ui.label(RichText::new("No cinematics in this scene yet.").size(11.0).color(MUTED()));
+                }
+                for (director, name) in &list {
+                    let shots = shot_count(ed, *director);
+                    ui.horizontal(|ui| {
+                        let play_btn = ui
+                            .add_enabled(shots > 0, egui::Button::new(format!("▶  {name}")))
+                            .on_hover_text(if shots > 0 {
+                                "Play it (starts the game if it isn't running)"
+                            } else {
+                                "Add a shot first"
+                            });
+                        if play_btn.clicked() {
+                            play(ed, name);
+                            ui.close();
+                        }
+                        ui.label(
+                            RichText::new(format!("{shots} shot{}", if shots == 1 { "" } else { "s" }))
+                                .size(11.0)
+                                .color(MUTED()),
+                        );
+                    });
+                    let add = ui
+                        .add_enabled(
+                            !ed.playing,
+                            egui::Button::new(RichText::new("     + Shot from this view").size(11.5)),
+                        )
+                        .on_hover_text("A camera framed like the Scene View right now, as the next shot");
+                    if add.clicked() {
+                        add_shot(ed, *director);
+                        ed.settings.game_camera = false;
+                        ui.close();
+                    }
+                }
+                ui.separator();
+                let new = ui
+                    .add_enabled(!ed.playing, egui::Button::new("+ New cinematic"))
+                    .on_hover_text("An Empty with a Cinematic, and a first shot framed like the Scene View");
+                mark(ui, "cinematic_new", new.rect);
+                if new.clicked() {
+                    new_cinematic(ed);
                     ed.settings.game_camera = false;
                     ui.close();
                 }
-            }
-            ui.separator();
-            let new = ui
-                .add_enabled(!ed.playing, egui::Button::new("+ New cinematic"))
-                .on_hover_text("An Empty with a Cinematic, and a first shot framed like the Scene View");
-            mark(ui, "cinematic_new", new.rect);
-            if new.clicked() {
-                new_cinematic(ed);
-                ed.settings.game_camera = false;
-                ui.close();
-            }
-            ui.label(
-                RichText::new("Tip: select a shot and press 5 to draw its camera move.").size(10.5).color(MUTED()),
-            );
-        });
+                ui.label(
+                    RichText::new("Tip: select a shot and press 5 to draw its camera move.").size(10.5).color(MUTED()),
+                );
+            });
         mark(ui, "cinematic_menu", menu.response.rect);
     });
 }

@@ -78,8 +78,24 @@ pub struct NamedField {
 
 /// Built-in component names a Circuit can't reuse.
 pub const RESERVED_COMPONENTS: &[&str] = &[
-    "id", "name", "parent", "transform", "camera", "model", "sprite", "light", "script", "collider", "rigid_body", "path", "terrain",
-    "audio", "post_volume", "diagram", "rig", "rig_volume",
+    "id",
+    "name",
+    "parent",
+    "transform",
+    "camera",
+    "model",
+    "sprite",
+    "light",
+    "script",
+    "collider",
+    "rigid_body",
+    "path",
+    "terrain",
+    "audio",
+    "post_volume",
+    "diagram",
+    "rig",
+    "rig_volume",
 ];
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -217,8 +233,10 @@ impl Manifest {
         if c.description.trim().is_empty() || c.description.len() > 400 {
             bail!("description must be 1–400 characters");
         }
-        Version::parse(&c.version).with_context(|| format!("version \"{}\" is not semantic (e.g. 1.2.0)", c.version))?;
-        VersionReq::parse(&c.kit).with_context(|| format!("kit \"{}\" is not a version requirement (e.g. \">=0.0.4\")", c.kit))?;
+        Version::parse(&c.version)
+            .with_context(|| format!("version \"{}\" is not semantic (e.g. 1.2.0)", c.version))?;
+        VersionReq::parse(&c.kit)
+            .with_context(|| format!("kit \"{}\" is not a version requirement (e.g. \">=0.0.4\")", c.kit))?;
         if !CHANNELS.contains(&c.channel.as_str()) {
             bail!("channel must be one of {}", CHANNELS.join(", "));
         }
@@ -256,9 +274,16 @@ impl Manifest {
             if id == &c.id {
                 bail!("a Circuit can't depend on itself");
             }
-            VersionReq::parse(req).with_context(|| format!("dependency {id} = \"{req}\" is not a version requirement"))?;
+            VersionReq::parse(req)
+                .with_context(|| format!("dependency {id} = \"{req}\" is not a version requirement"))?;
         }
-        let paths = self.entry.runtime.iter().chain(&self.entry.server).chain(&self.entry.editor).chain(self.entry.native.values());
+        let paths = self
+            .entry
+            .runtime
+            .iter()
+            .chain(&self.entry.server)
+            .chain(&self.entry.editor)
+            .chain(self.entry.native.values());
         for p in paths.chain(c.icon.iter()).chain(c.release_notes.iter()) {
             crate::package::check_relative(p).with_context(|| format!("entry path \"{p}\""))?;
         }
@@ -268,7 +293,10 @@ impl Manifest {
         let mut seen = std::collections::BTreeSet::new();
         for comp in &self.components {
             if !key_ok(&comp.id) || RESERVED_COMPONENTS.contains(&comp.id.as_str()) {
-                bail!("component id \"{}\" must be lowercase letters, digits and _, and not a built-in component", comp.id);
+                bail!(
+                    "component id \"{}\" must be lowercase letters, digits and _, and not a built-in component",
+                    comp.id
+                );
             }
             if !seen.insert(comp.id.clone()) {
                 bail!("component \"{}\" is declared twice", comp.id);
@@ -301,7 +329,9 @@ impl Manifest {
 }
 
 fn key_ok(key: &str) -> bool {
-    !key.is_empty() && key.len() <= 40 && key.chars().all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '_')
+    !key.is_empty()
+        && key.len() <= 40
+        && key.chars().all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '_')
 }
 
 fn check_field(what: &str, key: &str, f: &ConfigField) -> Result<()> {
@@ -428,14 +458,23 @@ runtime = ["scripts/Multiplayer.x"]
         let m = Manifest::parse(&text).unwrap();
         assert_eq!(m.components[0].defaults(), serde_json::json!({ "position": true, "scope": "sector" }));
         assert_eq!(Manifest::parse(&m.to_toml()).unwrap(), m);
-        assert!(Manifest::parse(&text.replace("id = \"realtime\"", "id = \"model\"")).is_err(), "built-in names are reserved");
-        assert!(Manifest::parse(&text.replace("default = \"sector\"", "default = \"moon\"")).is_err(), "defaults must be valid");
+        assert!(
+            Manifest::parse(&text.replace("id = \"realtime\"", "id = \"model\"")).is_err(),
+            "built-in names are reserved"
+        );
+        assert!(
+            Manifest::parse(&text.replace("default = \"sector\"", "default = \"moon\"")).is_err(),
+            "defaults must be valid"
+        );
     }
 
     #[test]
     fn rejects_bad_manifests() {
         let bad = |from: &str, to: &str| Manifest::parse(&SAMPLE.replace(from, to)).unwrap_err().to_string();
-        assert!(format!("{:#}", Manifest::parse(&SAMPLE.replace("kit.multiplayer", "Multiplayer")).unwrap_err()).contains("publisher.name"));
+        assert!(
+            format!("{:#}", Manifest::parse(&SAMPLE.replace("kit.multiplayer", "Multiplayer")).unwrap_err())
+                .contains("publisher.name")
+        );
         assert!(bad("publisher = \"kit\"", "publisher = \"acme\"").contains("publisher"));
         assert!(bad("0.1.0", "1.0").contains("semantic"));
         assert!(bad("\"linux\", ", "\"beos\", ").contains("platform"));

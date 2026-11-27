@@ -37,6 +37,10 @@ pub struct Settings {
     /// 0 … 1 (blends like a number; the editor shows it as a checkbox).
     pub fxaa: f32,
     pub sharpen: f32,
+    pub fog_density: f32,
+    pub fog_tint: Vec3,
+    pub fog_scattering: f32,
+    pub fog_max_distance: f32,
 }
 
 const EPS: f32 = 1e-3;
@@ -60,6 +64,10 @@ impl Settings {
         ao_quality: AoQuality::Medium,
         fxaa: 0.0,
         sharpen: 0.0,
+        fog_density: 0.0,
+        fog_tint: Vec3::ONE,
+        fog_scattering: 0.0,
+        fog_max_distance: 100.0,
     };
 
     pub fn color_active(&self) -> bool {
@@ -88,6 +96,7 @@ impl Settings {
             || self.focus_active()
             || self.ambient_active()
             || self.image_active()
+            || self.fog_density > EPS
     }
 
     /// Apply one volume's effect groups with influence `t` (0 … 1).
@@ -165,6 +174,19 @@ impl Settings {
             Override::Off => {
                 lerp(&mut self.fxaa, 0.0);
                 lerp(&mut self.sharpen, 0.0);
+            }
+        }
+        match fx.fog.mode {
+            Override::Inherit => {}
+            Override::On => {
+                lerp(&mut self.fog_density, fx.fog.density);
+                self.fog_tint = self.fog_tint.lerp(fx.fog.tint, t);
+                lerp(&mut self.fog_scattering, fx.fog.scattering);
+                lerp(&mut self.fog_max_distance, fx.fog.max_distance.max(0.0));
+            }
+            Override::Off => {
+                lerp(&mut self.fog_density, 0.0);
+                lerp(&mut self.fog_scattering, 0.0);
             }
         }
     }

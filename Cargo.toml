@@ -23,8 +23,10 @@ kit_collider = { path = "modules/kit_collider" }
 kit_physics = { path = "modules/kit_physics" }
 kit_path = { path = "modules/kit_path" }
 kit_particles = { path = "modules/kit_particles" }
+kit_fog = { path = "modules/kit_fog" }
 kit_audio = { path = "modules/kit_audio" }
 kit_post = { path = "modules/kit_post" }
+kit_light = { path = "modules/kit_light" }
 kit_gamedata = { path = "modules/kit_gamedata" }
 kit_diagram = { path = "modules/kit_diagram" }
 kit_rex = { path = "modules/kit_rex" }

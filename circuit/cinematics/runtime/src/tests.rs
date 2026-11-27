@@ -56,7 +56,10 @@ fn scene(app: &mut App, play_on_start: bool) -> Scene {
     );
     let shot1 = kit_scene::spawn_node(w, "Wide", Transform::from_xyz(-20.0, 5.0, 0.0));
     w.insert(shot1, Camera { active: false, ..Camera::default() });
-    w.insert(shot1, extra(SHOT, serde_json::json!({ "duration": 1.0, "look_at": "Hero", "caption": "Long ago", "zoom_to": 30.0 })));
+    w.insert(
+        shot1,
+        extra(SHOT, serde_json::json!({ "duration": 1.0, "look_at": "Hero", "caption": "Long ago", "zoom_to": 30.0 })),
+    );
     kit_scene::set_parent(w, shot1, director);
     let shot2 = kit_scene::spawn_node(w, "Close", Transform::from_xyz(5.0, 1.0, 4.0));
     w.insert(shot2, Camera { active: false, ..Camera::default() });
@@ -64,7 +67,13 @@ fn scene(app: &mut App, play_on_start: bool) -> Scene {
     // A sketched move: it should only run during its shot.
     w.insert(
         shot2,
-        PathFollow { points: vec![Vec3::new(5.0, 1.0, 4.0), Vec3::new(5.0, 1.0, -4.0)], speed: 4.0, playing: true, face_direction: false, ..Default::default() },
+        PathFollow {
+            points: vec![Vec3::new(5.0, 1.0, 4.0), Vec3::new(5.0, 1.0, -4.0)],
+            speed: 4.0,
+            playing: true,
+            face_direction: false,
+            ..Default::default()
+        },
     );
     kit_scene::set_parent(w, shot2, director);
     Scene { game_cam, shot1, shot2, target }
@@ -206,7 +215,10 @@ fn blends_continue_from_what_was_on_screen() {
     kit_scene::set_parent(w, a, director);
     let b = kit_scene::spawn_node(w, "B", Transform::from_xyz(10.0, 3.0, 0.0));
     w.insert(b, Camera { active: false, ..Camera::default() });
-    w.insert(b, extra(SHOT, serde_json::json!({ "duration": 2.0, "look_at": "Hero", "transition": "blend", "blend": 1.0 })));
+    w.insert(
+        b,
+        extra(SHOT, serde_json::json!({ "duration": 2.0, "look_at": "Hero", "transition": "blend", "blend": 1.0 })),
+    );
     kit_scene::set_parent(w, b, director);
 
     let view = |app: &App| {

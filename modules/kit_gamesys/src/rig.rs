@@ -10,11 +10,18 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "shape")]
 pub enum RigShape {
-    Sphere { radius: f32 },
+    Sphere {
+        radius: f32,
+    },
     /// `length` is the distance between the two cap centers.
-    Capsule { radius: f32, length: f32 },
+    Capsule {
+        radius: f32,
+        length: f32,
+    },
     /// Full size along X, Y, Z.
-    Box { size: Vec3 },
+    Box {
+        size: Vec3,
+    },
 }
 
 impl Default for RigShape {

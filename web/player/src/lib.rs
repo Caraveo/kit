@@ -103,6 +103,7 @@ impl WebPlayer {
             // The page pulls mixed audio (kit_audio_mix) for Web Audio.
             .add_module(kit_audio::AudioModule { device: false })
             .add_module(kit_particles::ParticlesModule)
+            .add_module(kit_fog::FogModule)
             // Cinematics Circuit (dormant unless installed and enabled).
             .add_module(kit_cinematics::CinematicsModule);
         // Read the project from memory instead of a folder.

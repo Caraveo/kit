@@ -572,7 +572,9 @@ impl Editor {
         let (finished, pending) = queue.poll();
         for (root, scene, result) in finished {
             match result {
-                Ok(imported) if self.project.as_ref().and_then(|p| p.root().canonicalize().ok()).as_ref() == Some(&root) => {
+                Ok(imported)
+                    if self.project.as_ref().and_then(|p| p.root().canonicalize().ok()).as_ref() == Some(&root) =>
+                {
                     self.model_imported(&imported);
                     if scene.is_some_and(|scene| scene == self.scene_path) && !self.playing {
                         let result = self.place_model(&imported);
@@ -596,7 +598,8 @@ impl Editor {
     pub fn save_as_fab(&mut self, e: Entity) -> Result<String> {
         let project = self.project.as_ref().context("Open a project first")?;
         let name = self.entity_label(e);
-        let safe: String = name.chars().map(|c| if c.is_alphanumeric() || " -_".contains(c) { c } else { '_' }).collect();
+        let safe: String =
+            name.chars().map(|c| if c.is_alphanumeric() || " -_".contains(c) { c } else { '_' }).collect();
         let safe = safe.trim().to_owned();
         anyhow::ensure!(!safe.is_empty(), "Give the object a name first");
         let mut fab = kit::gamesys::save_subtree(&self.app.world, e);
@@ -731,7 +734,9 @@ impl Editor {
         if stem.is_empty() {
             bail!("Give it a name");
         }
-        if stem.chars().any(|c| matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|') || c.is_control()) || stem.starts_with('.') {
+        if stem.chars().any(|c| matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|') || c.is_control())
+            || stem.starts_with('.')
+        {
             bail!("Names can't contain / \\ : * ? \" < > | or start with a dot");
         }
         let ext = Path::new(old).extension().and_then(|e| e.to_str()).map(|e| format!(".{e}")).unwrap_or_default();

@@ -473,7 +473,10 @@ VOID CREATE Update(FLOAT dt)[
     // A missing scene leaves the current one running.
     app.update(0.1);
     assert!(app.world.is_alive(door));
-    assert!(matches!(&app.world.resource::<kit_gamesys::scenes::SceneEvents>().0[..], [kit_gamesys::scenes::SceneEvent::Failed { .. }]));
+    assert!(matches!(
+        &app.world.resource::<kit_gamesys::scenes::SceneEvents>().0[..],
+        [kit_gamesys::scenes::SceneEvent::Failed { .. }]
+    ));
 
     app.update(0.1);
     assert!(!app.world.is_alive(door), "the old scene is gone");
@@ -564,7 +567,10 @@ CREATE Spin[
     assert_eq!(copies.len(), 4);
     assert_eq!(copies.iter().filter(|&&c| w.get::<kit_scene::Parent>(c).map(|p| p.0) == Some(field)).count(), 2);
     let top_copy = copies.iter().copied().find(|&c| w.get::<Transform>(c).unwrap().translation.x == 30.0).unwrap();
-    assert!(w.get::<kit_scene::Parent>(top_copy).is_none() && w.get::<kit_scene::RootOrder>(top_copy).is_some(), "instantiated copy is top level");
+    assert!(
+        w.get::<kit_scene::Parent>(top_copy).is_none() && w.get::<kit_scene::RootOrder>(top_copy).is_some(),
+        "instantiated copy is top level"
+    );
     for &c in &copies {
         assert!(w.get::<kit_gamesys::Model>(c).is_some() && w.get::<Script>(c).is_some());
         assert!(w.get::<Transform>(c).unwrap().forward().x.abs() > 0.1, "each copy spins on its own");
@@ -587,7 +593,13 @@ fn run_frames(app: &mut App, n: usize) {
 }
 
 fn int_field(app: &App, e: kit_ecs::Entity, name: &str) -> String {
-    app.world.resource::<ScriptRuntime>().fields(e).into_iter().find(|f| f.name == name).map(|f| f.text).unwrap_or_default()
+    app.world
+        .resource::<ScriptRuntime>()
+        .fields(e)
+        .into_iter()
+        .find(|f| f.name == name)
+        .map(|f| f.text)
+        .unwrap_or_default()
 }
 
 #[test]
@@ -774,7 +786,8 @@ CREATE Rot[
     let close = |a: glam::Vec3, b: glam::Vec3| a.distance(b) < 1e-3;
     assert!(close(v("Mid"), glam::Vec3::new(0.0, 45.0, 0.0)), "{:?}", v("Mid"));
     // Same convention as the engine: a 90° Y turn faces -X.
-    let engine = Transform { rotation: glam::Quat::from_rotation_y(90f32.to_radians()), ..Transform::IDENTITY }.forward();
+    let engine =
+        Transform { rotation: glam::Quat::from_rotation_y(90f32.to_radians()), ..Transform::IDENTITY }.forward();
     assert!(close(v("Fwd"), engine), "{:?} vs {engine:?}", v("Fwd"));
     let mut t = Transform::IDENTITY;
     t.set_euler_degrees(v("Look"));

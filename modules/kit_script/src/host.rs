@@ -14,13 +14,42 @@ use crate::States;
 
 /// Modules scripts can `TAKE`.
 pub const MODULES: &[&str] = &[
-    "Transform", "Input", "Time", "Entity", "Scene", "Sprite", "Model", "Log", "Physics", "Collider", "Path", "Terrain",
-    "Audio", "Diagram", "Light", "Camera", "Save", "Debug", "Interface", "Cinematic",
+    "Transform",
+    "Input",
+    "Time",
+    "Entity",
+    "Scene",
+    "Sprite",
+    "Model",
+    "Log",
+    "Physics",
+    "Collider",
+    "Path",
+    "Terrain",
+    "Audio",
+    "Diagram",
+    "Light",
+    "Camera",
+    "Save",
+    "Debug",
+    "Interface",
+    "Cinematic",
 ];
 
 /// Engine features `GetFeature` / `AddFeature` know (besides scripts).
 pub const ENGINE_FEATURES: &[&str] = &[
-    "Transform", "Entity", "Model", "Sprite", "Physics", "Collider", "Audio", "Path", "Light", "Camera", "Terrain", "Diagram",
+    "Transform",
+    "Entity",
+    "Model",
+    "Sprite",
+    "Physics",
+    "Collider",
+    "Audio",
+    "Path",
+    "Light",
+    "Camera",
+    "Terrain",
+    "Diagram",
     "Particles",
 ];
 
@@ -31,7 +60,11 @@ pub enum Command {
     AddTimer(Timer),
     CancelTimer(u64),
     /// `Time.Start("Method", args...)`: run a method as a coroutine.
-    StartCoroutine { id: u64, method: String, args: Vec<Value> },
+    StartCoroutine {
+        id: u64,
+        method: String,
+        args: Vec<Value>,
+    },
     StopCoroutine(u64),
 }
 
@@ -281,7 +314,11 @@ impl EntityHost<'_> {
                 // Scene.Load("scenes/level2"), Scene.LoadAdditive(path), Scene.Unload(path): applied at the end of the frame.
                 "Load" | "LoadAdditive" | "Unload" => {
                     use kit_gamesys::scenes::SceneOp;
-                    let path = args.first().and_then(|a| a.as_str()).ok_or_else(|| format!("Scene.{member}(\"scenes/name\")"))?.to_owned();
+                    let path = args
+                        .first()
+                        .and_then(|a| a.as_str())
+                        .ok_or_else(|| format!("Scene.{member}(\"scenes/name\")"))?
+                        .to_owned();
                     self.commands.push(Command::Scene(match member {
                         "Load" => SceneOp::Load(path),
                         "LoadAdditive" => SceneOp::LoadAdditive(path),
@@ -290,7 +327,10 @@ impl EntityHost<'_> {
                     Ok(Value::Null)
                 }
                 "Current" => Ok(Value::Str(
-                    w.try_resource::<kit_gamesys::scenes::LoadedScenes>().and_then(|l| l.current().map(|p| p.trim_end_matches(".kscene").to_owned())).unwrap_or_default().into(),
+                    w.try_resource::<kit_gamesys::scenes::LoadedScenes>()
+                        .and_then(|l| l.current().map(|p| p.trim_end_matches(".kscene").to_owned()))
+                        .unwrap_or_default()
+                        .into(),
                 )),
                 "Destroy" => {
                     let target = arg_entity(w, args.first().ok_or("Destroy(id)")?)?;
@@ -520,7 +560,6 @@ impl EntityHost<'_> {
             _ => Err(format!("unknown module `{module}`")),
         }
     }
-
 }
 
 impl Host for EntityHost<'_> {
@@ -553,7 +592,8 @@ impl Host for EntityHost<'_> {
             return self.module_on(e, &f.name, field, &[]);
         }
         let states = self.states.as_deref().ok_or("scripts aren't reachable here")?;
-        let st = script_for(states, e, &f.name).ok_or_else(|| busy_or_missing(self.world, e, &f.name, e == self.entity))?;
+        let st =
+            script_for(states, e, &f.name).ok_or_else(|| busy_or_missing(self.world, e, &f.name, e == self.entity))?;
         match &st.object {
             Some(Value::Instance(i)) => i.get(field).ok_or_else(|| {
                 if i.class.method(field).is_some() {
@@ -631,7 +671,10 @@ impl Host for EntityHost<'_> {
             }
             other => {
                 let original = arg_entity(w, other).map_err(|_| {
-                    format!("expected a shape name, a .kmodel path, or an object (name or id), got {}", other.type_name())
+                    format!(
+                        "expected a shape name, a .kmodel path, or an object (name or id), got {}",
+                        other.type_name()
+                    )
                 })?;
                 kit_gamesys::clone_subtree(w, original).map_err(|e| format!("{e:#}"))?
             }
@@ -642,7 +685,9 @@ impl Host for EntityHost<'_> {
                 t.translation = vec3_args(std::slice::from_ref(p)).map_err(|_| "position must be a VECTOR")?;
             }
             if let Some(r) = rest.get(1) {
-                t.set_euler_degrees(vec3_args(std::slice::from_ref(r)).map_err(|_| "rotation must be a VECTOR (degrees)")?);
+                t.set_euler_degrees(
+                    vec3_args(std::slice::from_ref(r)).map_err(|_| "rotation must be a VECTOR (degrees)")?,
+                );
             }
             if let Some(sc) = rest.get(2) {
                 t.scale = match sc.as_f64() {
@@ -661,7 +706,8 @@ impl Host for EntityHost<'_> {
             None if w.has::<kit_scene::Parent>(e) => {
                 // A copy of a nested object, asked for at the top level.
                 kit_scene::remove_parent(w, e);
-                let last = kit_scene::roots(w).iter().filter_map(|r| w.get::<kit_scene::RootOrder>(*r).map(|o| o.0)).max();
+                let last =
+                    kit_scene::roots(w).iter().filter_map(|r| w.get::<kit_scene::RootOrder>(*r).map(|o| o.0)).max();
                 w.insert(e, kit_scene::RootOrder(last.map_or(0, |o| o + 1)));
             }
             None => {}
@@ -726,7 +772,8 @@ fn has_engine_feature(world: &World, e: Entity, name: &str) -> bool {
 
 /// Does `state` answer to `name` (its class name, its file name, or "Script")?
 fn script_matches(state: &crate::ScriptState, name: &str) -> bool {
-    let stem = std::path::Path::new(&state.path).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+    let stem =
+        std::path::Path::new(&state.path).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
     name.eq_ignore_ascii_case("Script")
         || state.feature_name().eq_ignore_ascii_case(name)
         || stem.eq_ignore_ascii_case(name)
@@ -744,8 +791,12 @@ fn script_for_mut<'s>(states: &'s mut States, e: Entity, name: &str) -> Option<&
 /// Does the object's Script component point at a script answering to `name`?
 fn script_component_matches(world: &World, e: Entity, name: &str) -> bool {
     world.get::<kit_gamesys::Script>(e).is_some_and(|s| {
-        let stem = std::path::Path::new(&s.path).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
-        !s.path.is_empty() && (name.eq_ignore_ascii_case("Script") || stem.eq_ignore_ascii_case(name) || s.path.eq_ignore_ascii_case(name))
+        let stem =
+            std::path::Path::new(&s.path).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+        !s.path.is_empty()
+            && (name.eq_ignore_ascii_case("Script")
+                || stem.eq_ignore_ascii_case(name)
+                || s.path.eq_ignore_ascii_case(name))
     })
 }
 
@@ -768,13 +819,21 @@ fn feature_enabled(world: &World, e: Entity, name: &str) -> bool {
     }
 }
 
-fn set_feature_enabled(world: &mut World, commands: &mut Vec<Command>, e: Entity, name: &str, on: bool) -> Result<(), String> {
+fn set_feature_enabled(
+    world: &mut World,
+    commands: &mut Vec<Command>,
+    e: Entity,
+    name: &str,
+    on: bool,
+) -> Result<(), String> {
     let _ = commands;
     match name {
         "Model" => world.get_mut::<Model>(e).ok_or("no Model")?.visible = on,
         "Sprite" => world.get_mut::<Sprite>(e).ok_or("no Sprite")?.visible = on,
         "Camera" => world.get_mut::<kit_gamesys::Camera>(e).ok_or("no Camera")?.active = on,
-        "Transform" | "Entity" => return Err(format!("{name} can't be switched off; use BeActive(FALSE) for the whole object")),
+        "Transform" | "Entity" => {
+            return Err(format!("{name} can't be switched off; use BeActive(FALSE) for the whole object"));
+        }
         _ => {
             let key = if is_engine_feature(name) { name.to_owned() } else { "Script".to_owned() };
             if !world.has::<kit_gamesys::DisabledFeatures>(e) {
@@ -815,7 +874,10 @@ impl EntityHost<'_> {
         // The first argument is the object unless it names a feature (then it's this object).
         let names_feature = |v: &Value| match v {
             Value::Str(s) => {
-                is_engine_feature(&canonical_feature(s)) || s.ends_with(".x") || s.ends_with(".kdiagram") || s.eq_ignore_ascii_case("Script")
+                is_engine_feature(&canonical_feature(s))
+                    || s.ends_with(".x")
+                    || s.ends_with(".kdiagram")
+                    || s.eq_ignore_ascii_case("Script")
             }
             _ => false,
         };
@@ -849,7 +911,9 @@ impl EntityHost<'_> {
             _ => {}
         }
         let (e, rest) = match args {
-            [first, ..] if names_feature(first) || (args.len() == 1 && matches!(first, Value::Str(_))) => (self.entity, args),
+            [first, ..] if names_feature(first) || (args.len() == 1 && matches!(first, Value::Str(_))) => {
+                (self.entity, args)
+            }
             [first, rest @ ..] if !rest.is_empty() => (target_of(self.world, first)?, rest),
             _ => return Err(format!("{op}(\"Feature\") or {op}(object, \"Feature\")")),
         };
@@ -893,7 +957,9 @@ impl EntityHost<'_> {
                     "Terrain" => w.remove::<Terrain>(e).is_some(),
                     "Diagram" => w.remove::<Diagram>(e).is_some(),
                     "Particles" => w.remove::<ParticleEmitter>(e).is_some(),
-                    "Transform" | "Entity" => return Err(format!("every object has a {name}; destroy the object instead")),
+                    "Transform" | "Entity" => {
+                        return Err(format!("every object has a {name}; destroy the object instead"));
+                    }
                     _ => {
                         if script_component_matches(w, e, &name) || e != self.entity {
                             w.remove::<Script>(e).is_some()
@@ -913,7 +979,8 @@ impl EntityHost<'_> {
         let text = extra.and_then(|v| v.as_str()).map(str::to_owned);
         let w = &mut *self.world;
         let shape = || {
-            let mesh = text.as_deref().and_then(|t| MeshKind::ALL.into_iter().find(|m| m.label().eq_ignore_ascii_case(t)));
+            let mesh =
+                text.as_deref().and_then(|t| MeshKind::ALL.into_iter().find(|m| m.label().eq_ignore_ascii_case(t)));
             mesh.or_else(|| w.get::<Model>(e).map(|m| m.mesh)).unwrap_or(MeshKind::Cube)
         };
         match name {
@@ -1238,7 +1305,9 @@ impl EntityHost<'_> {
             })(),
 
             // ---- Transform: world / local conversions and turning
-            ("Transform", "ToWorld") => vec_arg(args.first(), "the point").map(|p| vec_value(world_matrix(self.world, e).transform_point3(p))),
+            ("Transform", "ToWorld") => {
+                vec_arg(args.first(), "the point").map(|p| vec_value(world_matrix(self.world, e).transform_point3(p)))
+            }
             ("Transform", "ToLocal") => vec_arg(args.first(), "the point")
                 .map(|p| vec_value(world_matrix(self.world, e).inverse().transform_point3(p))),
             ("Transform", "ToWorldDirection") => vec_arg(args.first(), "the direction")
@@ -1288,10 +1357,17 @@ impl EntityHost<'_> {
 
             // ---- Entity: tags
             ("Entity", "Tags") => Ok(Value::list(
-                self.world.get::<kit_gamesys::Tags>(e).map(|t| t.0.iter().map(|s| Value::Str(s.as_str().into())).collect()).unwrap_or_default(),
+                self.world
+                    .get::<kit_gamesys::Tags>(e)
+                    .map(|t| t.0.iter().map(|s| Value::Str(s.as_str().into())).collect())
+                    .unwrap_or_default(),
             )),
             ("Entity", "HasTag") => match args.first().and_then(|v| v.as_str()) {
-                Some(tag) => Ok(Value::Bool(self.world.get::<kit_gamesys::Tags>(e).is_some_and(|t| t.0.iter().any(|x| x.eq_ignore_ascii_case(tag))))),
+                Some(tag) => Ok(Value::Bool(
+                    self.world
+                        .get::<kit_gamesys::Tags>(e)
+                        .is_some_and(|t| t.0.iter().any(|x| x.eq_ignore_ascii_case(tag))),
+                )),
                 None => Err("HasTag(\"Tag\")".into()),
             },
             ("Entity", "AddTag" | "RemoveTag") => match args.first().and_then(|v| v.as_str()) {
@@ -1312,7 +1388,10 @@ impl EntityHost<'_> {
             // ---- Scene: finding groups of objects
             ("Scene", "FindAll") => match args.first().and_then(|v| v.as_str()) {
                 Some(n) => Ok(Value::list(
-                    self.world.storage::<Name>().map(|s| s.iter().filter(|(_, x)| x.0 == n).map(|(e, _)| entity_id(e)).collect()).unwrap_or_default(),
+                    self.world
+                        .storage::<Name>()
+                        .map(|s| s.iter().filter(|(_, x)| x.0 == n).map(|(e, _)| entity_id(e)).collect())
+                        .unwrap_or_default(),
                 )),
                 None => Err("FindAll(\"Name\")".into()),
             },
@@ -1320,69 +1399,93 @@ impl EntityHost<'_> {
                 Some(tag) => Ok(Value::list(
                     self.world
                         .storage::<kit_gamesys::Tags>()
-                        .map(|s| s.iter().filter(|(_, t)| t.0.iter().any(|x| x.eq_ignore_ascii_case(tag))).map(|(e, _)| entity_id(e)).collect())
+                        .map(|s| {
+                            s.iter()
+                                .filter(|(_, t)| t.0.iter().any(|x| x.eq_ignore_ascii_case(tag)))
+                                .map(|(e, _)| entity_id(e))
+                                .collect()
+                        })
                         .unwrap_or_default(),
                 )),
                 None => Err("FindTagged(\"Tag\")".into()),
             },
 
             // ---- Model: color, visibility, animation
-            ("Model", _) if matches!(
-                member,
-                "Color" | "Visible" | "Play" | "Animation" | "AnimationTime" | "SetAnimationTime" | "AnimationSpeed"
-                    | "SetAnimationSpeed" | "Pause" | "Resume" | "Playing" | "SetLoop" | "Loop"
-            ) => (|| {
-                let mut m = self.world.get_mut::<Model>(e).ok_or("this object has no Model")?;
-                Ok(match member {
-                    "Color" => color_value(m.color),
-                    "Visible" => Value::Bool(m.visible),
-                    "Play" => {
-                        m.animation = args.first().map(|v| v.as_str().unwrap_or_default().to_owned()).unwrap_or_default();
-                        m.animation_enabled = true;
-                        m.clock = Some(0.0);
-                        Value::Null
-                    }
-                    "Animation" => Value::Str(m.animation.as_str().into()),
-                    "AnimationTime" => Value::Float(m.clock.unwrap_or(0.0)),
-                    "SetAnimationTime" => {
-                        m.clock = Some(num_arg(args.first(), "the time")?.max(0.0) as f64);
-                        Value::Null
-                    }
-                    "AnimationSpeed" => Value::Float(m.animation_speed as f64),
-                    "SetAnimationSpeed" => {
-                        // Keep the pose: switch to the model's own clock at the current point.
-                        if m.clock.is_none() {
-                            let now = 0.0;
-                            m.clock = Some(now);
+            ("Model", _)
+                if matches!(
+                    member,
+                    "Color"
+                        | "Visible"
+                        | "Play"
+                        | "Animation"
+                        | "AnimationTime"
+                        | "SetAnimationTime"
+                        | "AnimationSpeed"
+                        | "SetAnimationSpeed"
+                        | "Pause"
+                        | "Resume"
+                        | "Playing"
+                        | "SetLoop"
+                        | "Loop"
+                ) =>
+            {
+                (|| {
+                    let mut m = self.world.get_mut::<Model>(e).ok_or("this object has no Model")?;
+                    Ok(match member {
+                        "Color" => color_value(m.color),
+                        "Visible" => Value::Bool(m.visible),
+                        "Play" => {
+                            m.animation =
+                                args.first().map(|v| v.as_str().unwrap_or_default().to_owned()).unwrap_or_default();
+                            m.animation_enabled = true;
+                            m.clock = Some(0.0);
+                            Value::Null
                         }
-                        m.animation_speed = num_arg(args.first(), "the speed")?.max(0.0);
-                        Value::Null
-                    }
-                    "Pause" => {
-                        m.clock.get_or_insert(0.0);
-                        m.animation_enabled = false;
-                        Value::Null
-                    }
-                    "Resume" => {
-                        m.animation_enabled = true;
-                        Value::Null
-                    }
-                    "Playing" => Value::Bool(m.animation_enabled),
-                    "Loop" => Value::Bool(m.animation_loop),
-                    _ => {
-                        m.animation_loop = args.first().is_some_and(|v| v.truthy());
-                        Value::Null
-                    }
-                })
-            })(),
+                        "Animation" => Value::Str(m.animation.as_str().into()),
+                        "AnimationTime" => Value::Float(m.clock.unwrap_or(0.0)),
+                        "SetAnimationTime" => {
+                            m.clock = Some(num_arg(args.first(), "the time")?.max(0.0) as f64);
+                            Value::Null
+                        }
+                        "AnimationSpeed" => Value::Float(m.animation_speed as f64),
+                        "SetAnimationSpeed" => {
+                            // Keep the pose: switch to the model's own clock at the current point.
+                            if m.clock.is_none() {
+                                let now = 0.0;
+                                m.clock = Some(now);
+                            }
+                            m.animation_speed = num_arg(args.first(), "the speed")?.max(0.0);
+                            Value::Null
+                        }
+                        "Pause" => {
+                            m.clock.get_or_insert(0.0);
+                            m.animation_enabled = false;
+                            Value::Null
+                        }
+                        "Resume" => {
+                            m.animation_enabled = true;
+                            Value::Null
+                        }
+                        "Playing" => Value::Bool(m.animation_enabled),
+                        "Loop" => Value::Bool(m.animation_loop),
+                        _ => {
+                            m.animation_loop = args.first().is_some_and(|v| v.truthy());
+                            Value::Null
+                        }
+                    })
+                })()
+            }
 
             // ---- Physics: area queries, sweeps, layers, body settings
             ("Physics", "FindNear") => (|| {
                 let center = vec_arg(args.first(), "the center")?;
                 let radius = num_arg(args.get(1), "the radius")?;
                 let layers = layer_mask(args.get(2))?;
-                let phys = self.world.try_resource::<kit_gamesys::Physics>().ok_or("the physics module is not loaded")?;
-                Ok(Value::list(phys.0.overlap_sphere(center, radius, Some(e), layers).into_iter().map(entity_id).collect()))
+                let phys =
+                    self.world.try_resource::<kit_gamesys::Physics>().ok_or("the physics module is not loaded")?;
+                Ok(Value::list(
+                    phys.0.overlap_sphere(center, radius, Some(e), layers).into_iter().map(entity_id).collect(),
+                ))
             })(),
             ("Physics", "SweepSphere") => (|| {
                 let origin = vec_arg(args.first(), "the start")?;
@@ -1390,7 +1493,8 @@ impl EntityHost<'_> {
                 let radius = num_arg(args.get(2), "the radius")?;
                 let max = args.get(3).and_then(Value::as_f64).unwrap_or(1000.0) as f32;
                 let layers = layer_mask(args.get(4))?;
-                let phys = self.world.try_resource::<kit_gamesys::Physics>().ok_or("the physics module is not loaded")?;
+                let phys =
+                    self.world.try_resource::<kit_gamesys::Physics>().ok_or("the physics module is not loaded")?;
                 Ok(phys.0.sphere_cast(origin, dir, radius, max, Some(e), layers).map(hit_object).unwrap_or(Value::Null))
             })(),
             ("Physics", "Raycast") if args.len() == 4 => (|| {
@@ -1398,7 +1502,8 @@ impl EntityHost<'_> {
                 let dir = vec_arg(args.get(1), "the direction")?;
                 let max = num_arg(args.get(2), "the max distance")?;
                 let layers = layer_mask(args.get(3))?;
-                let phys = self.world.try_resource::<kit_gamesys::Physics>().ok_or("the physics module is not loaded")?;
+                let phys =
+                    self.world.try_resource::<kit_gamesys::Physics>().ok_or("the physics module is not loaded")?;
                 Ok(phys.0.raycast_layers(origin, dir, max, Some(e), layers).map(hit_object).unwrap_or(Value::Null))
             })(),
             ("Physics", "Kind" | "SetKind" | "Mass" | "SetMass" | "GravityScale" | "SetGravityScale") => (|| {
@@ -1425,7 +1530,8 @@ impl EntityHost<'_> {
                         Value::Null
                     }
                 })
-            })(),
+            })(
+            ),
 
             // ---- Collider
             ("Collider", _) => (|| {
@@ -1478,58 +1584,88 @@ impl EntityHost<'_> {
             ("Camera", _) => self.camera_member(e, member, args),
 
             // ---- Input: mouse capture, gamepads, touch, actions
-            ("Input", _) if matches!(
-                member,
-                "LockMouse" | "ShowMouse" | "MouseLocked" | "ScreenSize" | "Stick" | "Trigger" | "Bind" | "Unbind" | "Bound"
-                    | "AnyPressed" | "Touches" | "TouchCount"
-            ) => (|| {
-                let mut input = self.world.try_resource_mut::<Input>().ok_or("input is not available")?;
-                let side = || args.first().and_then(|v| v.as_str()).unwrap_or("Left").to_ascii_lowercase();
-                Ok(match member {
-                    "LockMouse" => {
-                        input.mouse_locked = args.first().is_none_or(|v| v.truthy());
-                        Value::Null
-                    }
-                    "ShowMouse" => {
-                        input.mouse_hidden = !args.first().is_none_or(|v| v.truthy());
-                        Value::Null
-                    }
-                    "MouseLocked" => Value::Bool(input.mouse_locked),
-                    "ScreenSize" => Value::vector(input.screen.x as f64, input.screen.y as f64, 0.0),
-                    "Stick" => {
-                        let s = side();
-                        Value::vector(input.analog(&format!("{s}x")) as f64, input.analog(&format!("{s}y")) as f64, 0.0)
-                    }
-                    "Trigger" => Value::Float(input.analog(&format!("{}trigger", side())) as f64),
-                    "Bind" => {
-                        let action = args.first().and_then(|v| v.as_str()).ok_or("Bind(\"Action\", \"Key\", ...)")?;
-                        let mut keys = Vec::new();
-                        for v in &args[1..] {
-                            match v {
-                                Value::List(l) => keys.extend(l.borrow().iter().map(|k| k.to_string())),
-                                other => keys.push(other.to_string()),
-                            }
+            ("Input", _)
+                if matches!(
+                    member,
+                    "LockMouse"
+                        | "ShowMouse"
+                        | "MouseLocked"
+                        | "ScreenSize"
+                        | "Stick"
+                        | "Trigger"
+                        | "Bind"
+                        | "Unbind"
+                        | "Bound"
+                        | "AnyPressed"
+                        | "Touches"
+                        | "TouchCount"
+                ) =>
+            {
+                (|| {
+                    let mut input = self.world.try_resource_mut::<Input>().ok_or("input is not available")?;
+                    let side = || args.first().and_then(|v| v.as_str()).unwrap_or("Left").to_ascii_lowercase();
+                    Ok(match member {
+                        "LockMouse" => {
+                            input.mouse_locked = args.first().is_none_or(|v| v.truthy());
+                            Value::Null
                         }
-                        input.bind(action, &keys);
-                        Value::Null
-                    }
-                    "Unbind" => {
-                        input.unbind(args.first().and_then(|v| v.as_str()).ok_or("Unbind(\"Action\")")?);
-                        Value::Null
-                    }
-                    "Bound" => Value::list(
-                        input.bound(args.first().and_then(|v| v.as_str()).unwrap_or_default()).into_iter().map(|k| Value::Str(k.into())).collect(),
-                    ),
-                    "AnyPressed" => input.any_pressed().map(|k| Value::Str(k.into())).unwrap_or(Value::Null),
-                    "Touches" => Value::list(input.touches.iter().map(|(_, p)| Value::vector(p.x as f64, p.y as f64, 0.0)).collect()),
-                    _ => Value::Int(input.touches.len() as i64),
-                })
-            })(),
+                        "ShowMouse" => {
+                            input.mouse_hidden = !args.first().is_none_or(|v| v.truthy());
+                            Value::Null
+                        }
+                        "MouseLocked" => Value::Bool(input.mouse_locked),
+                        "ScreenSize" => Value::vector(input.screen.x as f64, input.screen.y as f64, 0.0),
+                        "Stick" => {
+                            let s = side();
+                            Value::vector(
+                                input.analog(&format!("{s}x")) as f64,
+                                input.analog(&format!("{s}y")) as f64,
+                                0.0,
+                            )
+                        }
+                        "Trigger" => Value::Float(input.analog(&format!("{}trigger", side())) as f64),
+                        "Bind" => {
+                            let action =
+                                args.first().and_then(|v| v.as_str()).ok_or("Bind(\"Action\", \"Key\", ...)")?;
+                            let mut keys = Vec::new();
+                            for v in &args[1..] {
+                                match v {
+                                    Value::List(l) => keys.extend(l.borrow().iter().map(|k| k.to_string())),
+                                    other => keys.push(other.to_string()),
+                                }
+                            }
+                            input.bind(action, &keys);
+                            Value::Null
+                        }
+                        "Unbind" => {
+                            input.unbind(args.first().and_then(|v| v.as_str()).ok_or("Unbind(\"Action\")")?);
+                            Value::Null
+                        }
+                        "Bound" => Value::list(
+                            input
+                                .bound(args.first().and_then(|v| v.as_str()).unwrap_or_default())
+                                .into_iter()
+                                .map(|k| Value::Str(k.into()))
+                                .collect(),
+                        ),
+                        "AnyPressed" => input.any_pressed().map(|k| Value::Str(k.into())).unwrap_or(Value::Null),
+                        "Touches" => Value::list(
+                            input.touches.iter().map(|(_, p)| Value::vector(p.x as f64, p.y as f64, 0.0)).collect(),
+                        ),
+                        _ => Value::Int(input.touches.len() as i64),
+                    })
+                })()
+            }
 
             // ---- Interface: change the on-screen interface by element id
             ("Interface", _) => (|| {
-                let id = args.first().and_then(|v| v.as_str()).ok_or_else(|| format!("{member}(\"element-id\", ...)"))?.to_owned();
-                let mut ui = self.world.try_resource_mut::<kit_gamesys::InterfaceEdits>().ok_or("interfaces are off")?;
+                let id = args
+                    .first()
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| format!("{member}(\"element-id\", ...)"))?
+                    .to_owned();
+                let mut ui =
+                    self.world.try_resource_mut::<kit_gamesys::InterfaceEdits>().ok_or("interfaces are off")?;
                 let mut set = |attr: &str, value: String| {
                     let list = ui.attributes.entry(id.clone()).or_default();
                     list.retain(|(a, _)| a != attr);
@@ -1561,9 +1697,14 @@ impl EntityHost<'_> {
 
             // ---- Cinematic: the Cinematics Circuit
             ("Cinematic", _) => (|| {
-                let mut c = self.world.try_resource_mut::<kit_gamesys::CinematicControl>().ok_or("cinematics are off")?;
+                let mut c =
+                    self.world.try_resource_mut::<kit_gamesys::CinematicControl>().ok_or("cinematics are off")?;
                 let need = |c: &kit_gamesys::CinematicControl| {
-                    if c.available { Ok(()) } else { Err("install the Cinematics Circuit (Project → Circuit Manager)".to_owned()) }
+                    if c.available {
+                        Ok(())
+                    } else {
+                        Err("install the Cinematics Circuit (Project → Circuit Manager)".to_owned())
+                    }
                 };
                 Ok(match member {
                     "Play" => {
@@ -1650,7 +1791,9 @@ impl EntityHost<'_> {
     fn debug_member(&mut self, member: &str, args: &[Value]) -> R {
         let now = self.world.resource::<kit_core::Time>().elapsed;
         let color = |i: usize| match args.get(i) {
-            Some(v @ (Value::Vector(_) | Value::List(_))) => color_args(std::slice::from_ref(v)).unwrap_or(Vec4::new(1.0, 0.9, 0.2, 1.0)),
+            Some(v @ (Value::Vector(_) | Value::List(_))) => {
+                color_args(std::slice::from_ref(v)).unwrap_or(Vec4::new(1.0, 0.9, 0.2, 1.0))
+            }
             _ => Vec4::new(1.0, 0.9, 0.2, 1.0),
         };
         let until = |i: usize| now + args.get(i).and_then(Value::as_f64).unwrap_or(0.0);
@@ -1669,7 +1812,12 @@ impl EntityHost<'_> {
                     for i in 0..24 {
                         let t0 = i as f32 / 24.0 * std::f32::consts::TAU;
                         let t1 = (i + 1) as f32 / 24.0 * std::f32::consts::TAU;
-                        lines.push((c + (a * t0.cos() + b * t0.sin()) * r, c + (a * t1.cos() + b * t1.sin()) * r, col, end));
+                        lines.push((
+                            c + (a * t0.cos() + b * t0.sin()) * r,
+                            c + (a * t1.cos() + b * t1.sin()) * r,
+                            col,
+                            end,
+                        ));
                     }
                 }
             }
@@ -1687,7 +1835,12 @@ impl EntityHost<'_> {
             _ => return Err(format!("unknown member `{member}`")),
         }
         let mut d = self.world.try_resource_mut::<kit_gamesys::DebugDraw>().ok_or("debug drawing is off")?;
-        d.lines.extend(lines.into_iter().map(|(from, to, color, until)| kit_gamesys::DebugLine { from, to, color, until }));
+        d.lines.extend(lines.into_iter().map(|(from, to, color, until)| kit_gamesys::DebugLine {
+            from,
+            to,
+            color,
+            until,
+        }));
         Ok(Value::Null)
     }
 }

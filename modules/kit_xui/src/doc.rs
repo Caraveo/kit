@@ -253,7 +253,10 @@ fn parse(source: &str) -> PResult<Document> {
         let text = source[cursor..open].trim();
         if !text.is_empty() {
             let Some(parent) = stack.last_mut() else {
-                return Err((cursor + source[cursor..].len() - source[cursor..].trim_start().len(), "text outside an element".into()));
+                return Err((
+                    cursor + source[cursor..].len() - source[cursor..].trim_start().len(),
+                    "text outside an element".into(),
+                ));
             };
             let text = unescape(text);
             if let Some(previous) = parent.attr_mut("_text") {

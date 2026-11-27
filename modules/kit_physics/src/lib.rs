@@ -131,11 +131,18 @@ mod tests {
         app.add_module(SceneModule).add_module(GameSysModule).add_module(kit_collider::ColliderModule);
         app.add_module(PhysicsModule::default());
         let w = &mut app.world;
-        let ground = kit_scene::spawn_node(w, "Ground", Transform::from_xyz(0.0, -0.5, 0.0).with_scale(Vec3::new(20.0, 1.0, 20.0)));
+        let ground = kit_scene::spawn_node(
+            w,
+            "Ground",
+            Transform::from_xyz(0.0, -0.5, 0.0).with_scale(Vec3::new(20.0, 1.0, 20.0)),
+        );
         w.insert(ground, Collider { layer: 3, ..Default::default() });
         w.insert(ground, RigidBody { kind: BodyKind::Static, ..Default::default() });
         let ball = kit_scene::spawn_node(w, "Ball", Transform::from_xyz(2.0, 3.0, 0.0));
-        w.insert(ball, Collider { shape: ColliderShape::Sphere { radius: 0.5 }, restitution: 0.0, ..Default::default() });
+        w.insert(
+            ball,
+            Collider { shape: ColliderShape::Sphere { radius: 0.5 }, restitution: 0.0, ..Default::default() },
+        );
         w.insert(ball, RigidBody::default());
         let mut hit = None;
         for _ in 0..120 {
@@ -177,10 +184,22 @@ mod tests {
         // A switched-off collider leaves the world; switched back on, it returns.
         app.world.insert(ball, kit_gamesys::DisabledFeatures(vec!["Collider".into()]));
         app.update(1.0 / 60.0);
-        assert!(!app.world.resource::<Physics>().0.overlap_sphere(Vec3::new(2.0, 4.0, 0.0), 0.1, None, u32::MAX).contains(&ball));
+        assert!(
+            !app.world
+                .resource::<Physics>()
+                .0
+                .overlap_sphere(Vec3::new(2.0, 4.0, 0.0), 0.1, None, u32::MAX)
+                .contains(&ball)
+        );
         app.world.remove::<kit_gamesys::DisabledFeatures>(ball);
         app.update(1.0 / 60.0);
-        assert!(app.world.resource::<Physics>().0.overlap_sphere(Vec3::new(2.0, 4.0, 0.0), 0.1, None, u32::MAX).contains(&ball));
+        assert!(
+            app.world
+                .resource::<Physics>()
+                .0
+                .overlap_sphere(Vec3::new(2.0, 4.0, 0.0), 0.1, None, u32::MAX)
+                .contains(&ball)
+        );
     }
 
     #[test]

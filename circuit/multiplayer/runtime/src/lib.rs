@@ -66,7 +66,9 @@ impl Settings {
     pub fn parse(text: &str) -> Self {
         let t: toml::Table = toml::from_str(text).unwrap_or_default();
         let m = t.get(CIRCUIT_ID).and_then(|v| v.as_table()).cloned().unwrap_or_default();
-        let s = |k: &str, d: &str| m.get(k).and_then(|v| v.as_str()).filter(|s| !s.trim().is_empty()).unwrap_or(d).trim().to_owned();
+        let s = |k: &str, d: &str| {
+            m.get(k).and_then(|v| v.as_str()).filter(|s| !s.trim().is_empty()).unwrap_or(d).trim().to_owned()
+        };
         Self {
             environment: s("environment", ""),
             world: s("world", "main"),
@@ -87,7 +89,10 @@ impl Settings {
 pub fn enabled_in_lock(text: &str) -> bool {
     let t: toml::Table = toml::from_str(text).unwrap_or_default();
     t.get("circuit").and_then(|v| v.as_array()).is_some_and(|list| {
-        list.iter().any(|c| c.get("id").and_then(|v| v.as_str()) == Some(CIRCUIT_ID) && c.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true))
+        list.iter().any(|c| {
+            c.get("id").and_then(|v| v.as_str()) == Some(CIRCUIT_ID)
+                && c.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true)
+        })
     })
 }
 
@@ -113,7 +118,15 @@ fn token_source(s: &Settings, sid: String) -> kit_realtime::client::TokenSource 
         }
         let mut resp = agent.post(&url).send_json(serde_json::json!({ "environment": env, "sid": sid }))?;
         let v: serde_json::Value = resp.body_mut().read_json()?;
-        v.get("token").and_then(|t| t.as_str()).map(str::to_owned).ok_or_else(|| anyhow::anyhow!("{}", v.get("error").and_then(|e| e.get("message")).and_then(|m| m.as_str()).unwrap_or("no token in the reply")))
+        v.get("token").and_then(|t| t.as_str()).map(str::to_owned).ok_or_else(|| {
+            anyhow::anyhow!(
+                "{}",
+                v.get("error")
+                    .and_then(|e| e.get("message"))
+                    .and_then(|m| m.as_str())
+                    .unwrap_or("no token in the reply")
+            )
+        })
     })
 }
 
@@ -198,7 +211,9 @@ fn warn(world: &World, text: impl Into<String>) {
 }
 
 fn current_scene(world: &World) -> Option<String> {
-    world.try_resource::<kit_gamesys::scenes::LoadedScenes>().and_then(|l| l.current().filter(|p| !p.is_empty()).map(str::to_owned))
+    world
+        .try_resource::<kit_gamesys::scenes::LoadedScenes>()
+        .and_then(|l| l.current().filter(|p| !p.is_empty()).map(str::to_owned))
 }
 
 fn start(world: &mut World, mp: &mut Multiplayer) {
@@ -213,15 +228,28 @@ fn start(world: &mut World, mp: &mut Multiplayer) {
     let settings = Settings::parse(&res.read_text(kit_settings_file()).unwrap_or_default());
     if settings.environment.is_empty() {
         mp.status = "Off: set the environment id in Project → Multiplayer".into();
-        warn(world, "Multiplayer is installed but has no environment. Set it in Project → Multiplayer (from your Kit account → Circuits → Multiplayer).");
+        warn(
+            world,
+            "Multiplayer is installed but has no environment. Set it in Project → Multiplayer (from your Kit account → Circuits → Multiplayer).",
+        );
         mp.phase = Phase::Off;
         return;
     }
-    let cfg = Config { connect_url: settings.connect_url.clone(), environment: settings.environment.clone(), world: settings.world.clone(), party: None };
+    let cfg = Config {
+        connect_url: settings.connect_url.clone(),
+        environment: settings.environment.clone(),
+        world: settings.world.clone(),
+        party: None,
+    };
     let mut rt = Realtime::connect(cfg, token_source(&settings, session_id()));
     // Scene path: the loaded scene, or the project's main scene (editor Play).
     let scene = current_scene(world)
-        .or_else(|| res.read_text("kit.project").ok().and_then(|t| toml::from_str::<toml::Table>(&t).ok()).and_then(|t| t.get("project")?.get("main_scene")?.as_str().map(str::to_owned)))
+        .or_else(|| {
+            res.read_text("kit.project")
+                .ok()
+                .and_then(|t| toml::from_str::<toml::Table>(&t).ok())
+                .and_then(|t| t.get("project")?.get("main_scene")?.as_str().map(str::to_owned))
+        })
         .unwrap_or_else(|| "main.kscene".into());
     rt.enter_scene(&scene);
     mp.scene = scene;
@@ -350,7 +378,11 @@ fn sector_event(world: &mut World, mp: &mut Multiplayer, e: Event, now: f64) {
 fn on_entity(world: &mut World, mp: &mut Multiplayer, id: u32, owner: u32, kind: &str, t: &NetTransform, now: f64) {
     let mine = Some(owner) == mp.session;
     // One of ours (a reconnect, or the answer to our spawn).
-    if let Some((&e, l)) = mp.locals.iter_mut().find(|(_, l)| l.kind == kind && (l.net == Some(id) || l.pending.is_some() || l.net.is_none())) {
+    if let Some((&e, l)) = mp
+        .locals
+        .iter_mut()
+        .find(|(_, l)| l.kind == kind && (l.net == Some(id) || l.pending.is_some() || l.net.is_none()))
+    {
         if mine {
             l.net = Some(id);
             return;
@@ -362,7 +394,8 @@ fn on_entity(world: &mut World, mp: &mut Multiplayer, id: u32, owner: u32, kind:
             if !l.following {
                 follow(world, e, l);
             }
-            let mut r = Remote { entity: e, interp: Interpolator::default(), extrapolate: l.cfg.extrapolate, clone: false };
+            let mut r =
+                Remote { entity: e, interp: Interpolator::default(), extrapolate: l.cfg.extrapolate, clone: false };
             r.interp.push(now, t);
             mp.remotes.insert(id, r);
             return;
@@ -373,7 +406,13 @@ fn on_entity(world: &mut World, mp: &mut Multiplayer, id: u32, owner: u32, kind:
     }
     // Another player's copy of a one-per-player object.
     if let Some(name) = kind.strip_prefix("player:") {
-        let Some(template) = mp.locals.iter().find(|(_, l)| l.kind == kind).map(|(e, _)| *e).or_else(|| kit_scene::find_by_name(world, name)) else {
+        let Some(template) = mp
+            .locals
+            .iter()
+            .find(|(_, l)| l.kind == kind)
+            .map(|(e, _)| *e)
+            .or_else(|| kit_scene::find_by_name(world, name))
+        else {
             warn(world, format!("another player has `{name}`, but this scene has no object with that name"));
             return;
         };
@@ -455,7 +494,20 @@ fn send(world: &mut World) {
         let Some(cfg) = world.get::<ExtraData>(e).and_then(|x| RealtimeSync::from_extra(&x.0)) else { continue };
         let name = world.get::<kit_scene::Name>(e).map(|n| n.0.clone()).unwrap_or_default();
         let kind = format!("{}:{name}", if cfg.per_player { "player" } else { "scene" });
-        mp.locals.insert(e, Local { cfg, kind, net: None, pending: None, following: false, parked_script: None, parked_body: None, dirty: DirtyTracker::default(), last_pos: None });
+        mp.locals.insert(
+            e,
+            Local {
+                cfg,
+                kind,
+                net: None,
+                pending: None,
+                following: false,
+                parked_script: None,
+                parked_body: None,
+                dirty: DirtyTracker::default(),
+                last_pos: None,
+            },
+        );
     }
     mp.locals.retain(|e, _| world.is_alive(*e));
     let Phase::On(rt) = &mut mp.phase else { unreachable!() };
@@ -475,7 +527,12 @@ fn send(world: &mut World) {
         }
         match l.net {
             None => {
-                let first = NetTransform { position: Some(t.translation), rotation: Some(t.rotation), scale: l.cfg.scale.then_some(t.scale), ..Default::default() };
+                let first = NetTransform {
+                    position: Some(t.translation),
+                    rotation: Some(t.rotation),
+                    scale: l.cfg.scale.then_some(t.scale),
+                    ..Default::default()
+                };
                 let flags = l.cfg.flags() | if l.cfg.per_player { 0 } else { ENTITY_UNIQUE };
                 let req = rt.spawn(Channel::Sector, &l.kind, flags, &first);
                 l.pending = Some(req);
@@ -519,10 +576,14 @@ fn stop_when_not_playing(world: &mut World) {
 /// Follow Scene.Load into the new scene's sector.
 fn scenes(world: &mut World) {
     let loaded: Vec<String> = match world.try_resource::<kit_gamesys::scenes::SceneEvents>() {
-        Some(ev) => ev.0.iter().filter_map(|e| match e {
-            kit_gamesys::scenes::SceneEvent::Loaded { path, additive: false } => Some(path.clone()),
-            _ => None,
-        }).collect(),
+        Some(ev) => {
+            ev.0.iter()
+                .filter_map(|e| match e {
+                    kit_gamesys::scenes::SceneEvent::Loaded { path, additive: false } => Some(path.clone()),
+                    _ => None,
+                })
+                .collect()
+        }
         None => return,
     };
     let Some(path) = loaded.last().cloned() else { return };
@@ -546,10 +607,15 @@ mod tests {
 
     /// A project with Multiplayer on, pointing at an address nobody listens on.
     fn project() -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("kit_mp_mode_{}_{:?}", std::process::id(), std::thread::current().id()));
+        let dir =
+            std::env::temp_dir().join(format!("kit_mp_mode_{}_{:?}", std::process::id(), std::thread::current().id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(dir.join("kit.project"), "[project]\ntitle = \"T\"\nversion = \"0.0.1\"\nmain_scene = \"main.kscene\"\n").unwrap();
+        std::fs::write(
+            dir.join("kit.project"),
+            "[project]\ntitle = \"T\"\nversion = \"0.0.1\"\nmain_scene = \"main.kscene\"\n",
+        )
+        .unwrap();
         std::fs::write(dir.join("circuits.lock"), "version = 1\n[[circuit]]\nid = \"kit.multiplayer\"\nversion = \"0.1.1\"\nsha256 = \"x\"\nsource = \"t\"\nenabled = true\n").unwrap();
         std::fs::write(dir.join("circuits.settings.toml"), "[\"kit.multiplayer\"]\nenvironment = \"env_test\"\nconnect_url = \"ws://127.0.0.1:9/api/v1/realtime/connect\"\n").unwrap();
         dir
@@ -559,7 +625,10 @@ mod tests {
     fn connects_only_while_playing() {
         let root = project();
         let mut app = App::new();
-        app.add_module(kit_resource::ResourceModule { root: root.clone() }).add_module(kit_scene::SceneModule).add_module(kit_gamesys::GameSysModule).add_module(MultiplayerModule);
+        app.add_module(kit_resource::ResourceModule { root: root.clone() })
+            .add_module(kit_scene::SceneModule)
+            .add_module(kit_gamesys::GameSysModule)
+            .add_module(MultiplayerModule);
         let on = |app: &App| app.world.resource::<Multiplayer>().connected();
 
         // Editing: never connects.
@@ -599,8 +668,12 @@ mod tests {
         assert_eq!(s.api_base(), "https://circuit.kitgameengine.win/api/v1");
         let local = Settings { connect_url: "ws://127.0.0.1:8787/api/v1/realtime/connect".into(), ..s };
         assert_eq!(local.api_base(), "http://127.0.0.1:8787/api/v1");
-        assert!(enabled_in_lock("version = 1\n[[circuit]]\nid = \"kit.multiplayer\"\nversion = \"0.1.1\"\nsha256 = \"x\"\nsource = \"s\"\nenabled = true\n"));
-        assert!(!enabled_in_lock("version = 1\n[[circuit]]\nid = \"kit.multiplayer\"\nversion = \"0.1.1\"\nsha256 = \"x\"\nsource = \"s\"\nenabled = false\n"));
+        assert!(enabled_in_lock(
+            "version = 1\n[[circuit]]\nid = \"kit.multiplayer\"\nversion = \"0.1.1\"\nsha256 = \"x\"\nsource = \"s\"\nenabled = true\n"
+        ));
+        assert!(!enabled_in_lock(
+            "version = 1\n[[circuit]]\nid = \"kit.multiplayer\"\nversion = \"0.1.1\"\nsha256 = \"x\"\nsource = \"s\"\nenabled = false\n"
+        ));
         assert!(!enabled_in_lock(""));
         assert_ne!(session_id(), session_id());
     }

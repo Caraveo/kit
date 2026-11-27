@@ -61,15 +61,41 @@ fn humanoid(min: Vec3, max: Vec3) -> Vec<Part> {
     ];
     for side in [-1.0f32, 1.0] {
         let (s, u, e, f, w, hand, th, kn, sh, an) = if side < 0.0 {
-            ("L_Shoulder", "L_UpperArm", "L_Elbow", "L_Forearm", "L_Wrist", "L_Hand", "L_Thigh", "L_Knee", "L_Shin", "L_Ankle")
+            (
+                "L_Shoulder",
+                "L_UpperArm",
+                "L_Elbow",
+                "L_Forearm",
+                "L_Wrist",
+                "L_Hand",
+                "L_Thigh",
+                "L_Knee",
+                "L_Shin",
+                "L_Ankle",
+            )
         } else {
-            ("R_Shoulder", "R_UpperArm", "R_Elbow", "R_Forearm", "R_Wrist", "R_Hand", "R_Thigh", "R_Knee", "R_Shin", "R_Ankle")
+            (
+                "R_Shoulder",
+                "R_UpperArm",
+                "R_Elbow",
+                "R_Forearm",
+                "R_Wrist",
+                "R_Hand",
+                "R_Thigh",
+                "R_Knee",
+                "R_Shin",
+                "R_Ankle",
+            )
         };
         let x = side;
         let shoulder = at(0.11 * x, 0.81);
         let (elbow, wrist, hand_at) = if t_pose {
             let reach = (width * 0.5 / h).clamp(0.3, 0.6);
-            (at(0.11 * x + (reach - 0.11) * 0.45 * x, 0.80), at(0.11 * x + (reach - 0.11) * 0.88 * x, 0.79), at(reach * 0.97 * x, 0.79))
+            (
+                at(0.11 * x + (reach - 0.11) * 0.45 * x, 0.80),
+                at(0.11 * x + (reach - 0.11) * 0.88 * x, 0.79),
+                at(reach * 0.97 * x, 0.79),
+            )
         } else {
             (at(0.16 * x, 0.64), at(0.18 * x, 0.49), at(0.185 * x, 0.44))
         };
@@ -104,7 +130,8 @@ pub fn add_humanoid(world: &mut World, rig: Entity, bounds: (Vec3, Vec3)) -> Ent
             .unwrap_or((folder, Mat4::IDENTITY));
         let local = Transform::from_matrix(parent_m.inverse() * p.at);
         let e = kit_scene::spawn_node(world, p.name, local);
-        world.insert(e, RigVolume { shape: p.shape, influence: 1.0, falloff: p.falloff, rest: None, links: Vec::new() });
+        world
+            .insert(e, RigVolume { shape: p.shape, influence: 1.0, falloff: p.falloff, rest: None, links: Vec::new() });
         kit_scene::set_parent(world, e, parent_e);
         made.push((p.name, e, p.at));
     }

@@ -87,11 +87,8 @@ impl Quat {
         let b = self.rotate([0.0, 0.0, 1.0]);
         // M = Rx * Ry * Rz: M02 = sin(y), M12 = -sin(x)cos(y), M22 = cos(x)cos(y), M01 = -cos(y)sin(z), M00 = cos(y)cos(z)
         let y = b[0].clamp(-1.0, 1.0).asin();
-        let (x, z) = if b[0].abs() < 0.999_999 {
-            ((-b[1]).atan2(b[2]), (-u[0]).atan2(r[0]))
-        } else {
-            (u[2].atan2(u[1]), 0.0)
-        };
+        let (x, z) =
+            if b[0].abs() < 0.999_999 { ((-b[1]).atan2(b[2]), (-u[0]).atan2(r[0])) } else { (u[2].atan2(u[1]), 0.0) };
         [x.to_degrees(), y.to_degrees(), z.to_degrees()]
     }
 
@@ -108,7 +105,8 @@ impl Quat {
         let theta = d.acos();
         let s = theta.sin();
         let (a, b) = (((1.0 - t) * theta).sin() / s, (t * theta).sin() / s);
-        Quat { x: a * self.x + b * o.x, y: a * self.y + b * o.y, z: a * self.z + b * o.z, w: a * self.w + b * o.w }.normalize()
+        Quat { x: a * self.x + b * o.x, y: a * self.y + b * o.y, z: a * self.z + b * o.z, w: a * self.w + b * o.w }
+            .normalize()
     }
 
     /// Angle between two rotations, in degrees.
@@ -119,7 +117,8 @@ impl Quat {
     /// Forward (-Z) along `dir`, with `up` kept as up as it can be.
     fn look(dir: V3, up: V3) -> Option<Quat> {
         let f = norm(dir)?;
-        let right = norm(cross(f, up)).or_else(|| norm(cross(f, if f[1].abs() < 0.9 { [0.0, 1.0, 0.0] } else { [0.0, 0.0, 1.0] })))?;
+        let right = norm(cross(f, up))
+            .or_else(|| norm(cross(f, if f[1].abs() < 0.9 { [0.0, 1.0, 0.0] } else { [0.0, 0.0, 1.0] })))?;
         let up = cross(right, f);
         let back = scale(f, -1.0);
         // Rotation matrix with columns (right, up, back) → quaternion.
@@ -173,10 +172,13 @@ fn out(q: Quat) -> Value {
 /// `Rotation.Member(args)`.
 pub fn rotation(name: &str, a: &[Value]) -> Result<Value, String> {
     let arg = |i: usize, what: &str| a.get(i).ok_or_else(|| format!("Rotation.{name}: missing {what}"));
-    let rot = |i: usize, what: &str| -> Result<Quat, String> { Ok(Quat::from_degrees(vec(arg(i, what)?, what, name)?)) };
+    let rot =
+        |i: usize, what: &str| -> Result<Quat, String> { Ok(Quat::from_degrees(vec(arg(i, what)?, what, name)?)) };
     match name {
         // Blend two rotations (0 = first, 1 = second) the shortest way round.
-        "Blend" => Ok(out(rot(0, "the first rotation")?.slerp(rot(1, "the second rotation")?, num(a.get(2), "the amount", name)?))),
+        "Blend" => Ok(out(
+            rot(0, "the first rotation")?.slerp(rot(1, "the second rotation")?, num(a.get(2), "the amount", name)?)
+        )),
         // Rotate by `first`, then by `second`.
         "Combine" => Ok(out(rot(1, "the second rotation")?.mul(rot(0, "the first rotation")?).normalize())),
         // The rotation that undoes this one.

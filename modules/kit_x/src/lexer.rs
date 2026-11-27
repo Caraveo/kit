@@ -53,10 +53,43 @@ macro_rules! keywords {
 
 keywords!(
     // declarations
-    CREATE, NEW, INVOKE, INSTANTIATE, RIDE, TAKE, BRING, CALL, PUBLIC, EDIT, // control flow
-    GIVE, IF, ELSE, LOOP, GRAB, IN, EXIT, SKIP, DISPLAY, WAIT, // literals / operators
-    TRUE, FALSE, NULL, AND, OR, NOT, THIS, EXIST, // types
-    STRING, INTEGER, FLOAT, BOOL, INDEX, OBJECT, VOID, VECTOR, ANY,
+    CREATE,
+    NEW,
+    INVOKE,
+    INSTANTIATE,
+    RIDE,
+    TAKE,
+    BRING,
+    CALL,
+    PUBLIC,
+    EDIT, // control flow
+    GIVE,
+    IF,
+    ELSE,
+    LOOP,
+    GRAB,
+    IN,
+    EXIT,
+    SKIP,
+    DISPLAY,
+    WAIT, // literals / operators
+    TRUE,
+    FALSE,
+    NULL,
+    AND,
+    OR,
+    NOT,
+    THIS,
+    EXIST, // types
+    STRING,
+    INTEGER,
+    FLOAT,
+    BOOL,
+    INDEX,
+    OBJECT,
+    VOID,
+    VECTOR,
+    ANY,
 );
 
 impl Kw {

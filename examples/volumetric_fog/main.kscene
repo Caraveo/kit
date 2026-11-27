@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "entities": [
+    {
+      "id": 0,
+      "name": "Sun",
+      "transform": { "translation": [0, 8, 0], "rotation": [-0.35, 0.2, 0, 0.92], "scale": [1, 1, 1] },
+      "light": { "color": [1.0, 0.9, 0.75], "intensity": 2.0 }
+    },
+    {
+      "id": 1,
+      "name": "Camera",
+      "transform": { "translation": [0, 3, 10], "rotation": [0, 0, 0, 1], "scale": [1, 1, 1] },
+      "camera": {
+        "projection": { "kind": "Perspective", "fov_y": 55.0, "near": 0.1, "far": 200.0 },
+        "clear_color": [0.02, 0.025, 0.04, 1.0],
+        "active": true
+      }
+    },
+    {
+      "id": 2,
+      "name": "Ground",
+      "transform": { "translation": [0, 0, 0], "rotation": [0, 0, 0, 1], "scale": [40, 1, 40] },
+      "model": { "mesh": "Plane", "color": [0.3, 0.32, 0.36, 1.0], "texture": "", "unlit": false, "visible": true }
+    },
+    {
+      "id": 3,
+      "name": "Volumetric Fog",
+      "transform": { "translation": [0, 0, 0], "rotation": [0, 0, 0, 1], "scale": [1, 1, 1] },
+      "post_volume": {
+        "shape": "Global",
+        "affect": "Camera",
+        "priority": 0,
+        "blend_distance": 0.0,
+        "weight": 1.0,
+        "effects": {
+          "fog": {
+            "mode": "On",
+            "density": 0.032,
+            "tint": [0.58, 0.68, 0.82],
+            "scattering": 1.35,
+            "max_distance": 80.0
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "name": "Opening Left Wall",
+      "transform": { "translation": [-7, 3, -8], "rotation": [0, 0, 0, 1], "scale": [1, 6, 12] },
+      "model": { "mesh": "Cube", "color": [0.06, 0.07, 0.09, 1.0], "texture": "", "unlit": false, "visible": true }
+    },
+    {
+      "id": 5,
+      "name": "Opening Right Wall",
+      "transform": { "translation": [7, 3, -8], "rotation": [0, 0, 0, 1], "scale": [1, 6, 12] },
+      "model": { "mesh": "Cube", "color": [0.06, 0.07, 0.09, 1.0], "texture": "", "unlit": false, "visible": true }
+    },
+    {
+      "id": 6,
+      "name": "Ceiling",
+      "transform": { "translation": [0, 7, -8], "rotation": [0, 0, 0, 1], "scale": [14, 1, 12] },
+      "model": { "mesh": "Cube", "color": [0.04, 0.045, 0.06, 1.0], "texture": "", "unlit": false, "visible": true }
+    },
+    {
+      "id": 7,
+      "name": "Pillar",
+      "transform": { "translation": [1.5, 1.6, -7], "rotation": [0, 0, 0, 1], "scale": [1.2, 3.2, 1.2] },
+      "model": { "mesh": "Cylinder", "color": [0.18, 0.2, 0.24, 1.0], "texture": "", "unlit": false, "visible": true }
+    },
+    {
+      "id": 8,
+      "name": "Opening Frame",
+      "transform": { "translation": [0, 5.8, -13], "rotation": [0, 0, 0, 1], "scale": [14, 1.2, 1] },
+      "model": { "mesh": "Cube", "color": [0.05, 0.055, 0.07, 1.0], "texture": "", "unlit": false, "visible": true }
+    }
+  ]
+}

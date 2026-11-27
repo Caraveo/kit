@@ -307,7 +307,8 @@ impl NetTransform {
         if mask & f::SCALE != 0 {
             t.scale = Some(Vec3::new(r.f32()?, r.f32()?, r.f32()?));
         }
-        let i16v = |r: &mut Reader| -> R<Vec3> { Ok(Vec3::new(r.i16()? as f32, r.i16()? as f32, r.i16()? as f32) / 100.0) };
+        let i16v =
+            |r: &mut Reader| -> R<Vec3> { Ok(Vec3::new(r.i16()? as f32, r.i16()? as f32, r.i16()? as f32) / 100.0) };
         if mask & f::VEL != 0 {
             t.velocity = Some(i16v(r)?);
         }
@@ -384,7 +385,9 @@ pub struct NetAnim {
 
 impl NetAnim {
     pub fn encode(&self, w: &mut Writer) {
-        w.u16(self.state).u16((self.time.clamp(0.0, 1.0) * 65535.0).round() as u16).u8((self.speed * 16.0).round().clamp(0.0, 255.0) as u8);
+        w.u16(self.state)
+            .u16((self.time.clamp(0.0, 1.0) * 65535.0).round() as u16)
+            .u8((self.speed * 16.0).round().clamp(0.0, 255.0) as u8);
     }
     pub fn decode(r: &mut Reader) -> R<Self> {
         Ok(Self { state: r.u16()?, time: r.u16()? as f32 / 65535.0, speed: r.u8()? as f32 / 16.0 })
@@ -411,7 +414,13 @@ impl WorldDescriptor {
                 w.u8(0);
             }
             Some(d) => {
-                w.u8(1).str8(&d.id).f64(d.seed).str8(&d.generator).str8(&d.generator_version).u32(d.chunk_size).str8(&d.compatibility_hash);
+                w.u8(1)
+                    .str8(&d.id)
+                    .f64(d.seed)
+                    .str8(&d.generator)
+                    .str8(&d.generator_version)
+                    .u32(d.chunk_size)
+                    .str8(&d.compatibility_hash);
             }
         }
     }
@@ -462,14 +471,23 @@ mod tests {
         let removed = Value::Str("removed".into());
         assert_eq!(mod_hash(10, 12, "tree:42", &removed), 0xa898_0eaa_b5bc_d69b);
         assert_eq!(mod_hash(-3, 7, "rock:1", &Value::Int(5)), 0xe2be_a47b_379b_2d3f);
-        let d = WorldDescriptor { id: "forest".into(), seed: 847291.0, generator: "kit.terrain".into(), generator_version: "1".into(), chunk_size: 32, compatibility_hash: String::new() };
+        let d = WorldDescriptor {
+            id: "forest".into(),
+            seed: 847291.0,
+            generator: "kit.terrain".into(),
+            generator_version: "1".into(),
+            chunk_size: 32,
+            compatibility_hash: String::new(),
+        };
         assert_eq!(seed_hash(Some(&d)), 0x4090_1844_b0a6_2917);
         assert_eq!(seed_hash(Some(&d)).wrapping_add(mod_hash(10, 12, "tree:42", &removed)), 0xe928_26ef_6662_ffb2);
     }
 
     #[test]
     fn quaternions_survive_32_bits() {
-        for (axis, angle) in [(Vec3::Y, 0.0), (Vec3::Y, 1.0), (Vec3::new(1.0, 2.0, -0.5).normalize(), 2.9), (Vec3::X, -3.1)] {
+        for (axis, angle) in
+            [(Vec3::Y, 0.0), (Vec3::Y, 1.0), (Vec3::new(1.0, 2.0, -0.5).normalize(), 2.9), (Vec3::X, -3.1)]
+        {
             let q = Quat::from_axis_angle(axis, angle);
             let back = unpack_quat(pack_quat(q));
             assert!(q.dot(back).abs() > 0.99999, "{q:?} → {back:?}");
@@ -478,7 +496,12 @@ mod tests {
 
     #[test]
     fn transforms_round_trip_and_merge() {
-        let t = NetTransform { position: Some(Vec3::new(1.5, -2.0, 3.25)), rotation: Some(Quat::from_rotation_y(0.7)), velocity: Some(Vec3::new(4.21, 0.0, -1.0)), ..Default::default() };
+        let t = NetTransform {
+            position: Some(Vec3::new(1.5, -2.0, 3.25)),
+            rotation: Some(Quat::from_rotation_y(0.7)),
+            velocity: Some(Vec3::new(4.21, 0.0, -1.0)),
+            ..Default::default()
+        };
         let mut w = Writer::new();
         t.encode(&mut w);
         assert_eq!(w.buf.len(), 1 + 12 + 4 + 6, "pos + rot + vel = 23 bytes");
@@ -495,7 +518,14 @@ mod tests {
 
     #[test]
     fn values_round_trip() {
-        for v in [Value::Null, Value::Bool(true), Value::Int(-7), Value::Number(0.25), Value::Str("rain ☔".into()), Value::Bytes(vec![1, 2, 3])] {
+        for v in [
+            Value::Null,
+            Value::Bool(true),
+            Value::Int(-7),
+            Value::Number(0.25),
+            Value::Str("rain ☔".into()),
+            Value::Bytes(vec![1, 2, 3]),
+        ] {
             let mut w = Writer::new();
             w.value(&v);
             assert_eq!(Reader::new(&w.buf).value().unwrap(), v);

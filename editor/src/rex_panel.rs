@@ -37,7 +37,10 @@ pub enum Auth {
     /// Not signed in.
     SignedOut,
     /// Waiting for the browser approval.
-    Pending { code: String, link: String },
+    Pending {
+        code: String,
+        link: String,
+    },
     SignedIn,
 }
 
@@ -68,7 +71,9 @@ pub struct RexPanel {
 pub const INPUT_HINT: &str = "Talk to Rex to help you Code + Create your Game!";
 
 fn mode_label(mode: &ModeInfo, friendly: bool) -> &str {
-    if friendly { return &mode.name; }
+    if friendly {
+        return &mode.name;
+    }
     match mode.id.as_str() {
         "buddy" => "General",
         "fetch" => "Scripting",
@@ -81,17 +86,20 @@ fn mode_label(mode: &ModeInfo, friendly: bool) -> &str {
 }
 
 fn plain_rex_text(text: &str) -> String {
-    text.chars().filter(|ch| !matches!(ch,
-        '\u{1F000}'..='\u{1FAFF}' | '\u{2600}'..='\u{27BF}' |
-        '\u{FE0E}' | '\u{FE0F}' | '\u{200D}' | '\u{20E3}' |
-        '\u{E0020}'..='\u{E007F}'
-    )).collect()
+    text.chars()
+        .filter(|ch| {
+            !matches!(ch,
+                '\u{1F000}'..='\u{1FAFF}' | '\u{2600}'..='\u{27BF}' |
+                '\u{FE0E}' | '\u{FE0F}' | '\u{200D}' | '\u{20E3}' |
+                '\u{E0020}'..='\u{E007F}'
+            )
+        })
+        .collect()
 }
 
 fn rex_text(text: &str, friendly: bool) -> String {
     if friendly { crate::markdown::displayable(text) } else { plain_rex_text(text) }
 }
-
 
 impl Default for RexPanel {
     fn default() -> Self {
@@ -142,7 +150,11 @@ impl RexPanel {
             .or_insert_with(|| {
                 let img = image::load_from_memory(face_bytes(mood)).expect("bundled Rex face").into_rgba8();
                 let size = [img.width() as usize, img.height() as usize];
-                ctx.load_texture(format!("rex_{mood}"), egui::ColorImage::from_rgba_unmultiplied(size, &img), egui::TextureOptions::LINEAR)
+                ctx.load_texture(
+                    format!("rex_{mood}"),
+                    egui::ColorImage::from_rgba_unmultiplied(size, &img),
+                    egui::TextureOptions::LINEAR,
+                )
             })
             .clone()
     }
@@ -267,7 +279,9 @@ impl RexPanel {
         if !ed.rex_friendly() {
             let preference = "Response style preference: use concise, professional editor language. Avoid puppy roleplay, references to treats, and emoji.";
             let current = context.get_or_insert_with(String::new);
-            if !current.is_empty() { current.push_str("\n\n"); }
+            if !current.is_empty() {
+                current.push_str("\n\n");
+            }
             current.push_str(preference);
         }
         let chat = self.chat();
@@ -298,14 +312,30 @@ pub fn project_context(ed: &Editor) -> Option<String> {
                 break;
             }
             let mut parts = vec![ed.entity_label(e)];
-            if world.has::<kit::gamesys::Camera>(e) { parts.push("Camera".into()) }
-            if world.has::<kit::gamesys::Light>(e) { parts.push("Light".into()) }
-            if world.has::<kit::gamesys::Model>(e) { parts.push("Model".into()) }
-            if world.has::<kit::gamesys::Sprite>(e) { parts.push("Sprite".into()) }
-            if world.has::<kit::gamesys::Collider>(e) { parts.push("Collider".into()) }
-            if world.has::<kit::gamesys::RigidBody>(e) { parts.push("Rigid Body".into()) }
-            if let Some(s) = world.get::<kit::gamesys::Script>(e) { parts.push(format!("Script {}", s.path)) }
-            if let Some(d) = world.get::<kit::gamesys::Diagram>(e) { parts.push(format!("Diagram {}", d.graph)) }
+            if world.has::<kit::gamesys::Camera>(e) {
+                parts.push("Camera".into())
+            }
+            if world.has::<kit::gamesys::Light>(e) {
+                parts.push("Light".into())
+            }
+            if world.has::<kit::gamesys::Model>(e) {
+                parts.push("Model".into())
+            }
+            if world.has::<kit::gamesys::Sprite>(e) {
+                parts.push("Sprite".into())
+            }
+            if world.has::<kit::gamesys::Collider>(e) {
+                parts.push("Collider".into())
+            }
+            if world.has::<kit::gamesys::RigidBody>(e) {
+                parts.push("Rigid Body".into())
+            }
+            if let Some(s) = world.get::<kit::gamesys::Script>(e) {
+                parts.push(format!("Script {}", s.path))
+            }
+            if let Some(d) = world.get::<kit::gamesys::Diagram>(e) {
+                parts.push(format!("Diagram {}", d.graph))
+            }
             objects.push(format!("- {}", parts.join(", ")));
         }
     }
@@ -314,7 +344,11 @@ pub fn project_context(ed: &Editor) -> Option<String> {
         selection.push_str(&format!("Selected: {}\n", ed.entity_label(e)));
         if let (Some(s), Some(p)) = (world.get::<kit::gamesys::Script>(e), ed.project.as_ref()) {
             if let Ok(src) = p.resources.read_text(&s.path) {
-                selection.push_str(&format!("Its script {}:\n```x\n{}\n```\n", s.path, src.chars().take(3000).collect::<String>()));
+                selection.push_str(&format!(
+                    "Its script {}:\n```x\n{}\n```\n",
+                    s.path,
+                    src.chars().take(3000).collect::<String>()
+                ));
             }
         }
     }
@@ -353,7 +387,9 @@ fn pill(ui: &mut Ui, text: &str, color: Color32) {
 /// Draw the panel.
 pub fn show(ui: &mut Ui, ed: &mut Editor, rex: &mut RexPanel) {
     rex.friendly = ed.rex_friendly();
-    if !rex.friendly { rex.faces.clear(); }
+    if !rex.friendly {
+        rex.faces.clear();
+    }
     rex.ensure_started();
     rex.handle_updates();
     if rex.busy || matches!(rex.auth, Auth::Pending { .. }) {
@@ -372,7 +408,13 @@ pub fn show(ui: &mut Ui, ed: &mut Editor, rex: &mut RexPanel) {
         ui.allocate_ui_with_layout(vec2(150.0, height), Layout::top_down(Align::Center), |ui| {
             ui.set_max_height(height);
             if rex.friendly {
-                let mood = if rex.busy { mode.mood.as_str() } else if matches!(rex.auth, Auth::SignedIn) { mode.mood.as_str() } else { "happy" };
+                let mood = if rex.busy {
+                    mode.mood.as_str()
+                } else if matches!(rex.auth, Auth::SignedIn) {
+                    mode.mood.as_str()
+                } else {
+                    "happy"
+                };
                 let tex = rex.face(&ctx, mood);
                 // A little bounce while he's answering.
                 let bob = if rex.busy { ((t * 6.0).sin() * 4.0) as f32 } else { ((t * 1.5).sin() * 1.5) as f32 };
@@ -381,7 +423,11 @@ pub fn show(ui: &mut Ui, ed: &mut Editor, rex: &mut RexPanel) {
                 ui.add_space(4.0 - bob.min(0.0).abs().min(4.0));
             }
             ui.label(RichText::new(ed.rex_label()).size(16.0).strong());
-            ui.label(RichText::new(if rex.busy { "Working…" } else { mode_label(&mode, rex.friendly) }).size(11.0).color(MUTED()));
+            ui.label(
+                RichText::new(if rex.busy { "Working…" } else { mode_label(&mode, rex.friendly) })
+                    .size(11.0)
+                    .color(MUTED()),
+            );
             ui.add_space(6.0);
             if let Some(me) = &rex.me {
                 pill(ui, &format!("{} credits", me.balance.total), ACCENT());
@@ -406,28 +452,32 @@ pub fn show(ui: &mut Ui, ed: &mut Editor, rex: &mut RexPanel) {
         ui.vertical(|ui| {
             ui.set_max_height(height);
             match &rex.auth {
-            Auth::SignedOut => signed_out(ui, ed, rex),
-            Auth::Pending { code, link } => {
-                let (code, link) = (code.clone(), link.clone());
-                ui.add_space(10.0);
-                ui.label(RichText::new("Approve Kit in your browser").size(16.0).strong());
-                ui.label(RichText::new("Check that the page shows this code, then click Connect:").color(MUTED()));
-                ui.add_space(6.0);
-                Frame::new().stroke(Stroke::new(1.5, ACCENT())).corner_radius(CornerRadius::same(10)).inner_margin(Margin::symmetric(18, 8)).show(ui, |ui| {
-                    ui.label(RichText::new(&code).size(26.0).monospace().strong().color(ACCENT()));
-                });
-                ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    if ui.button("Open the page again").clicked() {
-                        let _ = webbrowser::open(&link);
-                    }
-                    if ui.button("Cancel").clicked() {
-                        rex.auth = Auth::SignedOut;
-                    }
-                    ui.spinner();
-                });
-            }
-            Auth::SignedIn => signed_in(ui, ed, rex, &mode),
+                Auth::SignedOut => signed_out(ui, ed, rex),
+                Auth::Pending { code, link } => {
+                    let (code, link) = (code.clone(), link.clone());
+                    ui.add_space(10.0);
+                    ui.label(RichText::new("Approve Kit in your browser").size(16.0).strong());
+                    ui.label(RichText::new("Check that the page shows this code, then click Connect:").color(MUTED()));
+                    ui.add_space(6.0);
+                    Frame::new()
+                        .stroke(Stroke::new(1.5, ACCENT()))
+                        .corner_radius(CornerRadius::same(10))
+                        .inner_margin(Margin::symmetric(18, 8))
+                        .show(ui, |ui| {
+                            ui.label(RichText::new(&code).size(26.0).monospace().strong().color(ACCENT()));
+                        });
+                    ui.add_space(6.0);
+                    ui.horizontal(|ui| {
+                        if ui.button("Open the page again").clicked() {
+                            let _ = webbrowser::open(&link);
+                        }
+                        if ui.button("Cancel").clicked() {
+                            rex.auth = Auth::SignedOut;
+                        }
+                        ui.spinner();
+                    });
+                }
+                Auth::SignedIn => signed_in(ui, ed, rex, &mode),
             }
         });
     });
@@ -462,7 +512,8 @@ fn input_row(ui: &mut Ui, rex: &mut RexPanel, send_label: &str) -> bool {
                 if ui.button("Stop").clicked() {
                     rex.cancel.store(true, Ordering::Relaxed);
                 }
-            } else if (crate::widgets::primary(ui, send_label, None).clicked() || enter) && !rex.input.trim().is_empty() {
+            } else if (crate::widgets::primary(ui, send_label, None).clicked() || enter) && !rex.input.trim().is_empty()
+            {
                 send = true;
             }
             ui.checkbox(&mut rex.include_context, RichText::new("Share scene").size(10.5))
@@ -474,7 +525,11 @@ fn input_row(ui: &mut Ui, rex: &mut RexPanel, send_label: &str) -> bool {
 
 fn signed_out(ui: &mut Ui, _ed: &mut Editor, rex: &mut RexPanel) {
     ui.add_space(10.0);
-    ui.label(RichText::new(if rex.friendly { "Meet Rex, your game-making puppy 🐾" } else { "Kit Editor Assistant" }).size(17.0).strong());
+    ui.label(
+        RichText::new(if rex.friendly { "Meet Rex, your game-making puppy 🐾" } else { "Kit Editor Assistant" })
+            .size(17.0)
+            .strong(),
+    );
     ui.label(
         RichText::new(if rex.friendly {
             "He writes x scripts, builds Diagrams, sniffs out bugs, brainstorms ideas and teaches. Sign in with your Kit account (free to start)."
@@ -523,13 +578,26 @@ fn mode_chips(ui: &mut Ui, rex: &mut RexPanel) {
             let tex = rex.friendly.then(|| rex.face(&ctx, &m.mood));
             let fill = if on { ACCENT().gamma_multiply(0.22) } else { Color32::TRANSPARENT };
             let stroke = if on { Stroke::new(1.5, ACCENT()) } else { Stroke::new(1.0, CARD_BORDER()) };
-            let r = Frame::new().fill(fill).stroke(stroke).corner_radius(CornerRadius::same(14)).inner_margin(Margin { left: 4, right: 10, top: 2, bottom: 2 }).show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    if let Some(tex) = &tex { ui.add(egui::Image::new(tex).fit_to_exact_size(vec2(22.0, 22.0))); }
-                    ui.label(RichText::new(mode_label(&m, rex.friendly)).size(12.5).color(if on { TEXT_STRONG() } else { LABEL() }));
+            let r = Frame::new()
+                .fill(fill)
+                .stroke(stroke)
+                .corner_radius(CornerRadius::same(14))
+                .inner_margin(Margin { left: 4, right: 10, top: 2, bottom: 2 })
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        if let Some(tex) = &tex {
+                            ui.add(egui::Image::new(tex).fit_to_exact_size(vec2(22.0, 22.0)));
+                        }
+                        ui.label(RichText::new(mode_label(&m, rex.friendly)).size(12.5).color(if on {
+                            TEXT_STRONG()
+                        } else {
+                            LABEL()
+                        }));
+                    });
                 });
-            });
-            let r = ui.interact(r.response.rect, ui.id().with(("rex_mode", &m.id)), Sense::click()).on_hover_text(if rex.friendly { crate::markdown::displayable(&m.tagline) } else { mode_label(&m, false).into() });
+            let r = ui.interact(r.response.rect, ui.id().with(("rex_mode", &m.id)), Sense::click()).on_hover_text(
+                if rex.friendly { crate::markdown::displayable(&m.tagline) } else { mode_label(&m, false).into() },
+            );
             if r.clicked() && !rex.busy {
                 rex.mode = m.id.clone();
             }
@@ -546,51 +614,73 @@ fn signed_in(ui: &mut Ui, ed: &mut Editor, rex: &mut RexPanel, mode: &ModeInfo) 
     // Input row (bottom), conversation above it.
     let input_h = 78.0;
     let chat_h = (ui.available_height() - input_h).max(60.0);
-    egui::ScrollArea::vertical().id_salt(("rex_chat", &rex.mode)).max_height(chat_h).auto_shrink([false, false]).stick_to_bottom(true).show(ui, |ui| {
-        let lines = rex.chats.get(&rex.mode).cloned().unwrap_or_default();
-        if lines.is_empty() {
-            bubble(ui, false, avatar.as_ref(), |ui| {
-                crate::markdown::show(ui, if rex.friendly { &mode.greeting } else { "Describe what you want to build or fix." });
-            });
-            ui.horizontal_wrapped(|ui| {
-                for ex in &mode.examples {
-                    let ex = rex_text(ex, rex.friendly);
-                    if ui.button(RichText::new(format!("“{ex}”")).size(11.5)).clicked() {
-                        rex.input = ex.clone();
-                        rex.focus_input = true;
-                    }
-                }
-            });
-        }
-        let last = lines.len().saturating_sub(1);
-        for (i, line) in lines.iter().enumerate() {
-            let mine = line.role == Role::User;
-            bubble(ui, mine, avatar.as_ref(), |ui| {
-                if let Some((code, msg)) = &line.error {
-                    ui.label(RichText::new(rex_text(msg, rex.friendly)).color(ERROR()));
-                    if code == "out_of_credits" {
-                        if let Some(me) = &rex.me {
-                            if ui.button(if rex.friendly { "Get more treats (credits)" } else { "Get more credits" }).clicked() {
-                                let _ = webbrowser::open(&me.links.pricing);
-                            }
+    egui::ScrollArea::vertical()
+        .id_salt(("rex_chat", &rex.mode))
+        .max_height(chat_h)
+        .auto_shrink([false, false])
+        .stick_to_bottom(true)
+        .show(ui, |ui| {
+            let lines = rex.chats.get(&rex.mode).cloned().unwrap_or_default();
+            if lines.is_empty() {
+                bubble(ui, false, avatar.as_ref(), |ui| {
+                    crate::markdown::show(
+                        ui,
+                        if rex.friendly { &mode.greeting } else { "Describe what you want to build or fix." },
+                    );
+                });
+                ui.horizontal_wrapped(|ui| {
+                    for ex in &mode.examples {
+                        let ex = rex_text(ex, rex.friendly);
+                        if ui.button(RichText::new(format!("“{ex}”")).size(11.5)).clicked() {
+                            rex.input = ex.clone();
+                            rex.focus_input = true;
                         }
                     }
-                } else if mine {
-                    ui.label(RichText::new(crate::markdown::displayable(&line.text)).color(TEXT_STRONG()));
-                } else if line.text.is_empty() && rex.busy && i == last {
-                    ui.horizontal(|ui| {
-                        ui.spinner();
-                        ui.label(RichText::new(if rex.friendly { "Rex is thinking…" } else { "Generating response…" }).color(MUTED()));
-                    });
-                } else {
-                    reply(ui, ed, &line.text, rex.busy && i == last, dig_face.as_ref());
-                    if let Some(c) = line.credits.filter(|c| *c > 0) {
-                        ui.label(RichText::new(format!("{c} credit{}", if c == 1 { "" } else { "s" })).size(10.0).color(MUTED()));
+                });
+            }
+            let last = lines.len().saturating_sub(1);
+            for (i, line) in lines.iter().enumerate() {
+                let mine = line.role == Role::User;
+                bubble(ui, mine, avatar.as_ref(), |ui| {
+                    if let Some((code, msg)) = &line.error {
+                        ui.label(RichText::new(rex_text(msg, rex.friendly)).color(ERROR()));
+                        if code == "out_of_credits" {
+                            if let Some(me) = &rex.me {
+                                if ui
+                                    .button(if rex.friendly { "Get more treats (credits)" } else { "Get more credits" })
+                                    .clicked()
+                                {
+                                    let _ = webbrowser::open(&me.links.pricing);
+                                }
+                            }
+                        }
+                    } else if mine {
+                        ui.label(RichText::new(crate::markdown::displayable(&line.text)).color(TEXT_STRONG()));
+                    } else if line.text.is_empty() && rex.busy && i == last {
+                        ui.horizontal(|ui| {
+                            ui.spinner();
+                            ui.label(
+                                RichText::new(if rex.friendly {
+                                    "Rex is thinking…"
+                                } else {
+                                    "Generating response…"
+                                })
+                                .color(MUTED()),
+                            );
+                        });
+                    } else {
+                        reply(ui, ed, &line.text, rex.busy && i == last, dig_face.as_ref());
+                        if let Some(c) = line.credits.filter(|c| *c > 0) {
+                            ui.label(
+                                RichText::new(format!("{c} credit{}", if c == 1 { "" } else { "s" }))
+                                    .size(10.0)
+                                    .color(MUTED()),
+                            );
+                        }
                     }
-                }
-            });
-        }
-    });
+                });
+            }
+        });
 
     // Input (a message typed before signing in goes out now).
     ui.add_space(4.0);
@@ -615,17 +705,34 @@ fn bubble(ui: &mut Ui, mine: bool, avatar: Option<&egui::TextureHandle>, add: im
     let layout = if mine { Layout::right_to_left(Align::Min) } else { Layout::left_to_right(Align::Min) };
     ui.with_layout(layout, |ui| {
         if let (false, Some(face)) = (mine, avatar) {
-            Frame::new().fill(ACCENT().gamma_multiply(0.14)).corner_radius(CornerRadius::same(18)).inner_margin(Margin::same(2)).show(ui, |ui| {
-                ui.add(egui::Image::new(face).fit_to_exact_size(vec2(32.0, 32.0)));
-            });
+            Frame::new()
+                .fill(ACCENT().gamma_multiply(0.14))
+                .corner_radius(CornerRadius::same(18))
+                .inner_margin(Margin::same(2))
+                .show(ui, |ui| {
+                    ui.add(egui::Image::new(face).fit_to_exact_size(vec2(32.0, 32.0)));
+                });
             ui.add_space(4.0);
         }
         let max = (ui.available_width() * if mine { 0.78 } else { 0.92 }).max(200.0);
         Frame::new()
             .fill(if mine { ACCENT().gamma_multiply(0.22) } else { CARD() })
-            .stroke(Stroke::new(1.0, if mine { ACCENT().gamma_multiply(0.35) } else { CARD_BORDER().gamma_multiply(0.7) }))
-            .corner_radius(CornerRadius { nw: 18, ne: 18, sw: if mine { 18 } else { 6 }, se: if mine { 6 } else { 18 } })
-            .shadow(egui::Shadow { offset: [0, 2], blur: 10, spread: 0, color: Color32::from_black_alpha(if crate::theme::is_light() { 28 } else { 70 }) })
+            .stroke(Stroke::new(
+                1.0,
+                if mine { ACCENT().gamma_multiply(0.35) } else { CARD_BORDER().gamma_multiply(0.7) },
+            ))
+            .corner_radius(CornerRadius {
+                nw: 18,
+                ne: 18,
+                sw: if mine { 18 } else { 6 },
+                se: if mine { 6 } else { 18 },
+            })
+            .shadow(egui::Shadow {
+                offset: [0, 2],
+                blur: 10,
+                spread: 0,
+                color: Color32::from_black_alpha(if crate::theme::is_light() { 28 } else { 70 }),
+            })
             .inner_margin(Margin { left: 16, right: 16, top: 10, bottom: 10 })
             .show(ui, |ui| {
                 ui.set_max_width(max);
@@ -637,28 +744,46 @@ fn bubble(ui: &mut Ui, mine: bool, avatar: Option<&egui::TextureHandle>, add: im
 
 /// Rex's reply: text, plus code blocks with checks and one-click actions.
 fn reply(ui: &mut Ui, ed: &mut Editor, text: &str, streaming: bool, dig_face: Option<&egui::TextureHandle>) {
-    let gd: kit::gamedata::GameData = ed.world().try_resource::<kit::gamedata::GameData>().map(|g| g.clone()).unwrap_or_default();
+    let gd: kit::gamedata::GameData =
+        ed.world().try_resource::<kit::gamedata::GameData>().map(|g| g.clone()).unwrap_or_default();
     for (i, part) in kit_rex::parts(text).into_iter().enumerate() {
         match part {
             Part::Text(t) => crate::markdown::show(ui, &rex_text(&t, ed.rex_friendly())),
             Part::Code { kind, lang, code }
-                if kind == SnippetKind::Diagram || (streaming && matches!(lang.as_str(), "kdiagram" | "diagram" | "json")) =>
+                if kind == SnippetKind::Diagram
+                    || (streaming && matches!(lang.as_str(), "kdiagram" | "diagram" | "json")) =>
             {
                 // Diagrams show as a card, not JSON (the JSON is kept for Use / Copy).
                 diagram_card(ui, ed, &code, &gd, streaming, dig_face);
             }
             Part::Code { kind, lang, code } => {
-                Frame::new().fill(FIELD_BG()).corner_radius(CornerRadius::same(8)).inner_margin(Margin::same(8)).show(ui, |ui| {
-                    ui.set_width(ui.available_width());
-                    let job = if kind == SnippetKind::Script { crate::code::highlight(&code) } else {
-                        let mut j = egui::text::LayoutJob::default();
-                        j.append(&code, 0.0, egui::TextFormat { font_id: egui::FontId::monospace(12.0), color: TEXT(), ..Default::default() });
-                        j
-                    };
-                    egui::ScrollArea::vertical().id_salt(("rex_code", i, code.len() / 64)).max_height(260.0).show(ui, |ui| {
-                        ui.add(egui::Label::new(job).wrap());
-                    });
-                });
+                Frame::new().fill(FIELD_BG()).corner_radius(CornerRadius::same(8)).inner_margin(Margin::same(8)).show(
+                    ui,
+                    |ui| {
+                        ui.set_width(ui.available_width());
+                        let job = if kind == SnippetKind::Script {
+                            crate::code::highlight(&code)
+                        } else {
+                            let mut j = egui::text::LayoutJob::default();
+                            j.append(
+                                &code,
+                                0.0,
+                                egui::TextFormat {
+                                    font_id: egui::FontId::monospace(12.0),
+                                    color: TEXT(),
+                                    ..Default::default()
+                                },
+                            );
+                            j
+                        };
+                        egui::ScrollArea::vertical().id_salt(("rex_code", i, code.len() / 64)).max_height(260.0).show(
+                            ui,
+                            |ui| {
+                                ui.add(egui::Label::new(job).wrap());
+                            },
+                        );
+                    },
+                );
                 if streaming {
                     continue;
                 }
@@ -695,7 +820,8 @@ fn flow(graph: &kit::diagram::Graph, gd: &kit::gamedata::GameData) -> Vec<String
                 continue;
             }
             order.push(id);
-            let mut next: Vec<_> = graph.links.iter().filter(|l| l.from.node == id && l.to.pin == "exec").map(|l| l.to.node).collect();
+            let mut next: Vec<_> =
+                graph.links.iter().filter(|l| l.from.node == id && l.to.pin == "exec").map(|l| l.to.node).collect();
             next.reverse();
             stack.extend(next);
         }
@@ -709,7 +835,14 @@ fn flow(graph: &kit::diagram::Graph, gd: &kit::gamedata::GameData) -> Vec<String
 }
 
 /// A Diagram from Rex: a summary card with Use / Copy (no JSON on screen).
-fn diagram_card(ui: &mut Ui, ed: &mut Editor, code: &str, gd: &kit::gamedata::GameData, streaming: bool, face: Option<&egui::TextureHandle>) {
+fn diagram_card(
+    ui: &mut Ui,
+    ed: &mut Editor,
+    code: &str,
+    gd: &kit::gamedata::GameData,
+    streaming: bool,
+    face: Option<&egui::TextureHandle>,
+) {
     Frame::new()
         .fill(ACCENT().gamma_multiply(0.10))
         .stroke(Stroke::new(1.0, ACCENT().gamma_multiply(0.45)))
@@ -718,30 +851,53 @@ fn diagram_card(ui: &mut Ui, ed: &mut Editor, code: &str, gd: &kit::gamedata::Ga
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
-                if let Some(face) = face { ui.add(egui::Image::new(face).fit_to_exact_size(vec2(40.0, 40.0))); }
+                if let Some(face) = face {
+                    ui.add(egui::Image::new(face).fit_to_exact_size(vec2(40.0, 40.0)));
+                }
                 ui.vertical(|ui| {
                     if streaming {
                         ui.horizontal(|ui| {
                             ui.spinner();
-                            ui.label(RichText::new(if face.is_some() { "Rex is digging up a Diagram…" } else { "Generating diagram…" }).strong());
+                            ui.label(
+                                RichText::new(if face.is_some() {
+                                    "Rex is digging up a Diagram…"
+                                } else {
+                                    "Generating diagram…"
+                                })
+                                .strong(),
+                            );
                         });
                         return;
                     }
                     match kit_rex::check_diagram(code, gd) {
                         Ok(graph) => {
-                            ui.label(RichText::new(format!("Diagram · {} nodes", graph.nodes.len())).strong().color(TEXT_STRONG()));
+                            ui.label(
+                                RichText::new(format!("Diagram · {} nodes", graph.nodes.len()))
+                                    .strong()
+                                    .color(TEXT_STRONG()),
+                            );
                             ui.label(RichText::new(flow(&graph, gd).join("  →  ")).size(12.0).color(LABEL()));
                             ui.add_space(4.0);
                             ui.horizontal_wrapped(|ui| {
                                 diagram_actions(ui, ed, code, gd);
-                                if ui.small_button("Copy").on_hover_text("Copy the Diagram (.kdiagram JSON)").clicked() {
+                                if ui.small_button("Copy").on_hover_text("Copy the Diagram (.kdiagram JSON)").clicked()
+                                {
                                     ui.ctx().copy_text(code.to_owned());
                                 }
                             });
                         }
                         Err(why) => {
                             ui.label(RichText::new("Diagram").strong());
-                            ui.label(RichText::new(if face.is_some() { "Rex's Diagram needs fixing. Ask him to try again." } else { "The generated diagram is invalid. Try again." }).size(12.0).color(WARN())).on_hover_text(why);
+                            ui.label(
+                                RichText::new(if face.is_some() {
+                                    "Rex's Diagram needs fixing. Ask him to try again."
+                                } else {
+                                    "The generated diagram is invalid. Try again."
+                                })
+                                .size(12.0)
+                                .color(WARN()),
+                            )
+                            .on_hover_text(why);
                             if ui.small_button("Copy").clicked() {
                                 ui.ctx().copy_text(code.to_owned());
                             }
@@ -775,9 +931,14 @@ fn script_actions(ui: &mut Ui, ed: &mut Editor, code: &str) {
                 Some(e) => format!("Add to {}", ed.entity_label(e)),
                 None => "Save script".into(),
             };
-            if ui.add_enabled(ed.project.is_some() && !ed.playing, egui::Button::new(label)).on_hover_text("Saves it in scripts/ and attaches it to the selected object").clicked() {
+            if ui
+                .add_enabled(ed.project.is_some() && !ed.playing, egui::Button::new(label))
+                .on_hover_text("Saves it in scripts/ and attaches it to the selected object")
+                .clicked()
+            {
                 let path = unique_path(ed, "scripts", &stem, "x");
-                let result = ed.project.as_ref().unwrap().resources.write_text(&path, &format!("{}\n", code.trim_end()));
+                let result =
+                    ed.project.as_ref().unwrap().resources.write_text(&path, &format!("{}\n", code.trim_end()));
                 match result {
                     Ok(()) => {
                         ed.refresh_assets(true);
@@ -785,7 +946,11 @@ fn script_actions(ui: &mut Ui, ed: &mut Editor, code: &str) {
                             ed.app.world.insert(e, kit::gamesys::Script::new(path.clone()));
                         }
                         ed.open_script(&path);
-                        ed.notify(if ed.rex_friendly() { format!("Rex fetched {path} 🐾") } else { format!("Saved script {path}") });
+                        ed.notify(if ed.rex_friendly() {
+                            format!("Rex fetched {path} 🐾")
+                        } else {
+                            format!("Saved script {path}")
+                        });
                     }
                     Err(e) => ed.report(Err(e)),
                 }
@@ -805,15 +970,29 @@ fn diagram_actions(ui: &mut Ui, ed: &mut Editor, code: &str, gd: &kit::gamedata:
                 return;
             };
             let name = ed.entity_label(e);
-            if ui.add_enabled(ed.project.is_some() && !ed.playing, egui::Button::new(format!("Use on {name}"))).on_hover_text("Saves it in diagrams/, attaches it, and opens the Diagram view").clicked() {
-                let stem: String = name.chars().map(|c| if c.is_alphanumeric() { c.to_ascii_lowercase() } else { '_' }).collect();
-                let path = unique_path(ed, "diagrams", if stem.trim_matches('_').is_empty() { "rex" } else { &stem }, "kdiagram");
+            if ui
+                .add_enabled(ed.project.is_some() && !ed.playing, egui::Button::new(format!("Use on {name}")))
+                .on_hover_text("Saves it in diagrams/, attaches it, and opens the Diagram view")
+                .clicked()
+            {
+                let stem: String =
+                    name.chars().map(|c| if c.is_alphanumeric() { c.to_ascii_lowercase() } else { '_' }).collect();
+                let path = unique_path(
+                    ed,
+                    "diagrams",
+                    if stem.trim_matches('_').is_empty() { "rex" } else { &stem },
+                    "kdiagram",
+                );
                 match ed.project.as_ref().unwrap().resources.write_text(&path, &graph.to_json()) {
                     Ok(()) => {
                         ed.app.world.insert(e, kit::gamesys::Diagram { graph: path.clone() });
                         ed.refresh_assets(true);
                         ed.settings.diagram = true;
-                        ed.notify(if ed.rex_friendly() { format!("Rex dug up {path} 🐾 (press 7 to see it)") } else { format!("Saved diagram {path}") });
+                        ed.notify(if ed.rex_friendly() {
+                            format!("Rex dug up {path} 🐾 (press 7 to see it)")
+                        } else {
+                            format!("Saved diagram {path}")
+                        });
                     }
                     Err(err) => ed.report(Err(err)),
                 }
@@ -824,7 +1003,6 @@ fn diagram_actions(ui: &mut Ui, ed: &mut Editor, code: &str, gd: &kit::gamedata:
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {

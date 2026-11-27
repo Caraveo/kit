@@ -19,6 +19,7 @@ kit_xui.workspace = true
 kit_preview.workspace = true
 kit_graphics.workspace = true
 kit_render.workspace = true
+kit_light.workspace = true
 kit_x.workspace = true
 kit_script.workspace = true
 kit_engine.workspace = true
@@ -26,6 +27,7 @@ kit_collider.workspace = true
 kit_physics.workspace = true
 kit_path.workspace = true
 kit_particles.workspace = true
+kit_fog.workspace = true
 kit_audio.workspace = true
 glam.workspace = true
 

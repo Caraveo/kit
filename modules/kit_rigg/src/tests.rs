@@ -26,7 +26,11 @@ fn tube(rings: usize) -> Vec<Vertex> {
 /// Two capsules: lower (0..1) and upper (1..2) halves of the tube.
 fn two_capsules() -> Vec<BindVolume> {
     let cap = |y: f32| BindVolume {
-        volume: RigVolume { shape: RigShape::Capsule { radius: 0.25, length: 0.5 }, falloff: 0.3, ..Default::default() },
+        volume: RigVolume {
+            shape: RigShape::Capsule { radius: 0.25, length: 0.5 },
+            falloff: 0.3,
+            ..Default::default()
+        },
         rest: Mat4::from_translation(Vec3::new(0.0, y, 0.0)),
     };
     vec![cap(0.5), cap(1.5)]
@@ -49,7 +53,12 @@ fn weights_are_normalized_and_follow_the_nearest_volume() {
         }
     }
     // Around the joint, both share smoothly.
-    let mid: Vec<f32> = mesh.iter().zip(&w).filter(|(v, _)| (v.pos[1] - 1.0).abs() < 0.01).map(|(_, i)| i.iter().filter(|(k, _)| *k == 1).map(|(_, x)| x).sum()).collect();
+    let mid: Vec<f32> = mesh
+        .iter()
+        .zip(&w)
+        .filter(|(v, _)| (v.pos[1] - 1.0).abs() < 0.01)
+        .map(|(_, i)| i.iter().filter(|(k, _)| *k == 1).map(|(_, x)| x).sum())
+        .collect();
     assert!(mid.iter().all(|u| *u > 0.2 && *u < 0.8), "{mid:?}");
 }
 
@@ -174,8 +183,10 @@ fn sphere_rig(app: &mut App) -> (Entity, Entity, Entity) {
     let body = kit_scene::spawn_node(w, "Body", Transform::IDENTITY);
     w.insert(body, Model { mesh: MeshKind::Sphere, ..Default::default() });
     w.insert(body, Rig::default());
-    let left = preset::add_volume(w, body, "L_Part", RigShape::Sphere { radius: 0.3 }, Transform::from_xyz(-0.3, 0.0, 0.0));
-    let right = preset::add_volume(w, body, "R_Part", RigShape::Sphere { radius: 0.3 }, Transform::from_xyz(0.3, 0.0, 0.0));
+    let left =
+        preset::add_volume(w, body, "L_Part", RigShape::Sphere { radius: 0.3 }, Transform::from_xyz(-0.3, 0.0, 0.0));
+    let right =
+        preset::add_volume(w, body, "R_Part", RigShape::Sphere { radius: 0.3 }, Transform::from_xyz(0.3, 0.0, 0.0));
     (body, left, right)
 }
 
@@ -265,7 +276,8 @@ fn humanoid_preset_and_weight_preview() {
     let n = volumes_of(&app.world, body).len();
     assert!(n >= 25, "{n} volumes");
     let head = kit_scene::find_by_name(&app.world, "Head").unwrap();
-    *app.world.resource_mut::<RigPreview>() = RigPreview { rig: Some(body), weights: true, focus: Some(head), ..Default::default() };
+    *app.world.resource_mut::<RigPreview>() =
+        RigPreview { rig: Some(body), weights: true, focus: Some(head), ..Default::default() };
     app.update(1.0 / 60.0);
     let mesh = &app.world.resource::<Deformed>().meshes[&body];
     let colors = mesh.colors.as_ref().expect("preview colors");
@@ -275,7 +287,6 @@ fn humanoid_preset_and_weight_preview() {
     let bottom = mesh.vertices.iter().zip(colors).min_by(|a, b| a.0.pos[1].total_cmp(&b.0.pos[1])).unwrap().1;
     assert!(top[0] > 0.8 && bottom[0] < 0.4, "{top:?} {bottom:?}");
 }
-
 
 #[test]
 fn connected_volume_follows_and_keeps_its_fitted_length() {

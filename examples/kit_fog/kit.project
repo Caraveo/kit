@@ -1,0 +1,15 @@
+[project]
+title = "Kit Fog"
+version = "0.0.1"
+main_scene = "main.kscene"
+
+[display]
+width = 1280
+height = 720
+vsync = true
+fullscreen = false
+
+[physics]
+enabled = true
+gravity = [0.0, -9.81, 0.0]
+rate = 60

@@ -220,13 +220,10 @@ impl Resources {
     }
 
     fn list_matching(&self, ext: Option<&str>) -> Vec<String> {
-        let matches = |path: &Path| ext.is_none_or(|ext| path.extension().is_some_and(|value| value.eq_ignore_ascii_case(ext)));
+        let matches =
+            |path: &Path| ext.is_none_or(|ext| path.extension().is_some_and(|value| value.eq_ignore_ascii_case(ext)));
         if let Some(files) = &self.memory {
-            let mut out: Vec<String> = files
-                .keys()
-                .filter(|k| matches(Path::new(k)))
-                .cloned()
-                .collect();
+            let mut out: Vec<String> = files.keys().filter(|k| matches(Path::new(k))).cloned().collect();
             out.sort();
             return out;
         }

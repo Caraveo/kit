@@ -39,16 +39,30 @@ fn run() -> Result<()> {
                         .decode(secret.trim())?
                         .try_into()
                         .map_err(|_| anyhow::anyhow!("KIT_CIRCUIT_SIGNING_KEY must be 32 bytes"))?;
-                    let key_id = std::env::var("KIT_CIRCUIT_KEY_ID").context("set KIT_CIRCUIT_KEY_ID with the signing key")?;
+                    let key_id =
+                        std::env::var("KIT_CIRCUIT_KEY_ID").context("set KIT_CIRCUIT_KEY_ID with the signing key")?;
                     Some((key_id, ed25519_dalek::SigningKey::from_bytes(&raw)))
                 }
                 _ => None,
             };
-            let release = package::release_manifest(&manifest, &bytes, package::read_notes(&src, &manifest), signer.as_ref().map(|(id, k)| (id.as_str(), k)));
+            let release = package::release_manifest(
+                &manifest,
+                &bytes,
+                package::read_notes(&src, &manifest),
+                signer.as_ref().map(|(id, k)| (id.as_str(), k)),
+            );
             std::fs::create_dir_all(&out)?;
             std::fs::write(out.join(&release.package.file), &bytes)?;
             std::fs::write(out.join("circuit.json"), serde_json::to_string_pretty(&release)?)?;
-            println!("{} {} → {} ({} bytes, sha256 {}{})", manifest.circuit.id, manifest.circuit.version, out.join(&release.package.file).display(), bytes.len(), release.package.sha256, if signer.is_some() { ", signed" } else { "" });
+            println!(
+                "{} {} → {} ({} bytes, sha256 {}{})",
+                manifest.circuit.id,
+                manifest.circuit.version,
+                out.join(&release.package.file).display(),
+                bytes.len(),
+                release.package.sha256,
+                if signer.is_some() { ", signed" } else { "" }
+            );
         }
         Some("check") => {
             let m = kit_circuit::Manifest::load(&PathBuf::from(args.get(1).context("check <source-dir>")?))?;
@@ -56,7 +70,9 @@ fn run() -> Result<()> {
         }
         Some("verify") => {
             let bytes = std::fs::read(args.get(1).context("verify <package> <circuit.json>")?)?;
-            let release: package::ReleaseManifest = serde_json::from_str(&std::fs::read_to_string(args.get(2).context("verify <package> <circuit.json>")?)?)?;
+            let release: package::ReleaseManifest = serde_json::from_str(&std::fs::read_to_string(
+                args.get(2).context("verify <package> <circuit.json>")?,
+            )?)?;
             package::verify(&bytes, &release, &[])?;
             println!("ok: sha256 {}", release.package.sha256);
         }
@@ -68,10 +84,24 @@ fn run() -> Result<()> {
             }
             let (manifest, bytes) = package::pack(&src)?;
             let release = package::release_manifest(&manifest, &bytes, package::read_notes(&src, &manifest), None);
-            kit_circuit::install::install(&project, &release, &bytes, &[], &format!("local build of {}", src.display()))?;
-            println!("installed {} {} into {} (sha256 {})", manifest.circuit.id, manifest.circuit.version, project.display(), release.package.sha256);
+            kit_circuit::install::install(
+                &project,
+                &release,
+                &bytes,
+                &[],
+                &format!("local build of {}", src.display()),
+            )?;
+            println!(
+                "installed {} {} into {} (sha256 {})",
+                manifest.circuit.id,
+                manifest.circuit.version,
+                project.display(),
+                release.package.sha256
+            );
         }
-        _ => bail!("usage: kit-circuit pack <dir> [--out <dir>] | check <dir> | verify <package> <circuit.json> | install <dir> <project>"),
+        _ => bail!(
+            "usage: kit-circuit pack <dir> [--out <dir>] | check <dir> | verify <package> <circuit.json> | install <dir> <project>"
+        ),
     }
     Ok(())
 }

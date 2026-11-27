@@ -71,7 +71,10 @@ impl WorldCache {
         let mut v = Vec::new();
         for dz in -radius..=radius {
             for dx in -radius..=radius {
-                v.push(((cx + dx).clamp(i16::MIN as i32, i16::MAX as i32) as i16, (cz + dz).clamp(i16::MIN as i32, i16::MAX as i32) as i16));
+                v.push((
+                    (cx + dx).clamp(i16::MIN as i32, i16::MAX as i32) as i16,
+                    (cz + dz).clamp(i16::MIN as i32, i16::MAX as i32) as i16,
+                ));
             }
         }
         v
@@ -84,7 +87,14 @@ mod tests {
 
     #[test]
     fn cached_hash_matches_the_scope() {
-        let seed = WorldDescriptor { id: "forest".into(), seed: 847291.0, generator: "kit.terrain".into(), generator_version: "1".into(), chunk_size: 32, compatibility_hash: String::new() };
+        let seed = WorldDescriptor {
+            id: "forest".into(),
+            seed: 847291.0,
+            generator: "kit.terrain".into(),
+            generator_version: "1".into(),
+            chunk_size: 32,
+            compatibility_hash: String::new(),
+        };
         let mut w = WorldCache::default();
         w.set_seed(Some(seed), 0, 1);
         w.apply(10, 12, "tree:42", Value::Str("removed".into()));

@@ -160,7 +160,11 @@ impl Client {
         let text = resp.body_mut().read_to_string().unwrap_or_default();
         Err(match serde_json::from_str::<ErrorBody>(&text) {
             Ok(b) => ApiError { status, code: b.error.code, message: b.error.message },
-            Err(_) => ApiError { status, code: format!("http_{status}"), message: format!("The Circuit API answered {status}.") },
+            Err(_) => ApiError {
+                status,
+                code: format!("http_{status}"),
+                message: format!("The Circuit API answered {status}."),
+            },
         })
     }
 
@@ -213,13 +217,22 @@ impl Client {
         }
         // Ask the API where the package is (it checks the sign-in), then fetch
         // it without sending the token to the file host.
-        let link: Link = self.get_json(&format!("/circuits/{}/releases/{}/download?format=json", encode(id), encode(version)))?;
+        let link: Link =
+            self.get_json(&format!("/circuits/{}/releases/{}/download?format=json", encode(id), encode(version)))?;
         if link.size > crate::package::MAX_PACKAGE_BYTES {
-            return Err(ApiError { status: 0, code: "too_large".into(), message: "The package is larger than Kit allows.".into() });
+            return Err(ApiError {
+                status: 0,
+                code: "too_large".into(),
+                message: "The package is larger than Kit allows.".into(),
+            });
         }
         let resp = self.agent.get(&link.url).call().map_err(ApiError::network)?;
         if !resp.status().is_success() {
-            return Err(ApiError { status: resp.status().as_u16(), code: "download".into(), message: format!("The download failed ({}).", resp.status()) });
+            return Err(ApiError {
+                status: resp.status().as_u16(),
+                code: "download".into(),
+                message: format!("The download failed ({}).", resp.status()),
+            });
         }
         let mut body = resp.into_body();
         let mut reader = body.with_config().limit(crate::package::MAX_PACKAGE_BYTES + 1).reader();

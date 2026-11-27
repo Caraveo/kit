@@ -38,22 +38,97 @@ pub struct ComponentPolicy {
 
 /// Default network policy for every Kit component.
 pub const COMPONENTS: &[ComponentPolicy] = &[
-    ComponentPolicy { component: "transform", default: Policy::Stream, why: "Position and rotation of synced entities; scale is off unless it animates.", override_: Some(("sync scale", Policy::Stream)) },
-    ComponentPolicy { component: "name", default: Policy::OnSpawn, why: "Sent with the spawn (kind), never again.", override_: None },
-    ComponentPolicy { component: "parent", default: Policy::OnSpawn, why: "Hierarchy comes from the spawned prefab or scene.", override_: None },
-    ComponentPolicy { component: "model", default: Policy::Local, why: "Rendering is local; meshes and materials are already on every client.", override_: None },
-    ComponentPolicy { component: "sprite", default: Policy::Local, why: "Rendering is local.", override_: Some(("sync color/visibility as state", Policy::OnChange)) },
-    ComponentPolicy { component: "light", default: Policy::Local, why: "Rendering is local; drive shared lighting with game state (time of day).", override_: None },
-    ComponentPolicy { component: "camera", default: Policy::Local, why: "Each player has their own view.", override_: None },
+    ComponentPolicy {
+        component: "transform",
+        default: Policy::Stream,
+        why: "Position and rotation of synced entities; scale is off unless it animates.",
+        override_: Some(("sync scale", Policy::Stream)),
+    },
+    ComponentPolicy {
+        component: "name",
+        default: Policy::OnSpawn,
+        why: "Sent with the spawn (kind), never again.",
+        override_: None,
+    },
+    ComponentPolicy {
+        component: "parent",
+        default: Policy::OnSpawn,
+        why: "Hierarchy comes from the spawned prefab or scene.",
+        override_: None,
+    },
+    ComponentPolicy {
+        component: "model",
+        default: Policy::Local,
+        why: "Rendering is local; meshes and materials are already on every client.",
+        override_: None,
+    },
+    ComponentPolicy {
+        component: "sprite",
+        default: Policy::Local,
+        why: "Rendering is local.",
+        override_: Some(("sync color/visibility as state", Policy::OnChange)),
+    },
+    ComponentPolicy {
+        component: "light",
+        default: Policy::Local,
+        why: "Rendering is local; drive shared lighting with game state (time of day).",
+        override_: None,
+    },
+    ComponentPolicy {
+        component: "camera",
+        default: Policy::Local,
+        why: "Each player has their own view.",
+        override_: None,
+    },
     ComponentPolicy { component: "post_volume", default: Policy::Local, why: "Rendering is local.", override_: None },
-    ComponentPolicy { component: "terrain", default: Policy::Local, why: "Heights are in the scene file (or regenerated from the world seed).", override_: Some(("terrain sculpting → world modifications by chunk", Policy::OnChange)) },
-    ComponentPolicy { component: "collider", default: Policy::Local, why: "Shapes are in the scene; each client runs its own physics.", override_: None },
-    ComponentPolicy { component: "rigid_body", default: Policy::Local, why: "The owner simulates; others see the streamed transform (velocity optional, for smoothing).", override_: Some(("sync velocity", Policy::Stream)) },
-    ComponentPolicy { component: "path", default: Policy::Local, why: "Path followers are deterministic from the scene and shared time.", override_: Some(("stream instead", Policy::Stream)) },
-    ComponentPolicy { component: "rig", default: Policy::OnChange, why: "Only the animation state, time and speed travel; skeletons are evaluated locally.", override_: None },
-    ComponentPolicy { component: "rig_volume", default: Policy::Local, why: "Editor-time skinning data.", override_: None },
-    ComponentPolicy { component: "audio", default: Policy::Events, why: "Sounds play locally; only play/stop events travel.", override_: None },
-    ComponentPolicy { component: "script", default: Policy::Local, why: "Scripts run on the owner; fields marked networked go as state.", override_: Some(("networked fields", Policy::OnChange)) },
+    ComponentPolicy {
+        component: "terrain",
+        default: Policy::Local,
+        why: "Heights are in the scene file (or regenerated from the world seed).",
+        override_: Some(("terrain sculpting → world modifications by chunk", Policy::OnChange)),
+    },
+    ComponentPolicy {
+        component: "collider",
+        default: Policy::Local,
+        why: "Shapes are in the scene; each client runs its own physics.",
+        override_: None,
+    },
+    ComponentPolicy {
+        component: "rigid_body",
+        default: Policy::Local,
+        why: "The owner simulates; others see the streamed transform (velocity optional, for smoothing).",
+        override_: Some(("sync velocity", Policy::Stream)),
+    },
+    ComponentPolicy {
+        component: "path",
+        default: Policy::Local,
+        why: "Path followers are deterministic from the scene and shared time.",
+        override_: Some(("stream instead", Policy::Stream)),
+    },
+    ComponentPolicy {
+        component: "rig",
+        default: Policy::OnChange,
+        why: "Only the animation state, time and speed travel; skeletons are evaluated locally.",
+        override_: None,
+    },
+    ComponentPolicy {
+        component: "rig_volume",
+        default: Policy::Local,
+        why: "Editor-time skinning data.",
+        override_: None,
+    },
+    ComponentPolicy {
+        component: "audio",
+        default: Policy::Events,
+        why: "Sounds play locally; only play/stop events travel.",
+        override_: None,
+    },
+    ComponentPolicy {
+        component: "script",
+        default: Policy::Local,
+        why: "Scripts run on the owner; fields marked networked go as state.",
+        override_: Some(("networked fields", Policy::OnChange)),
+    },
     ComponentPolicy { component: "diagram", default: Policy::Local, why: "Logic runs on the owner.", override_: None },
 ];
 
@@ -136,7 +211,8 @@ impl RealtimeSync {
     }
 
     pub fn flags(&self) -> u8 {
-        (matches!(self.lifetime, Lifetime::Persistent) as u8 * crate::protocol::ENTITY_PERSISTENT) | (self.transferable as u8 * crate::protocol::ENTITY_TRANSFERABLE)
+        (matches!(self.lifetime, Lifetime::Persistent) as u8 * crate::protocol::ENTITY_PERSISTENT)
+            | (self.transferable as u8 * crate::protocol::ENTITY_TRANSFERABLE)
     }
 }
 
@@ -155,7 +231,16 @@ pub const VELOCITY_EPSILON: f32 = 0.01;
 
 impl DirtyTracker {
     /// What to send now (only the fields that changed), or `None`.
-    pub fn update(&mut self, cfg: &RealtimeSync, now: f64, rate_hz: u32, pos: Vec3, rot: Quat, scale: Vec3, vel: Vec3) -> Option<NetTransform> {
+    pub fn update(
+        &mut self,
+        cfg: &RealtimeSync,
+        now: f64,
+        rate_hz: u32,
+        pos: Vec3,
+        rot: Quat,
+        scale: Vec3,
+        vel: Vec3,
+    ) -> Option<NetTransform> {
         let rate = if cfg.rate > 0 { cfg.rate } else { rate_hz.max(1) };
         if self.last_at.is_some_and(|at| now - at < 1.0 / rate as f64 - 1e-6) {
             return None;
@@ -187,7 +272,12 @@ impl DirtyTracker {
             return None;
         }
         let prev = self.sent.unwrap_or((pos, rot, scale, vel));
-        self.sent = Some((t.position.unwrap_or(prev.0), t.rotation.unwrap_or(prev.1), t.scale.unwrap_or(prev.2), t.velocity.unwrap_or(prev.3)));
+        self.sent = Some((
+            t.position.unwrap_or(prev.0),
+            t.rotation.unwrap_or(prev.1),
+            t.scale.unwrap_or(prev.2),
+            t.velocity.unwrap_or(prev.3),
+        ));
         self.last_at = Some(now);
         Some(t)
     }
@@ -246,7 +336,23 @@ mod tests {
 
     #[test]
     fn every_scene_component_has_a_policy() {
-        for c in ["transform", "model", "sprite", "light", "camera", "script", "collider", "rigid_body", "path", "terrain", "audio", "post_volume", "diagram", "rig", "rig_volume"] {
+        for c in [
+            "transform",
+            "model",
+            "sprite",
+            "light",
+            "camera",
+            "script",
+            "collider",
+            "rigid_body",
+            "path",
+            "terrain",
+            "audio",
+            "post_volume",
+            "diagram",
+            "rig",
+            "rig_volume",
+        ] {
             assert!(policy(c).is_some(), "{c}");
         }
         assert_eq!(policy("terrain").unwrap().default, Policy::Local);
@@ -263,7 +369,10 @@ mod tests {
         assert!(d.update(&cfg, 1.0, 20, Vec3::ONE, Quat::IDENTITY, Vec3::ONE, Vec3::ZERO).is_none());
         let moved = d.update(&cfg, 1.1, 20, Vec3::new(2.0, 1.0, 1.0), Quat::IDENTITY, Vec3::ONE, Vec3::ZERO).unwrap();
         assert_eq!(moved.mask(), crate::protocol::f::POS, "only what changed");
-        assert!(d.update(&cfg, 1.11, 20, Vec3::new(3.0, 1.0, 1.0), Quat::IDENTITY, Vec3::ONE, Vec3::ZERO).is_none(), "rate limit");
+        assert!(
+            d.update(&cfg, 1.11, 20, Vec3::new(3.0, 1.0, 1.0), Quat::IDENTITY, Vec3::ONE, Vec3::ZERO).is_none(),
+            "rate limit"
+        );
     }
 
     #[test]
@@ -290,7 +399,8 @@ mod tests {
         }
         let from_editor: RealtimeSync = serde_json::from_value(serde_json::Value::Object(obj.clone())).unwrap();
         assert_eq!(from_editor, RealtimeSync::default());
-        let sdk_keys: Vec<String> = serde_json::to_value(RealtimeSync::default()).unwrap().as_object().unwrap().keys().cloned().collect();
+        let sdk_keys: Vec<String> =
+            serde_json::to_value(RealtimeSync::default()).unwrap().as_object().unwrap().keys().cloned().collect();
         let mut editor_keys: Vec<String> = obj.keys().cloned().collect();
         let mut sdk_sorted = sdk_keys.clone();
         sdk_sorted.sort();

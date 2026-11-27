@@ -205,6 +205,26 @@ pub struct ImageFx {
     pub sharpen: f32,
 }
 
+/// Single directional-light volumetric fog.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct FogFx {
+    pub mode: Override,
+    /// Exponential density in world units.
+    pub density: f32,
+    pub tint: glam::Vec3,
+    /// Directional-light scattering contribution.
+    pub scattering: f32,
+    /// Maximum ray distance in world units.
+    pub max_distance: f32,
+}
+
+impl Default for FogFx {
+    fn default() -> Self {
+        Self { mode: Override::Inherit, density: 0.0, tint: glam::Vec3::ONE, scattering: 0.0, max_distance: 100.0 }
+    }
+}
+
 impl Default for ImageFx {
     fn default() -> Self {
         Self { mode: Override::Inherit, fxaa: true, sharpen: 0.3 }
@@ -220,6 +240,7 @@ pub struct PostEffects {
     pub focus: FocusFx,
     pub ambient: AmbientFx,
     pub image: ImageFx,
+    pub fog: FogFx,
 }
 
 /// A post-processing volume on an (otherwise empty, invisible) object.

@@ -60,6 +60,8 @@ pub struct ParamsGpu {
     pub focus: [f32; 4],
     pub ambient: [f32; 4],
     pub image: [f32; 4],
+    pub fog: [f32; 4],
+    pub fog_extra: [f32; 4],
 }
 
 impl From<&Settings> for ParamsGpu {
@@ -71,6 +73,8 @@ impl From<&Settings> for ParamsGpu {
             focus: [s.focus_distance, s.focus_range, s.focus_strength, 0.0],
             ambient: [s.ao_radius, s.ao_strength, s.ao_quality.samples() as f32, 0.0],
             image: [s.fxaa, s.sharpen, 0.0, 0.0],
+            fog: [s.fog_density, s.fog_tint.x, s.fog_tint.y, s.fog_tint.z],
+            fog_extra: [s.fog_scattering, s.fog_max_distance, 0.0, 0.0],
         }
     }
 }
@@ -85,6 +89,8 @@ impl ParamsGpu {
             focus: [fx.focus.distance, fx.focus.range, fx.focus.strength, 0.0],
             ambient: [fx.ambient.radius, fx.ambient.strength, fx.ambient.quality.samples() as f32, 0.0],
             image: [if fx.image.fxaa { 1.0 } else { 0.0 }, fx.image.sharpen, 0.0, 0.0],
+            fog: [fx.fog.density, fx.fog.tint.x, fx.fog.tint.y, fx.fog.tint.z],
+            fog_extra: [fx.fog.scattering, fx.fog.max_distance, 0.0, 0.0],
         }
     }
 }
@@ -112,6 +118,9 @@ pub struct PostUniforms {
     pub info: [f32; 4],
     pub base: ParamsGpu,
     pub objects: [VolumeGpu; MAX_OBJECT_VOLUMES],
+    pub light_dir: [f32; 4],
+    pub light_color: [f32; 4],
+    pub shadow_view_proj: [[f32; 4]; 4],
 }
 
 /// `Pass` in post.wgsl (one 256-byte slot per pass: dynamic-offset aligned).
@@ -260,14 +269,14 @@ fn volume_gpu(v: &PostVolume, world: &Mat4) -> VolumeGpu {
         ],
         half: [half.x, half.y, half.z, 0.0],
         modes_a: [mode(fx.color.mode), mode(fx.exposure.mode), mode(fx.glow.mode), mode(fx.focus.mode)],
-        modes_b: [mode(fx.ambient.mode), mode(fx.image.mode), 0.0, 0.0],
+        modes_b: [mode(fx.ambient.mode), mode(fx.image.mode), mode(fx.fog.mode), 0.0],
         params: ParamsGpu::of(fx),
     }
 }
 
 /// Effects an "Objects inside" volume turns on (so their passes must run).
-fn objects_turn_on(volumes: &[&(PostVolume, Mat4, usize)]) -> [bool; 6] {
-    let mut on = [false; 6];
+fn objects_turn_on(volumes: &[&(PostVolume, Mat4, usize)]) -> [bool; 7] {
+    let mut on = [false; 7];
     for (v, _, _) in volumes {
         let fx = &v.effects;
         on[0] |= fx.color.mode == Override::On;
@@ -276,6 +285,7 @@ fn objects_turn_on(volumes: &[&(PostVolume, Mat4, usize)]) -> [bool; 6] {
         on[3] |= fx.focus.mode == Override::On && fx.focus.strength > 0.0;
         on[4] |= fx.ambient.mode == Override::On && fx.ambient.strength > 0.0;
         on[5] |= fx.image.mode == Override::On;
+        on[6] |= fx.fog.mode == Override::On && fx.fog.density > 0.0;
     }
     on
 }
@@ -303,7 +313,11 @@ pub fn frame(world: &World, camera: &CameraInfo, width: u32, height: u32) -> Opt
     if !settings.any_active() && !on.iter().any(|x| *x) {
         return None;
     }
-    Some(build(settings, &objects, on, camera, width, height))
+    let mut frame = build(settings, &objects, on, camera, width, height);
+    let light = kit_light::extract(world);
+    frame.uniforms.light_dir = light.direction.extend(0.0).into();
+    frame.uniforms.light_color = light.color.extend(1.0).into();
+    Some(frame)
 }
 
 fn object_volumes_lookup(volumes: &[(PostVolume, Mat4, usize)], order: usize) -> Option<&(PostVolume, Mat4, usize)> {
@@ -313,7 +327,7 @@ fn object_volumes_lookup(volumes: &[(PostVolume, Mat4, usize)], order: usize) ->
 fn build(
     settings: Settings,
     objects: &[&(PostVolume, Mat4, usize)],
-    on: [bool; 6],
+    on: [bool; 7],
     camera: &CameraInfo,
     width: u32,
     height: u32,
@@ -337,6 +351,9 @@ fn build(
         ],
         base: ParamsGpu::from(&settings),
         objects: gpu_objects,
+        light_dir: [-0.45, -0.8, -0.4, 0.0],
+        light_color: [1.05, 1.05, 1.05, 1.0],
+        shadow_view_proj: Mat4::IDENTITY.to_cols_array_2d(),
     };
     PostFrame { settings, uniforms, passes: plan(&settings, on, w, h) }
 }
@@ -355,7 +372,7 @@ fn pass(entry: &'static str, a: Option<Slot>, b: Option<Slot>, output: Slot, w: 
 
 /// The ordered passes for these settings (effects that contribute nothing
 /// are skipped). `on`: effects some "Objects inside" volume switches on.
-pub fn plan(s: &Settings, on: [bool; 6], w: u32, h: u32) -> Vec<Pass> {
+pub fn plan(s: &Settings, on: [bool; 7], w: u32, h: u32) -> Vec<Pass> {
     let mut passes = Vec::new();
     let mut current = Slot::Scene;
     let mut free = [COLOR_A, COLOR_B];
@@ -374,6 +391,11 @@ pub fn plan(s: &Settings, on: [bool; 6], w: u32, h: u32) -> Vec<Pass> {
     if s.focus_active() || on[3] {
         let out = next_color(current);
         passes.push(pass("fs_dof", Some(current), None, out, w, h, [0.0; 4]));
+        current = out;
+    }
+    if s.fog_density > 1e-3 || on[6] {
+        let out = next_color(current);
+        passes.push(pass("fs_fog", Some(current), None, out, w, h, [0.0; 4]));
         current = out;
     }
     let mut bloom = None;
@@ -420,7 +442,7 @@ pub fn plan(s: &Settings, on: [bool; 6], w: u32, h: u32) -> Vec<Pass> {
 /// A pass list that writes the scene's view depth (÷ `scale`) to the output:
 /// used by tests to prove each backend can read MSAA depth.
 pub fn debug_depth_frame(camera: &CameraInfo, width: u32, height: u32, scale: f32) -> PostFrame {
-    let mut f = build(Settings::NEUTRAL, &[], [false; 6], camera, width, height);
+    let mut f = build(Settings::NEUTRAL, &[], [false; 7], camera, width, height);
     f.passes = vec![pass("fs_debug_depth", None, None, Slot::Out, width.max(1), height.max(1), [0.0, 0.0, 0.0, scale])];
     f
 }

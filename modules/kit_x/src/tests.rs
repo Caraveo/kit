@@ -315,7 +315,10 @@ F.Init()
 
     // Without a game engine, INVOKE explains itself; bare INVOKE asks for parentheses.
     assert!(err(r#"INVOKE("Sphere")"#).contains("run this script in Kit"));
-    assert!(err(r#"INSTANTIATE("Sphere")"#).starts_with("test.x:1: INSTANTIATE:") || err(r#"INSTANTIATE("Sphere")"#).contains("INSTANTIATE: spawning"));
+    assert!(
+        err(r#"INSTANTIATE("Sphere")"#).starts_with("test.x:1: INSTANTIATE:")
+            || err(r#"INSTANTIATE("Sphere")"#).contains("INSTANTIATE: spawning")
+    );
     assert!(err("ANY X: INVOKE").contains("INVOKE needs what to spawn"));
     assert!(err("ANY X: INSTANTIATE").contains("INSTANTIATE needs what to spawn"));
 }
