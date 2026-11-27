@@ -15,12 +15,14 @@ use crate::States;
 /// Modules scripts can `TAKE`.
 pub const MODULES: &[&str] = &[
     "Transform", "Input", "Time", "Entity", "Scene", "Sprite", "Model", "Log", "Physics", "Collider", "Path", "Terrain",
-    "Audio", "Diagram", "Light", "Camera", "Save", "Debug",
+    "Audio", "Diagram", "Light", "Camera", "Save", "Debug", "Interface", "Cinematic",
 ];
 
 /// Engine features `GetFeature` / `AddFeature` know (besides scripts).
-pub const ENGINE_FEATURES: &[&str] =
-    &["Transform", "Entity", "Model", "Sprite", "Physics", "Collider", "Audio", "Path", "Light", "Camera", "Terrain", "Diagram"];
+pub const ENGINE_FEATURES: &[&str] = &[
+    "Transform", "Entity", "Model", "Sprite", "Physics", "Collider", "Audio", "Path", "Light", "Camera", "Terrain", "Diagram",
+    "Particles",
+];
 
 /// Structural changes requested by scripts, applied after the script returns.
 pub enum Command {
@@ -717,6 +719,7 @@ fn has_engine_feature(world: &World, e: Entity, name: &str) -> bool {
         "Camera" => world.has::<Camera>(e),
         "Terrain" => world.has::<Terrain>(e),
         "Diagram" => world.has::<Diagram>(e),
+        "Particles" => world.has::<ParticleEmitter>(e),
         _ => false,
     }
 }
@@ -889,6 +892,7 @@ impl EntityHost<'_> {
                     "Camera" => w.remove::<Camera>(e).is_some(),
                     "Terrain" => w.remove::<Terrain>(e).is_some(),
                     "Diagram" => w.remove::<Diagram>(e).is_some(),
+                    "Particles" => w.remove::<ParticleEmitter>(e).is_some(),
                     "Transform" | "Entity" => return Err(format!("every object has a {name}; destroy the object instead")),
                     _ => {
                         if script_component_matches(w, e, &name) || e != self.entity {
@@ -954,6 +958,9 @@ impl EntityHost<'_> {
             }
             "Path" => {
                 w.insert(e, PathFollow::default());
+            }
+            "Particles" => {
+                w.insert(e, ParticleEmitter::default());
             }
             "Light" => {
                 w.insert(e, Light::default());
@@ -1516,6 +1523,72 @@ impl EntityHost<'_> {
                     "AnyPressed" => input.any_pressed().map(|k| Value::Str(k.into())).unwrap_or(Value::Null),
                     "Touches" => Value::list(input.touches.iter().map(|(_, p)| Value::vector(p.x as f64, p.y as f64, 0.0)).collect()),
                     _ => Value::Int(input.touches.len() as i64),
+                })
+            })(),
+
+            // ---- Interface: change the on-screen interface by element id
+            ("Interface", _) => (|| {
+                let id = args.first().and_then(|v| v.as_str()).ok_or_else(|| format!("{member}(\"element-id\", ...)"))?.to_owned();
+                let mut ui = self.world.try_resource_mut::<kit_gamesys::InterfaceEdits>().ok_or("interfaces are off")?;
+                let mut set = |attr: &str, value: String| {
+                    let list = ui.attributes.entry(id.clone()).or_default();
+                    list.retain(|(a, _)| a != attr);
+                    list.push((attr.to_owned(), value));
+                };
+                match member {
+                    "SetText" => set("text", args.get(1).map(|v| v.to_string()).unwrap_or_default()),
+                    "SetColor" | "SetBackground" => {
+                        let c = color_args(&args[1..])?;
+                        let hex = format!(
+                            "#{:02x}{:02x}{:02x}{:02x}",
+                            (c.x.clamp(0.0, 1.0) * 255.0) as u8,
+                            (c.y.clamp(0.0, 1.0) * 255.0) as u8,
+                            (c.z.clamp(0.0, 1.0) * 255.0) as u8,
+                            (c.w.clamp(0.0, 1.0) * 255.0) as u8
+                        );
+                        set(if member == "SetColor" { "color" } else { "background" }, hex);
+                    }
+                    "Show" => {
+                        ui.visible.insert(id, true);
+                    }
+                    "Hide" => {
+                        ui.visible.insert(id, false);
+                    }
+                    _ => return Err(format!("unknown member `{member}`")),
+                }
+                Ok(Value::Null)
+            })(),
+
+            // ---- Cinematic: the Cinematics Circuit
+            ("Cinematic", _) => (|| {
+                let mut c = self.world.try_resource_mut::<kit_gamesys::CinematicControl>().ok_or("cinematics are off")?;
+                let need = |c: &kit_gamesys::CinematicControl| {
+                    if c.available { Ok(()) } else { Err("install the Cinematics Circuit (Project → Circuit Manager)".to_owned()) }
+                };
+                Ok(match member {
+                    "Play" => {
+                        need(&c)?;
+                        let name = args.first().and_then(|v| v.as_str()).ok_or("Play(\"CinematicName\")")?;
+                        c.requests.push(kit_gamesys::CinematicRequest::Play(name.to_owned()));
+                        // Report it as playing straight away, so a loop waiting on it doesn't slip through.
+                        c.playing = Some(name.to_owned());
+                        Value::Null
+                    }
+                    "Stop" => {
+                        c.requests.push(kit_gamesys::CinematicRequest::Stop);
+                        Value::Null
+                    }
+                    "Skip" => {
+                        c.requests.push(kit_gamesys::CinematicRequest::Skip);
+                        Value::Null
+                    }
+                    // Without the Circuit nothing ever plays, so games still run.
+                    "Playing" => Value::Bool(c.playing.is_some()),
+                    "Current" => c.playing.clone().map(|n| Value::Str(n.into())).unwrap_or(Value::Null),
+                    "Shot" => Value::Int(c.shot as i64),
+                    "Time" => Value::Float(c.time as f64),
+                    "Available" => Value::Bool(c.available),
+                    _ => return Err(format!("unknown member `{member}`")),
                 })
             })(),
 

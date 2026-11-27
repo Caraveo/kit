@@ -19,6 +19,7 @@
 //! | collider | `kit_collider` | collision shapes, contact/trigger events, ray casts |
 //! | physics | `kit_physics` | rigid-body dynamics |
 //! | path | `kit_path` | follows paths sketched in Canvas mode |
+//! | particles | `kit_particles` | Particle Emitters: preview in the editor, run in Play |
 //! | audio | `kit_audio` | plays sounds, with proximity (3D) fading and panning |
 //! | engine | `kit_engine` | the windowed runtime |
 
@@ -35,6 +36,7 @@ pub use kit_gamesys as gamesys;
 pub use kit_graphics as graphics;
 pub use kit_input as input;
 pub use kit_path as path;
+pub use kit_particles as particles;
 pub use kit_physics as physics;
 pub use kit_render as render;
 pub use kit_resource as resource;

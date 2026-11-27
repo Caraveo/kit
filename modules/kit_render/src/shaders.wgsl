@@ -21,7 +21,7 @@ struct Push {
     // sprites: flip u and flip v; meshes: negative two-sided flag and alpha cutoff
     // z: selected, w: unlit
     extra: vec4<f32>,
-    // roughness, metallic, imported surface flag
+    // roughness, metallic, imported surface flag (sprites: x = soft round dot, for particles)
     surface: vec4<f32>,
     emission: vec4<f32>,
 };
@@ -99,7 +99,12 @@ fn fs_mesh(i: VOut, @builtin(front_facing) front: bool) -> @location(0) vec4<f32
 
 @fragment
 fn fs_sprite(i: VOut) -> @location(0) vec4<f32> {
-    let t = textureSample(tex, samp, i.uv) * pc.color;
+    var t = textureSample(tex, samp, i.uv) * pc.color;
+    if (pc.surface.x > 0.5) {
+        // Particles without a texture: a soft round dot.
+        let d = length(i.uv - vec2<f32>(0.5, 0.5)) * 2.0;
+        t.a = t.a * (1.0 - smoothstep(0.55, 1.0, d));
+    }
     if (t.a < 0.004) {
         discard;
     }

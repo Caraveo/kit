@@ -42,9 +42,11 @@ jobs:
       - name: Test
         run: |
           cargo test -p kit_circuit
-          if [ -f "${{ steps.tag.outputs.dir }}/sdk/Cargo.toml" ]; then
-            cargo test --manifest-path "${{ steps.tag.outputs.dir }}/sdk/Cargo.toml"
-          fi
+          for part in sdk runtime; do
+            if [ -f "${{ steps.tag.outputs.dir }}/$part/Cargo.toml" ]; then
+              cargo test --manifest-path "${{ steps.tag.outputs.dir }}/$part/Cargo.toml"
+            fi
+          done
 
       - name: Pack
         env:

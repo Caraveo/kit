@@ -50,6 +50,7 @@ Plus:
 - **Bring your own art.** Sprites, sounds, and 3D models (GLB, glTF, FBX, OBJ, USDZ, STL) with colors, textures and animations. Use **Assets → + → Import files…** or drag files onto Kit.
 - **Physics** (Rapier): rigid bodies, colliders and triggers, all set up in the inspector.
 - **Sculptable terrain**, lights, cameras, and **positional sound**.
+- **Particle Emitters** (+ Add component): continuous streams and bursts, with direction, spread, speed, gravity, size, color and an optional texture. They preview live in the editor.
 - **Effects:** post-processing volumes for bloom, color grading, fog, depth of field, vignette and more.
 - **Game Data:** datasets and constants your Diagrams can read.
 - **Fabs:** right-click an object → **Save as Fab** to reuse it anywhere: place it from **Assets → Fabs** or spawn it from a script.
@@ -78,11 +79,11 @@ Get the file for your computer from the **[latest release](https://github.com/ca
 
 | Your computer | Download | Then |
 |---|---|---|
-| Mac (Apple Silicon or Intel) | v0.0.5 is coming soon (being signed). Meanwhile: [`kit-0.0.4-macos-arm64.dmg`](https://github.com/caraveo/kit/releases/download/v0.0.4/kit-0.0.4-macos-arm64.dmg) or [`kit-0.0.4-macos-x86_64.dmg`](https://github.com/caraveo/kit/releases/download/v0.0.4/kit-0.0.4-macos-x86_64.dmg) | Open it and drag **Kit** into **Applications**. |
-| Windows 10/11 (most PCs) | `kit-0.0.5-windows-x86_64.zip` | Right-click → **Extract All**, then run **kit-editor.exe**. |
-| Windows 11 on ARM | `kit-0.0.5-windows-arm64.zip` | Same as above. |
-| Ubuntu / Debian | `kit_0.0.5_amd64.deb` (or `_arm64.deb`) | `sudo apt install ./kit_0.0.5_amd64.deb`, then open **Kit** from your apps. |
-| Other Linux | `kit-0.0.5-linux-x86_64.tar.gz` (or `-aarch64`) | `tar -xzf kit-0.0.5-linux-x86_64.tar.gz && cd kit-0.0.5-linux-x86_64 && ./kit-editor` |
+| Mac (Apple Silicon or Intel) | v0.0.6 is coming soon (being signed). Meanwhile: [`kit-0.0.4-macos-arm64.dmg`](https://github.com/caraveo/kit/releases/download/v0.0.4/kit-0.0.4-macos-arm64.dmg) or [`kit-0.0.4-macos-x86_64.dmg`](https://github.com/caraveo/kit/releases/download/v0.0.4/kit-0.0.4-macos-x86_64.dmg) | Open it and drag **Kit** into **Applications**. |
+| Windows 10/11 (most PCs) | `kit-0.0.6-windows-x86_64.zip` | Right-click → **Extract All**, then run **kit-editor.exe**. |
+| Windows 11 on ARM | `kit-0.0.6-windows-arm64.zip` | Same as above. |
+| Ubuntu / Debian | `kit_0.0.6_amd64.deb` (or `_arm64.deb`) | `sudo apt install ./kit_0.0.6_amd64.deb`, then open **Kit** from your apps. |
+| Other Linux | `kit-0.0.6-linux-x86_64.tar.gz` (or `-aarch64`) | `tar -xzf kit-0.0.6-linux-x86_64.tar.gz && cd kit-0.0.6-linux-x86_64 && ./kit-editor` |
 
 Not sure which Mac you have? Apple menu → **About This Mac**: "Chip: Apple M…" means Apple Silicon, "Processor: Intel…" means Intel.
 
@@ -200,6 +201,13 @@ Circuits are installable extensions that connect Kit to services, such as Multip
 - **Reproducible:** `circuits.lock` records exact versions and checksums, so commit it with your project. Settings live in `circuits.settings.toml`.
 - Circuits can add **components** (under **+ Add component → Circuits**) and their own item in the **Project** menu.
 - **Make your own:** see [circuit/README.md](circuit/README.md) for the `circuit.toml` format, packaging with `kit-circuit`, and publishing.
+
+Kit's own Circuits:
+
+- **Multiplayer:** serverless realtime multiplayer (see [Super Multiplayer](#super-multiplayer)).
+- **Cinematics:** camera shots for intros, cutscenes and trailers. Put a **Cinematic** on an Empty and a **Cinematic Shot** on each camera inside it. You get cuts and blends, camera moves drawn in Canvas, look-at, zoom, shake, captions, letterbox, fades and a skip key. Start one on load, with `Cinematic.Play("Intro")`, or from a diagram. [Guide](circuit/cinematics/README.md)
+
+**Try it:** open Hello Kit, then **Assets → Scenes → demo**, and press **F5**. *Crystal Run* opens with a Cinematics intro, then you fly through a procedural asteroid field collecting crystals against the clock.
 
 ---
 

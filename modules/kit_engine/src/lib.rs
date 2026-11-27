@@ -67,9 +67,12 @@ pub fn add_default_modules(app: &mut App, project_root: std::path::PathBuf, conf
             enabled: physics.enabled,
         })
         .add_module(kit_audio::AudioModule { device: true })
+        // After scripts and physics, so emitters follow this frame's moves.
+        .add_module(kit_particles::ParticlesModule)
         // Circuits with engine-side runtimes. Each does nothing unless the
         // project has that Circuit installed and enabled (circuits.lock).
-        .add_module(kit_multiplayer::MultiplayerModule);
+        .add_module(kit_multiplayer::MultiplayerModule)
+        .add_module(kit_cinematics::CinematicsModule);
 }
 
 /// Build an app for a project and load its main scene.

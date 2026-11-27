@@ -18,6 +18,7 @@ kit_gamesys.workspace = true
 kit_resource.workspace = true
 kit_post.workspace = true
 kit_xui.workspace = true
+kit_particles.workspace = true
 kit_graphics = { workspace = true, optional = true }
 glam.workspace = true
 bytemuck.workspace = true

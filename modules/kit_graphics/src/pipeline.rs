@@ -167,3 +167,26 @@ pub fn create_pipeline(gfx: &Gfx, d: &PipelineDesc) -> Result<vk::Pipeline> {
     };
     Ok(pipelines[0])
 }
+
+#[cfg(test)]
+mod builtin_shader_tests {
+    /// Kit's built-in shader (shared by every renderer) must always compile:
+    /// for Vulkan, and as the web player rewrites it for WebGPU.
+    #[test]
+    fn the_builtin_shader_validates_for_desktop_and_web() {
+        let source = include_str!("../../kit_render/src/shaders.wgsl");
+        let web = source.replace("var<immediate> pc: Push;", "@group(2) @binding(0) var<uniform> pc: Push;");
+        for (label, src, caps) in [
+            ("desktop", source.to_owned(), naga::valid::Capabilities::IMMEDIATES),
+            ("web", web, naga::valid::Capabilities::empty()),
+        ] {
+            let module = naga::front::wgsl::parse_str(&src).unwrap_or_else(|e| panic!("{label}: {}", e.emit_to_string(&src)));
+            let info = naga::valid::Validator::new(naga::valid::ValidationFlags::all(), caps)
+                .validate(&module)
+                .unwrap_or_else(|e| panic!("{label}: {}", e.emit_to_string(&src)));
+            let mut options = naga::back::spv::Options::default();
+            options.lang_version = (1, 3);
+            naga::back::spv::write_vec(&module, &info, &options, None).unwrap_or_else(|e| panic!("{label}: {e}"));
+        }
+    }
+}

@@ -2,7 +2,7 @@
 
 use crate::{
     AudioSource, Camera, Collider, Diagram, InterfaceAttachment, Light, Model, PathFollow, PostVolume, RigidBody, Script,
-    Sprite, Terrain,
+    Sprite, Terrain, ParticleEmitter,
 };
 use anyhow::{Context, Result, bail};
 use kit_ecs::{Entity, World};
@@ -31,6 +31,8 @@ pub struct EntityData {
     pub model: Option<Model>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sprite: Option<Sprite>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub particle_emitter: Option<ParticleEmitter>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub light: Option<Light>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -103,6 +105,7 @@ fn entity_data(world: &World, e: Entity, id: u32, parent: Option<u32>) -> Entity
         interface: world.get_cloned::<InterfaceAttachment>(e),
         model: world.get_cloned::<Model>(e),
         sprite: world.get_cloned::<Sprite>(e),
+        particle_emitter: world.get_cloned::<ParticleEmitter>(e),
         light: world.get_cloned::<Light>(e),
         script: world.get_cloned::<Script>(e),
         collider: world.get_cloned::<Collider>(e),
@@ -168,6 +171,9 @@ pub fn load_scene(world: &mut World, scene: &SceneFile) -> Result<Vec<Entity>> {
         }
         if let Some(s) = &d.sprite {
             world.insert(e, s.clone());
+        }
+        if let Some(emitter) = &d.particle_emitter {
+            world.insert(e, emitter.clone());
         }
         if let Some(l) = d.light {
             world.insert(e, l);

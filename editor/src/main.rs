@@ -9,6 +9,7 @@ mod camera;
 mod canvas;
 mod circuit_manager;
 mod circuit_ui;
+mod cinematic_ui;
 mod code;
 mod controls;
 mod diagram_view;

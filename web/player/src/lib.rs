@@ -101,7 +101,10 @@ impl WebPlayer {
                 enabled: physics.enabled,
             })
             // The page pulls mixed audio (kit_audio_mix) for Web Audio.
-            .add_module(kit_audio::AudioModule { device: false });
+            .add_module(kit_audio::AudioModule { device: false })
+            .add_module(kit_particles::ParticlesModule)
+            // Cinematics Circuit (dormant unless installed and enabled).
+            .add_module(kit_cinematics::CinematicsModule);
         // Read the project from memory instead of a folder.
         app.world.insert_resource(resources.clone());
         kit_gamedata::reload(&mut app.world);

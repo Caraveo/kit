@@ -1,0 +1,13 @@
+[package]
+name = "kit_particles"
+description = "Kit module: simulates Particle Emitters (camera-facing sprite particles) in Play mode and as a live preview in the editor."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+kit_ecs.workspace = true
+kit_core.workspace = true
+kit_scene.workspace = true
+kit_gamesys.workspace = true
+glam.workspace = true

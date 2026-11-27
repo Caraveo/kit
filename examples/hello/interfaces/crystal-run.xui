@@ -1,0 +1,22 @@
+<interface width="1280" height="720">
+  <panel id="score-card" anchor="top-left" x="24" y="24" width="200" padding="14" gap="2" background="#0b1020cc" border-radius="12">
+    <label id="score-caption" text="CRYSTALS" font-size="0.75em" color="#8fb7ff" />
+    <label id="score" text="0" font-size="2.6em" color="#b8fbff" />
+  </panel>
+  <panel id="time-card" anchor="top" y="24" width="140" padding="12" gap="2" align="center" background="#0b1020cc" border-radius="12">
+    <label id="time-caption" text="TIME" font-size="0.75em" color="#8fb7ff" />
+    <label id="time" text="60" font-size="2.2em" color="#d9f2ff" />
+  </panel>
+  <panel id="best-card" anchor="top-right" x="-24" y="24" width="170" padding="14" align="center" background="#0b1020cc" border-radius="12">
+    <label id="best" text="BEST 0" font-size="1.1em" color="#ffe28f" />
+  </panel>
+  <label id="message" anchor="center" text="3" font-size="5em" color="#ffffff" />
+  <panel id="summary" anchor="center" width="520" padding="28" gap="12" align="center" background="#0b1020ee" border-radius="16">
+    <label id="summary-title" text="TIME!" font-size="2.4em" color="#b8fbff" />
+    <label id="summary-score" text="You collected 0 crystals" font-size="1.2em" color="#e8eeff" />
+    <label id="summary-hint" text="Press R to fly again" font-size="0.95em" color="#8fb7ff" />
+  </panel>
+  <panel id="controls" anchor="bottom" y="-18" padding="10" background="#0b102099" border-radius="10">
+    <label id="controls-text" text="WASD thrust · Space/Ctrl up/down · right-drag or arrows steer · Q/E roll · Shift boost · X brake · G guide" font-size="0.8em" color="#c7d3f2" />
+  </panel>
+</interface>

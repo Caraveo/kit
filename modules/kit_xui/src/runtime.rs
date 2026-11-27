@@ -173,6 +173,48 @@ pub fn script_path(script: &str) -> String {
     path
 }
 
+/// Letterbox bars, a fade to black and a caption, as interface elements on top.
+fn overlay_nodes(o: &kit_gamesys::CinematicOverlay) -> Vec<crate::Node> {
+    let esc = |t: &str| t.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;");
+    let bar = (o.letterbox.clamp(0.0, 1.0) * 11.0).max(0.0);
+    let fade = (o.fade.clamp(0.0, 1.0) * 255.0).round() as u8;
+    let mut src = String::from("<interface>");
+    if bar > 0.01 {
+        src += &format!(
+            r##"<panel id="__cinematic-top" style="position: absolute; x: 0; y: 0; width: 100%; height: {bar}%; background: #000000ff; border-radius: 0;" />"##
+        );
+        src += &format!(
+            r##"<panel id="__cinematic-bottom" style="position: absolute; x: 0; y: {}%; width: 100%; height: {bar}%; background: #000000ff; border-radius: 0;" />"##,
+            100.0 - bar
+        );
+    }
+    if !o.caption.is_empty() {
+        src += &format!(
+            r##"<panel id="__cinematic-caption" style="position: absolute; x: 0; y: 90%; width: 100%; height: 7%; background: #00000000; border-radius: 0;" align="center"><label text="{}" font-size="1.35em" color="#f4f6ffff" /></panel>"##,
+            esc(&o.caption)
+        );
+    }
+    if fade > 0 {
+        src += &format!(
+            r##"<panel id="__cinematic-fade" style="position: absolute; x: 0; y: 0; width: 100%; height: 100%; background: #000000{fade:02x}; border-radius: 0;" />"##
+        );
+    }
+    src += "</interface>";
+    Document::parse(&src).map(|d| d.root.children).unwrap_or_default()
+}
+
+/// Set attributes scripts changed on elements with matching ids.
+fn apply_edits(node: &mut crate::Node, edits: &HashMap<String, Vec<(String, String)>>) {
+    if let Some(list) = node.id().and_then(|id| edits.get(id)) {
+        for (attr, value) in list.clone() {
+            node.set_attr(attr, value);
+        }
+    }
+    for child in &mut node.children {
+        apply_edits(child, edits);
+    }
+}
+
 fn is_button(item: &Item) -> bool {
     item.node.tag == "button"
 }
@@ -186,11 +228,18 @@ pub fn update_ui(world: &mut World) {
     }
     let camera = kit_gamesys::active_camera(world);
     let asset = camera.and_then(|c| world.get::<InterfaceAttachment>(c).map(|a| a.asset.clone())).filter(|a| !a.is_empty());
-    let (Some(camera), Some(asset)) = (camera, asset) else {
+    // A cinematic's letterbox, fade and caption draw even without an interface.
+    let overlay = world.try_resource::<kit_gamesys::CinematicOverlay>().filter(|o| o.is_visible()).map(|o| o.clone());
+    if asset.is_none() && overlay.is_none() {
         world.insert_resource(UiFrame { size: screen.size, pixels_per_point: screen.pixels_per_point, ..Default::default() });
         return;
-    };
-    let visible = world.try_resource::<InterfaceRuntime>().and_then(|r| r.instances.get(&camera).map(|i| (i.visible.clone(), i.classes.clone()))).unwrap_or_default();
+    }
+    let mut visible = camera
+        .and_then(|camera| world.try_resource::<InterfaceRuntime>().and_then(|r| r.instances.get(&camera).map(|i| (i.visible.clone(), i.classes.clone()))))
+        .unwrap_or_default();
+    // Scripts' Interface.Show / Hide / SetText / SetColor.
+    let edits = world.try_resource::<kit_gamesys::InterfaceEdits>().map(|e| e.clone()).unwrap_or_default();
+    visible.0.extend(edits.visible.iter().map(|(k, v)| (k.clone(), *v)));
     let (mouse, down, pressed_now, released_now, keys) = match world.try_resource::<kit_input::Input>() {
         Some(i) => {
             let m = pos2((i.mouse.x - screen.mouse_origin[0]) * screen.mouse_scale, (i.mouse.y - screen.mouse_origin[1]) * screen.mouse_scale);
@@ -202,17 +251,31 @@ pub fn update_ui(world: &mut World) {
     let mut clicks: Vec<(Option<String>, Vec<usize>, Option<String>)> = Vec::new();
     let frame = {
         let mut host = world.resource_mut::<UiHost>();
-        if host.camera != Some(camera) {
-            host.camera = Some(camera);
+        if host.camera != camera {
+            host.camera = camera;
             host.hovered.clear();
             host.pressed = None;
         }
-        let Some(doc) = host.doc(&res, &asset) else {
+        let doc = match &asset {
+            Some(asset) => host.doc(&res, asset),
+            None => Some(Arc::new(Document::parse("<interface />").expect("empty interface"))),
+        };
+        let Some(mut doc) = doc.or_else(|| overlay.as_ref().map(|_| Arc::new(Document::parse("<interface />").expect("empty interface")))) else {
             drop(host);
             world.insert_resource(UiFrame { size: screen.size, pixels_per_point: screen.pixels_per_point, ..Default::default() });
             return;
         };
-        let dir = asset.rsplit_once('/').map(|(d, _)| d.to_owned());
+        if let Some(o) = &overlay {
+            let mut with = (*doc).clone();
+            with.root.children.extend(overlay_nodes(o));
+            doc = Arc::new(with);
+        }
+        if !edits.attributes.is_empty() {
+            let mut edited = (*doc).clone();
+            apply_edits(&mut edited.root, &edits.attributes);
+            doc = Arc::new(edited);
+        }
+        let dir = asset.as_deref().and_then(|a| a.rsplit_once('/')).map(|(d, _)| d.to_owned());
         let res2 = res.clone();
         let include = move |p: &str| {
             let full = if p.contains('/') { p.to_owned() } else { dir.as_ref().map_or(p.to_owned(), |d| format!("{d}/{p}")) };
@@ -310,6 +373,7 @@ pub fn update_ui(world: &mut World) {
     world.insert_resource(frame);
 
     // Run button actions after releasing borrows.
+    let (Some(camera), Some(asset)) = (camera, asset) else { return };
     for (script, path, id) in clicks {
         if let Some(id) = &id {
             let doc = world.resource_mut::<UiHost>().doc(&res, &asset);

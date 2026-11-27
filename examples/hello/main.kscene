@@ -113,43 +113,6 @@
     },
     {
       "id": 1,
-      "name": "Asteroid",
-      "transform": {
-        "translation": [
-          1.7784369,
-          1.4704962,
-          -0.3165095
-        ],
-        "rotation": [
-          0.0,
-          0.0,
-          0.0,
-          1.0
-        ],
-        "scale": [
-          1.0,
-          1.0,
-          1.0
-        ]
-      },
-      "model": {
-        "mesh": "Cube",
-        "animation_speed": 1.0,
-        "animation_loop": true,
-        "animation_enabled": true,
-        "color": [
-          0.76,
-          0.66,
-          1.0,
-          1.0
-        ],
-        "texture": "",
-        "unlit": false,
-        "visible": true
-      }
-    },
-    {
-      "id": 2,
       "name": "Camera",
       "transform": {
         "translation": [
@@ -186,7 +149,7 @@
       }
     },
     {
-      "id": 3,
+      "id": 2,
       "name": "Asteroids",
       "transform": {
         "translation": [
@@ -208,6 +171,294 @@
       },
       "script": {
         "path": "scripts/Asteroids.x"
+      }
+    },
+    {
+      "id": 3,
+      "name": "Cinematic",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "cinematic": {
+        "fade_in": 0.0,
+        "fade_out": 3.0,
+        "letterbox": true,
+        "loop": false,
+        "name": "Cinematic",
+        "play_on_start": false,
+        "skippable": true
+      }
+    },
+    {
+      "id": 4,
+      "name": "Shot 1",
+      "parent": 3,
+      "transform": {
+        "translation": [
+          0.65433604,
+          1.0801679,
+          2.2755275
+        ],
+        "rotation": [
+          -0.21029253,
+          0.1363597,
+          0.029634753,
+          0.96762854
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "camera": {
+        "projection": {
+          "kind": "Perspective",
+          "fov_y": 50.0,
+          "near": 0.05,
+          "far": 500.0
+        },
+        "clear_color": [
+          0.063,
+          0.063,
+          0.09,
+          1.0
+        ],
+        "active": false
+      },
+      "cinematic_shot": {
+        "blend": 2.9,
+        "caption": "",
+        "duration": 3.0,
+        "look_at": "Ship",
+        "shake": 0.0,
+        "transition": "blend",
+        "zoom_to": 0.0
+      }
+    },
+    {
+      "id": 5,
+      "name": "Shot 2",
+      "parent": 3,
+      "transform": {
+        "translation": [
+          4.000467,
+          1.4464316,
+          3.3149834
+        ],
+        "rotation": [
+          -0.17149216,
+          0.43050423,
+          0.083687656,
+          0.8821865
+        ],
+        "scale": [
+          1.0,
+          0.99999994,
+          1.0
+        ]
+      },
+      "camera": {
+        "projection": {
+          "kind": "Perspective",
+          "fov_y": 50.0,
+          "near": 0.05,
+          "far": 500.0
+        },
+        "clear_color": [
+          0.063,
+          0.063,
+          0.09,
+          1.0
+        ],
+        "active": false
+      },
+      "cinematic_shot": {
+        "blend": 2.0,
+        "caption": "",
+        "duration": 3.0,
+        "look_at": "Ship",
+        "shake": 0.0,
+        "transition": "blend",
+        "zoom_to": 0.0
+      }
+    },
+    {
+      "id": 6,
+      "name": "Shot 3",
+      "parent": 3,
+      "transform": {
+        "translation": [
+          2.3732862,
+          0.107316785,
+          -0.3509916
+        ],
+        "rotation": [
+          -0.10251877,
+          0.76190263,
+          0.1245192,
+          0.62728727
+        ],
+        "scale": [
+          1.0000001,
+          0.99999994,
+          1.0
+        ]
+      },
+      "camera": {
+        "projection": {
+          "kind": "Perspective",
+          "fov_y": 50.0,
+          "near": 0.05,
+          "far": 500.0
+        },
+        "clear_color": [
+          0.063,
+          0.063,
+          0.09,
+          1.0
+        ],
+        "active": false
+      },
+      "cinematic_shot": {
+        "blend": 2.0,
+        "caption": "",
+        "duration": 3.0,
+        "look_at": "Ship",
+        "shake": 0.0,
+        "transition": "blend",
+        "zoom_to": 0.0
+      }
+    },
+    {
+      "id": 7,
+      "name": "Shot 4",
+      "parent": 3,
+      "transform": {
+        "translation": [
+          0.09460406,
+          0.04542447,
+          -2.2713149
+        ],
+        "rotation": [
+          0.00039492163,
+          0.99709994,
+          0.07592557,
+          -0.005186348
+        ],
+        "scale": [
+          0.99999976,
+          1.0,
+          0.9999998
+        ]
+      },
+      "camera": {
+        "projection": {
+          "kind": "Perspective",
+          "fov_y": 50.0,
+          "near": 0.05,
+          "far": 500.0
+        },
+        "clear_color": [
+          0.063,
+          0.063,
+          0.09,
+          1.0
+        ],
+        "active": false
+      },
+      "cinematic_shot": {
+        "blend": 1.0,
+        "caption": "",
+        "duration": 3.0,
+        "look_at": "Ship",
+        "shake": 0.0,
+        "transition": "blend",
+        "zoom_to": 0.0
+      }
+    },
+    {
+      "id": 8,
+      "name": "Shot 5",
+      "parent": 3,
+      "transform": {
+        "translation": [
+          -7.0404177,
+          3.8535862,
+          9.260627
+        ],
+        "rotation": [
+          -0.11203448,
+          -0.387609,
+          -0.04752429,
+          0.9137555
+        ],
+        "scale": [
+          1.0,
+          0.99999994,
+          1.0
+        ]
+      },
+      "camera": {
+        "projection": {
+          "kind": "Perspective",
+          "fov_y": 50.0,
+          "near": 0.05,
+          "far": 500.0
+        },
+        "clear_color": [
+          0.063,
+          0.063,
+          0.09,
+          1.0
+        ],
+        "active": false
+      },
+      "cinematic_shot": {
+        "blend": 1.0,
+        "caption": "",
+        "duration": 3.0,
+        "look_at": "",
+        "shake": 0.0,
+        "transition": "blend",
+        "zoom_to": 0.0
+      }
+    },
+    {
+      "id": 9,
+      "name": "Entity",
+      "transform": {
+        "translation": [
+          1.0,
+          0.5,
+          2.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
       }
     }
   ]

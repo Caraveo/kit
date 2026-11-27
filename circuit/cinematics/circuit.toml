@@ -1,0 +1,124 @@
+# The Cinematics Circuit. Versioned on its own; released with tags
+# circuit/cinematics/v<version>.
+schema = 1
+
+[circuit]
+id = "kit.cinematics"
+name = "Cinematics"
+publisher = "kit"
+description = "Camera shots for intros, cutscenes and trailers: cuts and blends, camera moves drawn in Canvas, look-at, zoom, shake, captions, letterbox and fades. Start them on load, from scripts or from diagrams."
+version = "0.1.0"
+channel = "beta"
+license = "MIT"
+kit = ">=0.0.6"           # the runtime ships in Kit's players from 0.0.6
+platforms = ["linux", "macos", "windows", "web"]
+architectures = ["any"]
+permissions = []
+documentation = "https://github.com/caraveo/kit/tree/main/circuit/cinematics"
+repository = "https://github.com/caraveo/kit"
+release_notes = "NOTES.md"
+
+# + Add component → Circuits → Cinematic (stored on the object as "cinematic").
+# Put it on an Empty; the cameras inside it with a Cinematic Shot are the shots.
+[[component]]
+id = "cinematic"
+name = "Cinematic"
+description = "A sequence of camera shots. The cameras inside this object with a Cinematic Shot play in Hierarchy order."
+
+[[component.fields]]
+key = "name"
+type = "string"
+label = "Name"
+description = "What scripts and diagrams call it: Cinematic.Play(\"Intro\"). Empty = the object's name."
+
+[[component.fields]]
+key = "play_on_start"
+type = "boolean"
+default = false
+label = "Play on start"
+
+[[component.fields]]
+key = "letterbox"
+type = "boolean"
+default = true
+label = "Letterbox"
+description = "Black bars at the top and bottom while it plays."
+
+[[component.fields]]
+key = "skippable"
+type = "boolean"
+default = true
+label = "Skippable"
+description = "Esc, Space, Enter or the gamepad's Start skips it."
+
+[[component.fields]]
+key = "fade_in"
+type = "number"
+default = 0.6
+label = "Fade in (s)"
+
+[[component.fields]]
+key = "fade_out"
+type = "number"
+default = 0.6
+label = "Fade out (s)"
+description = "Fades to black at the end, then back into the game."
+
+[[component.fields]]
+key = "loop"
+type = "boolean"
+default = false
+label = "Loop"
+description = "Start over after the last shot (title screens, attract mode)."
+
+# + Add component → Circuits → Cinematic Shot (stored as "cinematic_shot"), on a camera inside a Cinematic.
+[[component]]
+id = "cinematic_shot"
+name = "Cinematic Shot"
+description = "This camera is a shot. Sketch a path for it in Canvas mode to move it during the shot."
+
+[[component.fields]]
+key = "duration"
+type = "number"
+default = 3.0
+label = "Duration (s)"
+
+[[component.fields]]
+key = "transition"
+type = "choice"
+options = ["cut", "blend"]
+default = "cut"
+label = "Transition in"
+description = "cut: switch at once. blend: glide from the previous view."
+
+[[component.fields]]
+key = "blend"
+type = "number"
+default = 1.0
+label = "Blend (s)"
+
+[[component.fields]]
+key = "look_at"
+type = "string"
+label = "Look at"
+description = "Name of an object to keep in the center of the shot."
+
+[[component.fields]]
+key = "zoom_to"
+type = "number"
+default = 0.0
+label = "Zoom to (°)"
+description = "Field of view at the end of the shot. 0 = no zoom."
+
+[[component.fields]]
+key = "caption"
+type = "string"
+label = "Caption"
+description = "Text shown at the bottom during this shot."
+
+[[component.fields]]
+key = "shake"
+type = "number"
+default = 0.0
+label = "Shake"
+description = "Handheld wobble: 0 = steady, 1 = a little, 5 = a lot."

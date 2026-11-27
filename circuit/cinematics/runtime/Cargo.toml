@@ -1,0 +1,22 @@
+[package]
+name = "kit_cinematics"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+description = "The Cinematics Circuit in Kit's game runtime: plays camera shots with cuts, blends, paths, captions, letterbox and fades. Does nothing unless the project has the Circuit installed and enabled."
+license = "MIT"
+
+[dependencies]
+kit_core.workspace = true
+kit_ecs.workspace = true
+kit_scene.workspace = true
+kit_gamesys.workspace = true
+kit_resource.workspace = true
+kit_input.workspace = true
+kit_path.workspace = true
+glam.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+
+[dev-dependencies]

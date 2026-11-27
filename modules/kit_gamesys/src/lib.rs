@@ -10,6 +10,7 @@
 pub mod audio;
 pub mod bridge;
 mod physics;
+mod particles;
 pub mod post;
 pub mod rig;
 mod scene_file;
@@ -17,6 +18,7 @@ pub mod scenes;
 mod terrain;
 
 pub use terrain::{RESOLUTIONS as TERRAIN_RESOLUTIONS, SculptTool, Terrain};
+pub use particles::ParticleEmitter;
 
 pub use physics::{
     BodyKind, Collider, ColliderShape, CollisionEvent, CollisionEvents, PathFollow, PathLoop, Physics, PhysicsApi,
@@ -282,6 +284,9 @@ impl Module for GameSysModule {
         app.world.insert_resource(scenes::SceneRequests::default());
         app.world.insert_resource(scenes::SceneEvents::default());
         app.world.insert_resource(DebugDraw::default());
+        app.world.insert_resource(InterfaceEdits::default());
+        app.world.insert_resource(CinematicControl::default());
+        app.world.insert_resource(CinematicOverlay::default());
         app.add_play_system(kit_core::Stage::First, "clear_scene_events", scenes::clear_scene_events);
         app.add_play_system(kit_core::Stage::First, "debug_draw_expire", expire_debug_draw);
         app.add_play_system(kit_core::Stage::Update, "animation_clocks", advance_animation_clocks);
@@ -350,5 +355,55 @@ fn expire_debug_draw(world: &mut kit_ecs::World) {
     let now = world.resource::<kit_core::Time>().elapsed;
     if let Some(mut d) = world.try_resource_mut::<DebugDraw>() {
         d.lines.retain(|l| l.until >= now);
+    }
+}
+
+/// Changes scripts make to the on-screen interface (`Interface.SetText`,
+/// `Show`, `Hide`, `SetColor`), applied by the interface module by element id.
+#[derive(Default, Debug, Clone)]
+pub struct InterfaceEdits {
+    /// Element id → attribute → value (`text`, `color`, `background`…).
+    pub attributes: std::collections::HashMap<String, Vec<(String, String)>>,
+    /// Element id → shown or hidden.
+    pub visible: std::collections::HashMap<String, bool>,
+}
+
+/// What scripts ask of the Cinematics Circuit (`Cinematic.Play("Intro")`).
+#[derive(Clone, Debug, PartialEq)]
+pub enum CinematicRequest {
+    Play(String),
+    Stop,
+    /// Jump to the end (like the player pressing the skip key).
+    Skip,
+}
+
+/// The bridge between scripts and the Cinematics Circuit (which lives in its
+/// own crate, outside the script module).
+#[derive(Default, Debug, Clone)]
+pub struct CinematicControl {
+    /// The project has the Cinematics Circuit installed and enabled.
+    pub available: bool,
+    pub requests: Vec<CinematicRequest>,
+    /// The cinematic playing now, by name.
+    pub playing: Option<String>,
+    /// Which shot (0-based) and how far into the whole cinematic, in seconds.
+    pub shot: usize,
+    pub time: f32,
+}
+
+/// Drawn over the game while a cinematic plays: letterbox bars, a fade to
+/// black and a caption (painted by the interface module, in every player).
+#[derive(Default, Debug, Clone, PartialEq)]
+pub struct CinematicOverlay {
+    /// 0 = no bars, 1 = full letterbox.
+    pub letterbox: f32,
+    /// 0 = clear, 1 = black.
+    pub fade: f32,
+    pub caption: String,
+}
+
+impl CinematicOverlay {
+    pub fn is_visible(&self) -> bool {
+        self.letterbox > 0.001 || self.fade > 0.001 || !self.caption.is_empty()
     }
 }

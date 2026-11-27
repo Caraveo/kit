@@ -1,5 +1,41 @@
 # Changelog
 
+## v0.0.6: Cinematics, Particles and a much bigger x
+
+### Cinematics (new, as a Circuit)
+- **Project → Circuit Manager → Cinematics**. Put a **Cinematic** on an Empty and a **Cinematic Shot** on each camera inside it. The shots play in Hierarchy order.
+- Shots **cut** or **blend**. A blend glides position, direction and zoom from exactly what was on screen, even from the game's own camera.
+- **Camera moves are drawn in Canvas:** a shot camera follows its sketched path during its shot. Shots can also look at an object, zoom, shake and show a caption.
+- Letterbox bars, fades in and out, a skip key and looping, then the game's camera comes back.
+- Start one on load, with `Cinematic.Play("Intro")` from x, or from a diagram (`PlayCinematic`). Diagrams hear `CinematicStarted` and `CinematicFinished`.
+- **🎬 Cinematic menu** at the right of the Game View / Scene View / Preview row: play, skip or stop, make a new cinematic, and add a shot from the current Scene View.
+
+### Particles (new)
+- **+ Add component → Particle Emitter:** continuous streams and bursts, with direction, spread, speed, gravity, size, color and an optional texture. Particles fade out over their life.
+- Camera-facing, so they work with 3D and 2D cameras, on desktop and the web. Without a texture, each particle is a soft round dot.
+- Emitters **preview live in the editor**. In Play they start fresh, follow game time (pausing freezes them) and are capped at 1,024 per emitter and 16,384 in all.
+
+### x scripting
+- **Spawning:** `INVOKE` (inside this object) and `INSTANTIATE` (top level) create shapes, models, Fabs or copies.
+- **Features:** `GetFeature`, `AddFeature`, `RemoveFeature`, `HasFeature`, `BeActive` / `IsActive` and `.Enabled` work on any object's scripts and engine parts. Scripts call each other's methods and fields.
+- **Lifecycle:** every `Init` runs before any `Update`. New: `FixedUpdate`, `LateUpdate`, `OnClick`, and `OnCollision(other, hit)` with point, normal and strength.
+- **Time:** `Time.After`, `Time.Every` and `Time.Cancel`, plus coroutines with `Time.Start` and `WAIT`.
+- **Math:** a `Rotation` module (`Blend`, `LookToward`, `TurnToward`, `AroundAxis`…), `Math.Blend` / `MoveToward` / `Smooth` / `Remap` / `Noise` / `Seed`, and `Transform.ToWorld` / `ToLocal`.
+- **Physics:** `FindNear`, `SweepSphere`, collision layers, and switching body kind and mass.
+- **Also:** animation control (`Model.Play`), cameras (`ScreenToRay`, `MakeActive`), mouse lock, rebindable input actions, touch, tags, `Save`, `Debug` lines, and changing the on-screen interface (`Interface.SetText`, `Show`, `Hide`).
+- **Diagrams and scripts talk both ways:** a **Run Script** node runs a script function and gets its result, and `Diagram.Emit` sends events to diagrams.
+
+### Fabs (new)
+- Right-click an object → **Save as Fab**. Place it from **Assets → Fabs**, or spawn it with `INSTANTIATE("Name")`.
+
+### Editor
+- Selecting in the Hierarchy frames the object while playing in Scene View.
+- Recent projects show the project's name; hover for the path.
+- Tags in the Inspector.
+
+### Hello Kit
+- **Crystal Run** (Assets → Scenes → demo): a Cinematics intro, then free flight through a procedural asteroid field, collecting crystals against the clock.
+
 ## v0.0.5: Super Multiplayer and Circuits
 
 The easiest multiplayer in game development: install it, tick **Realtime Sync** on your player, and press Play. No game server to write or run.

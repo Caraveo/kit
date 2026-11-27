@@ -2,6 +2,13 @@
 version = 1
 
 [[circuit]]
+id = "kit.cinematics"
+version = "0.1.0"
+sha256 = "4cc799e55257b590380ef3bacf7b81494fb567a996b9880f339c73af62daca0f"
+source = "local build of circuit/cinematics"
+enabled = true
+
+[[circuit]]
 id = "kit.multiplayer"
 version = "0.1.1"
 sha256 = "54eb3d589c81e22a9504beeff41380abf8ec4e6c8e0896985fc5ac3b37bec854"

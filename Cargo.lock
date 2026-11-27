@@ -2172,7 +2172,7 @@ dependencies = [
 
 [[package]]
 name = "kit"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "anyhow",
  "glam 0.34.3",
@@ -2186,6 +2186,7 @@ dependencies = [
  "kit_gamesys",
  "kit_graphics",
  "kit_input",
+ "kit_particles",
  "kit_path",
  "kit_physics",
  "kit_preview",
@@ -2200,7 +2201,7 @@ dependencies = [
 
 [[package]]
 name = "kit-editor"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "ab_glyph",
  "anyhow",
@@ -2231,7 +2232,7 @@ dependencies = [
 
 [[package]]
 name = "kit-player"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "anyhow",
  "env_logger",
@@ -2244,7 +2245,7 @@ dependencies = [
 
 [[package]]
 name = "kit_audio"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "anyhow",
  "cpal",
@@ -2261,8 +2262,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "kit_cinematics"
+version = "0.1.0"
+dependencies = [
+ "glam 0.34.3",
+ "kit_core",
+ "kit_ecs",
+ "kit_gamesys",
+ "kit_input",
+ "kit_path",
+ "kit_resource",
+ "kit_scene",
+ "serde",
+ "serde_json",
+ "toml 0.9.12+spec-1.1.0",
+]
+
+[[package]]
 name = "kit_circuit"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -2281,7 +2299,7 @@ dependencies = [
 
 [[package]]
 name = "kit_collider"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "glam 0.34.3",
  "kit_core",
@@ -2294,7 +2312,7 @@ dependencies = [
 
 [[package]]
 name = "kit_core"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "kit_ecs",
  "log",
@@ -2302,7 +2320,7 @@ dependencies = [
 
 [[package]]
 name = "kit_diagram"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "anyhow",
  "glam 0.34.3",
@@ -2321,16 +2339,17 @@ dependencies = [
 
 [[package]]
 name = "kit_ecs"
-version = "0.0.5"
+version = "0.0.6"
 
 [[package]]
 name = "kit_engine"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "anyhow",
  "glam 0.34.3",
  "image",
  "kit_audio",
+ "kit_cinematics",
  "kit_collider",
  "kit_core",
  "kit_diagram",
@@ -2340,6 +2359,7 @@ dependencies = [
  "kit_graphics",
  "kit_input",
  "kit_multiplayer",
+ "kit_particles",
  "kit_path",
  "kit_physics",
  "kit_render",
@@ -2355,7 +2375,7 @@ dependencies = [
 
 [[package]]
 name = "kit_export_security"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -2367,7 +2387,7 @@ dependencies = [
 
 [[package]]
 name = "kit_gamedata"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "anyhow",
  "kit_core",
@@ -2380,7 +2400,7 @@ dependencies = [
 
 [[package]]
 name = "kit_gamesys"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "anyhow",
  "glam 0.34.3",
@@ -2395,7 +2415,7 @@ dependencies = [
 
 [[package]]
 name = "kit_graphics"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "anyhow",
  "ash",
@@ -2409,7 +2429,7 @@ dependencies = [
 
 [[package]]
 name = "kit_input"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "glam 0.34.3",
  "kit_core",
@@ -2435,8 +2455,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "kit_particles"
+version = "0.0.6"
+dependencies = [
+ "glam 0.34.3",
+ "kit_core",
+ "kit_ecs",
+ "kit_gamesys",
+ "kit_scene",
+]
+
+[[package]]
 name = "kit_path"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "glam 0.34.3",
  "kit_collider",
@@ -2449,7 +2480,7 @@ dependencies = [
 
 [[package]]
 name = "kit_physics"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "glam 0.34.3",
  "kit_collider",
@@ -2461,7 +2492,7 @@ dependencies = [
 
 [[package]]
 name = "kit_post"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "bytemuck",
  "glam 0.34.3",
@@ -2474,7 +2505,7 @@ dependencies = [
 
 [[package]]
 name = "kit_preview"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "anyhow",
  "glam 0.34.3",
@@ -2499,7 +2530,7 @@ dependencies = [
 
 [[package]]
 name = "kit_render"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -2510,6 +2541,7 @@ dependencies = [
  "kit_ecs",
  "kit_gamesys",
  "kit_graphics",
+ "kit_particles",
  "kit_post",
  "kit_resource",
  "kit_scene",
@@ -2521,7 +2553,7 @@ dependencies = [
 
 [[package]]
 name = "kit_resource"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -2535,7 +2567,7 @@ dependencies = [
 
 [[package]]
 name = "kit_rex"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "anyhow",
  "kit_diagram",
@@ -2549,7 +2581,7 @@ dependencies = [
 
 [[package]]
 name = "kit_rigg"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "glam 0.34.3",
  "kit_core",
@@ -2564,7 +2596,7 @@ dependencies = [
 
 [[package]]
 name = "kit_scene"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "glam 0.34.3",
  "kit_core",
@@ -2574,7 +2606,7 @@ dependencies = [
 
 [[package]]
 name = "kit_script"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "glam 0.34.3",
  "kit_core",
@@ -2589,12 +2621,13 @@ dependencies = [
 
 [[package]]
 name = "kit_web"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "anyhow",
  "bytemuck",
  "glam 0.34.3",
  "kit_audio",
+ "kit_cinematics",
  "kit_collider",
  "kit_core",
  "kit_diagram",
@@ -2603,6 +2636,7 @@ dependencies = [
  "kit_gamedata",
  "kit_gamesys",
  "kit_input",
+ "kit_particles",
  "kit_path",
  "kit_physics",
  "kit_post",
@@ -2618,11 +2652,11 @@ dependencies = [
 
 [[package]]
 name = "kit_x"
-version = "0.0.5"
+version = "0.0.6"
 
 [[package]]
 name = "kit_xui"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "anyhow",
  "bytemuck",

@@ -137,7 +137,7 @@ Both take `(what[, position[, rotation[, scale]]])`:
 
 Every object is made of **features**: its scripts, and engine features such as
 `Model`, `Sprite`, `Physics`, `Collider`, `Audio`, `Light`, `Camera`, `Path`,
-`Diagram` and `Transform`. `GetFeature` hands you one of them, on this object
+`Particles`, `Diagram` and `Transform`. `GetFeature` hands you one of them, on this object
 or another, and you use it like a module or a class instance:
 
 ```x
@@ -281,6 +281,19 @@ New `Transform` members: `ToWorld(point)` and `ToLocal(point)`,
 | `Save.Set("best", 120)`, `Save.Get("best", 0)`, `Has`, `Delete`, `Clear`, `Keys` | Values kept between plays and launches (numbers, text, VECTORs, lists, objects) |
 | `Debug.Line(from, to[, color[, seconds]])`, `Debug.Ray(origin, dir, …)`, `Debug.Sphere(center, radius, …)` | Drawn over the viewport while playing |
 | `Debug.Clock()` | Seconds from a steady clock, to time your own code |
+
+## On-screen interface from scripts
+
+Change the scene camera's interface (`.xui`) by element id:
+`Interface.SetText("score", 12)`, `Interface.Show("menu")`, `Interface.Hide("menu")`,
+`Interface.SetColor("time", 1, 0.4, 0.4)` and `Interface.SetBackground(id, r, g, b[, a])`.
+Changes last until play stops.
+
+## Cinematics (Circuit)
+
+With the Cinematics Circuit installed: `Cinematic.Play("Intro")`, `Stop()`,
+`Skip()`, `Playing`, `Current`, `Shot`, `Time`. `Playing` is `FALSE` without
+the Circuit, so games still run. See `circuit/cinematics/README.md`.
 
 ## Diagrams and scripts
 

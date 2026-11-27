@@ -1852,3 +1852,122 @@ fn fabs_save_place_and_spawn_from_scripts() {
     assert_eq!(heights, [8.0, 9.0], "{console:?}");
     h.ed.stop();
 }
+
+#[test]
+fn cinematic_menu_sits_at_the_right_when_the_circuit_is_installed() {
+    let mut h = Harness::new("cinematic_menu");
+    h.frame(vec![]);
+    assert!(ui::marked(&h.ctx, "cinematic_menu").is_none(), "hidden without the Circuit");
+
+    // Install the Cinematics Circuit from this repository.
+    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../circuit/cinematics");
+    let (manifest, bytes) = kit_circuit::package::pack(&src).unwrap();
+    let release = kit_circuit::package::release_manifest(&manifest, &bytes, None, None);
+    let root = h.ed.project.as_ref().unwrap().root().to_path_buf();
+    // The Circuit needs Kit 0.0.6; this checkout may still say 0.0.5, so install
+    // as a newer Kit would (any version >= 0.0.6 does; the Circuit's own 0.1.0 is one).
+    kit_circuit::install::install_with(
+        &root,
+        &release,
+        &bytes,
+        &[],
+        "test",
+        &manifest.version(),
+        kit_circuit::manifest::host_platform(),
+    )
+    .unwrap();
+    h.wait(0.1);
+    h.frame(vec![]);
+    h.frame(vec![]);
+    let menu = ui::marked(&h.ctx, "cinematic_menu").expect("shown once installed");
+    let preview = ui::marked(&h.ctx, "open_preview").unwrap();
+    assert!(menu.min.x > preview.max.x, "after Game View, Scene View and Preview");
+    assert!(h.st.viewport_rect.max.x - menu.max.x < 40.0, "at the very right of the row: {menu:?} vs {:?}", h.st.viewport_rect);
+
+    // New cinematic: a director and a first shot framed like the Scene View.
+    let director = crate::cinematic_ui::new_cinematic(&mut h.ed);
+    let shots = kit::scene::children(h.ed.world(), director);
+    assert_eq!(shots.len(), 1);
+    let shot = shots[0];
+    let g = h.ed.world().get::<kit::scene::GlobalTransform>(shot).unwrap().0;
+    assert!(g.w_axis.truncate().distance(h.ed.camera.eye()) < 1e-3, "at the editor's eye");
+    assert!(!h.ed.world().get::<kit::gamesys::Camera>(shot).unwrap().active, "doesn't take over the game's view");
+    let second = crate::cinematic_ui::add_shot(&mut h.ed, director);
+    let x = h.ed.world().get::<kit::gamesys::ExtraData>(second).unwrap().0.get("cinematic_shot").cloned().unwrap();
+    assert_eq!(x["transition"], "blend", "later shots blend in");
+
+    // ▶ Play: starts the game and plays it.
+    crate::cinematic_ui::play(&mut h.ed, "Cinematic");
+    assert!(h.ed.playing);
+    h.ed.app.update(1.0 / 60.0);
+    assert_eq!(kit::gamesys::active_camera(h.ed.world()), Some(shot));
+    assert_eq!(h.ed.world().resource::<kit::gamesys::CinematicControl>().playing.as_deref(), Some("Cinematic"));
+    for _ in 0..200 {
+        h.ed.app.update(1.0 / 60.0);
+    }
+    assert_eq!(kit::gamesys::active_camera(h.ed.world()), Some(second));
+    h.ed.stop();
+}
+
+#[test]
+fn particle_emitter_from_add_component_previews_plays_and_saves() {
+    let mut h = Harness::new("particles");
+    let e = h.ed.spawn(crate::state::Preset::Empty, None);
+    h.ed.selected = Some(e);
+    h.frame(vec![]);
+
+    // + Add component → Particle Emitter.
+    let menu = ui::marked(&h.ctx, "add_component_menu").expect("Add component button");
+    h.click(menu.center());
+    h.frame(vec![]);
+    let item = ui::marked(&h.ctx, "add_particle_emitter").expect("Particle Emitter in the menu");
+    h.click(item.center());
+    h.frame(vec![]);
+    assert!(h.ed.world().has::<kit::gamesys::ParticleEmitter>(e), "added from the menu");
+    assert!(ui::marked(&h.ctx, "particles_restart").is_some(), "its inspector section shows");
+
+    // Editing: it previews live.
+    for _ in 0..30 {
+        h.ed.app.update(1.0 / 60.0);
+    }
+    let preview = h.ed.world().get::<kit::particles::ParticleState>(e).map_or(0, |s| s.particles.len());
+    assert!(preview > 5, "preview while editing: {preview}");
+
+    // Restart from the inspector: a fresh start (with the burst).
+    h.ed.app.world.get_mut::<kit::gamesys::ParticleEmitter>(e).unwrap().burst = 30;
+    h.frame(vec![]);
+    let restart = ui::marked(&h.ctx, "particles_restart").unwrap();
+    h.click(restart.center());
+    h.ed.app.update(1.0 / 60.0);
+    let n = h.ed.world().get::<kit::particles::ParticleState>(e).map_or(0, |s| s.particles.len());
+    assert!((30..=32).contains(&n), "restarted with its burst: {n}");
+
+    // Save: the settings, never the live particles.
+    h.ed.save_scene().unwrap();
+    let saved = std::fs::read_to_string(h.dir.join("main.kscene")).unwrap();
+    assert!(saved.contains("\"particle_emitter\"") && saved.contains("\"burst\": 30"));
+    assert!(!saved.contains("\"age\""));
+
+    // Play: fresh state with the burst; Stop: back to editing, play particles gone.
+    for _ in 0..30 {
+        h.ed.app.update(1.0 / 60.0);
+    }
+    h.ed.play();
+    h.ed.app.update(1.0 / 60.0);
+    let played = kit::scene::find_by_name(h.ed.world(), "Empty").filter(|x| h.ed.world().has::<kit::gamesys::ParticleEmitter>(*x)).unwrap_or(e);
+    let n = h.ed.world().get::<kit::particles::ParticleState>(played).map_or(0, |s| s.particles.len());
+    assert!((30..=32).contains(&n), "a new Play session starts fresh: {n}");
+    h.ed.app.world.resource_mut::<kit::core::Time>().scale = 0.0;
+    let before: Vec<_> = h.ed.world().get::<kit::particles::ParticleState>(played).unwrap().particles.iter().map(|p| p.position).collect();
+    for _ in 0..10 {
+        h.ed.app.update(1.0 / 60.0);
+    }
+    let after: Vec<_> = h.ed.world().get::<kit::particles::ParticleState>(played).unwrap().particles.iter().map(|p| p.position).collect();
+    assert_eq!(before, after, "paused game time freezes particles");
+    h.ed.app.world.resource_mut::<kit::core::Time>().scale = 1.0;
+    h.ed.stop();
+    let back = h.ed.world().query::<(kit::gamesys::ParticleEmitter,)>()[0];
+    assert!(h.ed.world().get::<kit::particles::ParticleState>(back).is_none(), "no play particles after Stop");
+    h.ed.app.update(1.0 / 60.0);
+    assert!(h.ed.world().get::<kit::particles::ParticleState>(back).is_some(), "preview resumes");
+}

@@ -810,6 +810,8 @@ pub fn draw(root: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                         } else if !st.preview_open && st.interface.is_some() {
                             ui.label(RichText::new("Interface").strong());
                         }
+                        // Cinematics Circuit: at the far right of this row.
+                        crate::cinematic_ui::view_tab(ui, ed);
                     });
                     ui.add_space(5.0);
                     if st.center_diagram.is_some() {
@@ -1190,7 +1192,7 @@ fn header(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                 if !st.recent.is_empty() {
                     ui.separator();
                     for p in st.recent.clone().iter().take(6) {
-                        if ui.button(p.display().to_string()).clicked() {
+                        if ui.button(project_name(p)).on_hover_text(p.display().to_string()).clicked() {
                             st.requests.push(Request::OpenPath(p.clone()));
                             ui.close();
                         }
@@ -2310,6 +2312,28 @@ fn color_row(ui: &mut Ui, label: &str, c: &mut Vec4) -> bool {
     changed
 }
 
+/// The Particle Emitter's settings.
+fn particle_rows(ui: &mut Ui, images: &[String], p: &mut kit::gamesys::ParticleEmitter) {
+    let row = |ui: &mut Ui, label: &str, hint: &str, value: &mut f32, speed: f64, range: std::ops::RangeInclusive<f32>, suffix: &str| {
+        ui.horizontal(|ui| {
+            ui.add_sized([62.0, 20.0], egui::Label::new(RichText::new(label).size(12.0).color(LABEL()))).on_hover_text(hint);
+            ui.add_sized([ui.available_width(), 22.0], egui::DragValue::new(value).speed(speed).range(range).suffix(suffix));
+        });
+    };
+    row(ui, "Rate", "Particles per second (0 = none)", &mut p.rate, 0.5, 0.0..=10_000.0, " /s");
+    let mut burst = p.burst as f32;
+    row(ui, "Burst", "Particles at once when it starts", &mut burst, 1.0, 0.0..=10_000.0, "");
+    p.burst = burst.round() as u32;
+    row(ui, "Lifetime", "Seconds each particle lives (it fades out)", &mut p.lifetime, 0.02, 0.01..=60.0, " s");
+    row(ui, "Speed", "Launch speed", &mut p.speed, 0.05, 0.0..=1000.0, "");
+    vec3_row(ui, "Direction", &mut p.direction, 0.02);
+    row(ui, "Spread", "Cone around the direction (0 = a line, 180 = all around)", &mut p.spread_degrees, 0.5, 0.0..=180.0, "°");
+    vec3_row(ui, "Gravity", &mut p.gravity, 0.05);
+    row(ui, "Size", "Width of a particle", &mut p.size, 0.005, 0.0..=100.0, "");
+    color_row(ui, "Color", &mut p.color);
+    texture_row(ui, images, "particle_tex", &mut p.texture);
+}
+
 fn texture_row(ui: &mut Ui, images: &[String], id: &str, tex: &mut String) {
     ui.horizontal(|ui| {
         ui.add_sized([62.0, 20.0], egui::Label::new(RichText::new("Texture").size(12.0).color(LABEL())));
@@ -2826,6 +2850,37 @@ fn components(
             });
             if !keep {
                 w.remove::<Sprite>(e);
+            }
+        }
+
+        // Particle Emitter
+        if w.has::<kit::gamesys::ParticleEmitter>(e) {
+            let mut restart = false;
+            let keep = section(ui, "particles", "Particle Emitter", "✨", true, |ui| {
+                let mut p = w.get_cloned::<kit::gamesys::ParticleEmitter>(e).unwrap();
+                particle_rows(ui, images, &mut p);
+                ui.horizontal(|ui| {
+                    ui.add_space(66.0);
+                    ui.checkbox(&mut p.enabled, "Emitting");
+                    let r = ui.button("↻ Restart").on_hover_text("Start over with a fresh burst");
+                    mark(ui, "particles_restart", r.rect);
+                    restart = r.clicked();
+                });
+                let live = w.get::<kit::particles::ParticleState>(e).map_or(0, |s| s.particles.len());
+                ui.horizontal(|ui| {
+                    ui.add_space(66.0);
+                    ui.label(RichText::new(format!("{live} live (at most {})", kit::particles::MAX_PER_EMITTER)).size(10.5).color(MUTED()));
+                });
+                if *w.get::<kit::gamesys::ParticleEmitter>(e).unwrap() != p {
+                    *w.get_mut::<kit::gamesys::ParticleEmitter>(e).unwrap() = p;
+                }
+            });
+            if restart {
+                w.remove::<kit::particles::ParticleState>(e);
+            }
+            if !keep {
+                w.remove::<kit::gamesys::ParticleEmitter>(e);
+                w.remove::<kit::particles::ParticleState>(e);
             }
         }
 
@@ -3758,7 +3813,7 @@ fn add_component_menu_inner(ui: &mut Ui, ed: &mut Editor, e: Entity, sketch_now:
 fn add_component_menu_body(ui: &mut Ui, ed: &mut Editor, e: Entity, sketch_now: &mut bool, add_diagram: &mut bool) {
     ui.add_space(8.0);
     ui.vertical_centered(|ui| {
-        ui.menu_button(RichText::new("+  Add component").color(ACCENT()), |ui| {
+        let menu = ui.menu_button(RichText::new("+  Add component").color(ACCENT()), |ui| {
             let w = &mut ed.app.world;
             let add = |ui: &mut Ui, label: &str, has: bool, f: &mut dyn FnMut()| {
                 if ui.add_enabled(!has, egui::Button::new(label)).clicked() {
@@ -3778,6 +3833,13 @@ fn add_component_menu_body(ui: &mut Ui, ed: &mut Editor, e: Entity, sketch_now: 
             add(ui, "Camera", has_cam, &mut || {
                 w.insert(e, Camera::perspective());
             });
+            let has_particles = w.has::<kit::gamesys::ParticleEmitter>(e);
+            let particles = ui.add_enabled(!has_particles, egui::Button::new("Particle Emitter"));
+            mark(ui, "add_particle_emitter", particles.rect);
+            if particles.clicked() {
+                w.insert(e, kit::gamesys::ParticleEmitter::default());
+                ui.close();
+            }
             let has_light = w.has::<Light>(e);
             add(ui, "Light", has_light, &mut || {
                 w.insert(e, Light::default());
@@ -3832,6 +3894,7 @@ fn add_component_menu_body(ui: &mut Ui, ed: &mut Editor, e: Entity, sketch_now: 
             });
             crate::circuit_ui::add_component_section(ui, ed, e);
         });
+        mark(ui, "add_component_menu", menu.response.rect);
     });
 }
 
@@ -4390,11 +4453,9 @@ fn welcome(ctx: &egui::Context, ed: &mut Editor, st: &mut UiState) {
                 ui.add_space(14.0);
                 widgets::section_label(ui, "RECENT");
                 for p in st.recent.clone().iter().take(6) {
-                    let name = p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
-                    let r = ui.add(
-                        egui::Button::new(RichText::new(format!("{name}   {}", p.display())).size(12.0).color(LABEL()))
-                            .frame(false),
-                    );
+                    let r = ui
+                        .add(egui::Button::new(RichText::new(project_name(p)).size(12.0).color(LABEL())).frame(false))
+                        .on_hover_text(p.display().to_string());
                     if r.clicked() {
                         st.requests.push(Request::OpenPath(p.clone()));
                     }
@@ -5022,4 +5083,9 @@ fn draw_debug_lines(painter: &egui::Painter, ed: &Editor, rect: egui::Rect, edit
         let color = egui::Color32::from_rgba_unmultiplied(c.x as u8, c.y as u8, c.z as u8, c.w as u8);
         painter.line_segment([a, b], egui::Stroke::new(1.5, color));
     }
+}
+
+/// A recent project's name: its folder's name (the full path is in the tooltip).
+fn project_name(path: &Path) -> String {
+    path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| path.display().to_string())
 }

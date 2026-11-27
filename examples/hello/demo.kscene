@@ -1,0 +1,464 @@
+{
+ "version": 1,
+ "entities": [
+  {
+   "id": 0,
+   "name": "Ship",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0,
+     1
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "model": {
+    "mesh": "Cube",
+    "animation_speed": 1.0,
+    "animation_loop": true,
+    "animation_enabled": true,
+    "color": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "texture": "",
+    "unlit": false,
+    "visible": true,
+    "mesh_asset": "models/Ship_20261126_105349_215757/Ship.kmodel"
+   },
+   "collider": {
+    "shape": {
+     "kind": "Sphere",
+     "radius": 0.7
+    },
+    "offset": [
+     0,
+     0,
+     0
+    ],
+    "trigger": false,
+    "friction": 0.6,
+    "restitution": 0.1,
+    "layer": 0
+   },
+   "script": {
+    "path": "scripts/Ship.x",
+    "values": {
+     "NoseIsPlusZ": true,
+     "CameraName": "Camera",
+     "CameraDistance": 7.0
+    }
+   }
+  },
+  {
+   "id": 1,
+   "name": "Camera",
+   "transform": {
+    "translation": [
+     0,
+     2.5,
+     -8
+    ],
+    "rotation": [
+     0,
+     0,
+     0,
+     1
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "camera": {
+    "projection": {
+     "kind": "Perspective",
+     "fov_y": 60.0,
+     "near": 0.05,
+     "far": 800.0
+    },
+    "clear_color": [
+     0.015,
+     0.02,
+     0.045,
+     1.0
+    ],
+    "active": true
+   },
+   "interface": {
+    "asset": "interfaces/crystal-run.xui"
+   }
+  },
+  {
+   "id": 2,
+   "name": "Sun",
+   "transform": {
+    "translation": [
+     0,
+     10,
+     0
+    ],
+    "rotation": [
+     -0.35,
+     0.3,
+     0.12,
+     0.88
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "light": {
+    "color": [
+     1.0,
+     0.96,
+     0.9
+    ],
+    "intensity": 1.25
+   }
+  },
+  {
+   "id": 3,
+   "name": "Game",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0,
+     1
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "script": {
+    "path": "scripts/Game.x"
+   }
+  },
+  {
+   "id": 4,
+   "name": "Asteroid Field",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0,
+     1
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "script": {
+    "path": "scripts/Asteroids.x",
+    "values": {
+     "Templates": "Asteroid",
+     "SafeRadius": 16.0,
+     "Density": 0.8
+    }
+   }
+  },
+  {
+   "id": 5,
+   "name": "Asteroid",
+   "transform": {
+    "translation": [
+     0,
+     -50,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0,
+     1
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "model": {
+    "mesh": "Sphere",
+    "animation_speed": 1.0,
+    "animation_loop": true,
+    "animation_enabled": true,
+    "color": [
+     0.42,
+     0.39,
+     0.36,
+     1.0
+    ],
+    "texture": "",
+    "unlit": false,
+    "visible": true
+   }
+  },
+  {
+   "id": 6,
+   "name": "Beacon",
+   "transform": {
+    "translation": [
+     0,
+     6,
+     40
+    ],
+    "rotation": [
+     0,
+     0,
+     0,
+     1
+    ],
+    "scale": [
+     3.5,
+     3.5,
+     3.5
+    ]
+   },
+   "model": {
+    "mesh": "Sphere",
+    "animation_speed": 1.0,
+    "animation_loop": true,
+    "animation_enabled": true,
+    "color": [
+     0.2,
+     0.55,
+     1.0,
+     1.0
+    ],
+    "texture": "",
+    "unlit": true,
+    "visible": true
+   },
+   "diagram": {
+    "graph": "diagrams/beacon.kdiagram"
+   }
+  },
+  {
+   "id": 7,
+   "name": "Intro",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0,
+     1
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "cinematic": {
+    "name": "Intro",
+    "play_on_start": true,
+    "letterbox": true,
+    "skippable": true,
+    "fade_in": 1.0,
+    "fade_out": 0.6,
+    "loop": false
+   }
+  },
+  {
+   "id": 8,
+   "name": "Shot 1 - Beacon",
+   "transform": {
+    "translation": [
+     -30,
+     10,
+     5
+    ],
+    "rotation": [
+     0,
+     0,
+     0,
+     1
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "camera": {
+    "projection": {
+     "kind": "Perspective",
+     "fov_y": 60.0,
+     "near": 0.05,
+     "far": 800.0
+    },
+    "clear_color": [
+     0.015,
+     0.02,
+     0.045,
+     1.0
+    ],
+    "active": false
+   },
+   "cinematic_shot": {
+    "duration": 4.0,
+    "transition": "cut",
+    "blend": 1.0,
+    "look_at": "Beacon",
+    "zoom_to": 0.0,
+    "caption": "Somewhere past the edge of the map...",
+    "shake": 0.0
+   },
+   "parent": 7,
+   "path": {
+    "points": [
+     [
+      -30,
+      10,
+      5
+     ],
+     [
+      -18,
+      9,
+      22
+     ],
+     [
+      -6,
+      8,
+      30
+     ]
+    ],
+    "speed": 9.0,
+    "mode": "Once",
+    "playing": false,
+    "face_direction": false,
+    "smooth": true
+   }
+  },
+  {
+   "id": 9,
+   "name": "Shot 2 - Ship",
+   "transform": {
+    "translation": [
+     2.5,
+     1.0,
+     5.0
+    ],
+    "rotation": [
+     0,
+     0,
+     0,
+     1
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "camera": {
+    "projection": {
+     "kind": "Perspective",
+     "fov_y": 60.0,
+     "near": 0.05,
+     "far": 800.0
+    },
+    "clear_color": [
+     0.015,
+     0.02,
+     0.045,
+     1.0
+    ],
+    "active": false
+   },
+   "cinematic_shot": {
+    "duration": 3.0,
+    "transition": "blend",
+    "blend": 1.2,
+    "look_at": "Ship",
+    "zoom_to": 32.0,
+    "caption": "CRYSTAL RUN",
+    "shake": 0.0
+   },
+   "parent": 7
+  },
+  {
+   "id": 10,
+   "name": "Shot 3 - Launch",
+   "transform": {
+    "translation": [
+     0,
+     2.5,
+     -8
+    ],
+    "rotation": [
+     0,
+     0,
+     0,
+     1
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "camera": {
+    "projection": {
+     "kind": "Perspective",
+     "fov_y": 60.0,
+     "near": 0.05,
+     "far": 800.0
+    },
+    "clear_color": [
+     0.015,
+     0.02,
+     0.045,
+     1.0
+    ],
+    "active": false
+   },
+   "cinematic_shot": {
+    "duration": 1.8,
+    "transition": "blend",
+    "blend": 1.0,
+    "look_at": "Ship",
+    "zoom_to": 0.0,
+    "caption": "Grab every crystal before time runs out",
+    "shake": 1.0
+   },
+   "parent": 7
+  }
+ ]
+}

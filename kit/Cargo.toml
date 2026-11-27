@@ -25,6 +25,7 @@ kit_engine.workspace = true
 kit_collider.workspace = true
 kit_physics.workspace = true
 kit_path.workspace = true
+kit_particles.workspace = true
 kit_audio.workspace = true
 glam.workspace = true
 

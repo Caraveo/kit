@@ -340,6 +340,7 @@ pub fn draw_list<'a>(world: &World, view: &View, imported: impl Fn(&str) -> Opti
             blended.push(((view.view * g.0.w_axis).z, item));
         }
     }
+    particle_items(world, view, &mut blended);
     blended.sort_by(|a, b| a.0.total_cmp(&b.0));
     list.blended = blended.into_iter().map(|(_, item)| item).collect();
     // Editor helpers last, so they show through the (ghosted) scene.
@@ -354,6 +355,45 @@ pub fn draw_list<'a>(world: &World, view: &View, imported: impl Fn(&str) -> Opti
         });
     }
     list
+}
+
+/// Live particles as camera-facing quads in the shared (depth-sorted) sprite
+/// list. Facing the camera's own rotation works for perspective and
+/// orthographic cameras alike.
+fn particle_items(world: &World, view: &View, blended: &mut Vec<(f32, DrawItem)>) {
+    let (Some(states), Some(emitters)) = (world.storage::<kit_particles::ParticleState>(), world.storage::<kit_particles::ParticleEmitter>())
+    else {
+        return;
+    };
+    let (_, face, _) = view.view.inverse().to_scale_rotation_translation();
+    for (e, state) in states.iter() {
+        let Some(emitter) = emitters.get(e) else { continue };
+        if state.particles.is_empty() || !kit_scene::is_active(world, e) {
+            continue;
+        }
+        let size = Vec3::splat(emitter.size.max(0.0));
+        let color = srgb_to_linear(emitter.color);
+        // No texture: a soft round dot (the shader's round flag).
+        let round = if emitter.texture.trim().is_empty() { 1.0 } else { 0.0 };
+        for p in &state.particles {
+            let alpha = color.w * p.opacity();
+            if alpha <= 0.004 {
+                continue;
+            }
+            let model = Mat4::from_scale_rotation_translation(size, face, p.position);
+            blended.push((
+                (view.view * p.position.extend(1.0)).z,
+                DrawItem {
+                    geometry: Geometry::Builtin(MeshKind::Quad),
+                    first: 0,
+                    count: None,
+                    pass: Pass::Sprite,
+                    texture: emitter.texture.clone(),
+                    uniforms: uniforms(model, color.truncate().extend(alpha), [0.0, 0.0, 0.0, 1.0], [round, 0.0, 0.0, 0.0], [0.0; 4]),
+                },
+            ));
+        }
+    }
 }
 
 /// The grid plane's transform for a view (drawn with the built-in Plane mesh).
@@ -405,8 +445,87 @@ pub fn wanted_textures<'a>(world: &World, imported: impl Fn(&str) -> Option<&'a 
     if let Some(sprites) = world.storage::<Sprite>() {
         wanted.extend(sprites.iter().map(|(_, s)| s.texture.clone()));
     }
+    if let Some(emitters) = world.storage::<kit_particles::ParticleEmitter>() {
+        wanted.extend(emitters.iter().map(|(_, p)| p.texture.clone()));
+    }
     wanted.retain(|t| !t.trim().is_empty());
     wanted.sort();
     wanted.dedup();
     wanted
+}
+
+#[cfg(test)]
+mod particle_tests {
+    use super::*;
+    use kit_core::{App, RunMode};
+    use kit_gamesys::{Camera, GameSysModule, ParticleEmitter};
+    use kit_scene::{SceneModule, Transform};
+
+    fn scene(camera: Camera, cam_at: Transform) -> App {
+        let mut app = App::new();
+        app.add_module(SceneModule).add_module(GameSysModule).add_module(kit_particles::ParticlesModule);
+        app.mode = RunMode::Play;
+        let cam = kit_scene::spawn_node(&mut app.world, "Camera", cam_at);
+        app.world.insert(cam, camera);
+        let e = kit_scene::spawn_node(&mut app.world, "Sparks", Transform::IDENTITY);
+        app.world.insert(e, ParticleEmitter { rate: 0.0, burst: 12, lifetime: 2.0, ..Default::default() });
+        app.update(1.0 / 60.0);
+        app.update(0.5);
+        app
+    }
+
+    fn particle_draws(app: &App) -> (View, Vec<DrawItem>) {
+        let view = View::from_camera(&app.world, 16.0 / 9.0).unwrap();
+        let list = draw_list(&app.world, &view, |_| None);
+        let quads = list.blended.into_iter().filter(|i| i.pass == Pass::Sprite && i.surface_round()).collect();
+        (view, quads)
+    }
+
+    impl DrawItem {
+        fn surface_round(&self) -> bool {
+            self.uniforms.surface[0] > 0.5
+        }
+    }
+
+    fn check_facing(view: &View, items: &[DrawItem]) {
+        // The camera looks along its -Z; a facing quad's +Z points back at it.
+        let cam_back = view.view.inverse().transform_vector3(Vec3::Z).normalize();
+        for i in items {
+            let m = Mat4::from_cols_array_2d(&i.uniforms.model);
+            let normal = m.transform_vector3(Vec3::Z).normalize();
+            assert!(normal.dot(cam_back) > 0.999, "faces the camera: {normal:?} vs {cam_back:?}");
+            assert!(i.uniforms.color[3] > 0.0 && i.uniforms.color[3] < 1.0, "fading: {}", i.uniforms.color[3]);
+        }
+    }
+
+    #[test]
+    fn particles_are_camera_facing_quads_for_perspective_and_ortho_cameras() {
+        // A perspective camera off to the side, looking at the emitter.
+        let mut at = Transform::from_xyz(6.0, 3.0, 6.0);
+        at.look_at(Vec3::ZERO, Vec3::Y);
+        let app = scene(Camera::perspective(), at);
+        let (view, items) = particle_draws(&app);
+        assert_eq!(items.len(), 12);
+        check_facing(&view, &items);
+        assert_eq!(Mat4::from_cols_array_2d(&items[0].uniforms.model).to_scale_rotation_translation().0.x, ParticleEmitter::default().size);
+
+        // A 2D orthographic camera.
+        let app = scene(Camera::orthographic(10.0), Transform::from_xyz(0.0, 0.0, 10.0));
+        let (view, items) = particle_draws(&app);
+        assert_eq!(items.len(), 12);
+        check_facing(&view, &items);
+    }
+
+    #[test]
+    fn textured_particles_use_their_texture_and_load_it() {
+        let mut app = scene(Camera::perspective(), Transform::from_xyz(0.0, 0.0, 10.0));
+        let e = kit_scene::find_by_name(&app.world, "Sparks").unwrap();
+        app.world.get_mut::<ParticleEmitter>(e).unwrap().texture = "sprites/spark.png".into();
+        let view = View::from_camera(&app.world, 1.0).unwrap();
+        let list = draw_list(&app.world, &view, |_| None);
+        let textured: Vec<_> = list.blended.iter().filter(|i| i.texture == "sprites/spark.png").collect();
+        assert_eq!(textured.len(), 12);
+        assert!(textured.iter().all(|i| i.uniforms.surface[0] < 0.5), "a texture, not the round dot");
+        assert!(wanted_textures(&app.world, |_| None).contains(&"sprites/spark.png".to_string()));
+    }
 }

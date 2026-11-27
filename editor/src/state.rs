@@ -1223,6 +1223,13 @@ impl Editor {
             input.screen = screen;
             input.view_origin = origin;
         }
+        // Interface changes and debug lines from scripts end with the run.
+        if let Some(mut ui) = self.app.world.try_resource_mut::<kit::gamesys::InterfaceEdits>() {
+            *ui = Default::default();
+        }
+        if let Some(mut d) = self.app.world.try_resource_mut::<kit::gamesys::DebugDraw>() {
+            d.lines.clear();
+        }
         self.console().info("editor", "■ stop");
     }
 

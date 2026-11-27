@@ -1,9 +1,9 @@
 [workspace]
 resolver = "3"
-members = ["modules/*", "kit", "player", "editor", "web/player", "circuit/multiplayer/sdk", "circuit/multiplayer/runtime"]
+members = ["modules/*", "kit", "player", "editor", "web/player", "circuit/multiplayer/sdk", "circuit/multiplayer/runtime", "circuit/cinematics/runtime"]
 
 [workspace.package]
-version = "0.0.5"
+version = "0.0.6"
 edition = "2024"
 rust-version = "1.85"
 
@@ -22,6 +22,7 @@ kit_engine = { path = "modules/kit_engine" }
 kit_collider = { path = "modules/kit_collider" }
 kit_physics = { path = "modules/kit_physics" }
 kit_path = { path = "modules/kit_path" }
+kit_particles = { path = "modules/kit_particles" }
 kit_audio = { path = "modules/kit_audio" }
 kit_post = { path = "modules/kit_post" }
 kit_gamedata = { path = "modules/kit_gamedata" }
