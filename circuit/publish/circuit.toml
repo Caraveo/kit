@@ -14,7 +14,7 @@ architectures = ["any"]
 permissions = ["network.client", "project.read", "project.write", "editor.ui"]
 documentation = "https://publish.kitgameengine.win/docs"
 repository = "https://github.com/caraveo/kit"
-dashboard = "https://publish.kitgameengine.win/developer"
+dashboard = "https://login.kitgameengine.win/account/circuits"
 
 [config.store_url]
 type = "url"
