@@ -1110,6 +1110,17 @@ fn header(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                 };
                 ed.report(result);
             }
+            let light = crate::theme::is_light();
+            let toggle = ghost(ui, if light { "🌙" } else { "☀" }).on_hover_text(if light {
+                "Switch to dark mode"
+            } else {
+                "Switch to light mode"
+            });
+            mark(ui, "theme_toggle", toggle.rect);
+            if toggle.clicked() {
+                crate::theme::set_light(ui.ctx(), !light);
+                st.requests.push(Request::SaveTheme);
+            }
         }
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             let play_label = if ed.playing { "■  Stop" } else { "▶  Play" };
@@ -1123,18 +1134,6 @@ fn header(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                 {
                     crate::circuit_ui::launch_player(ed);
                 }
-            }
-            ui.add_space(6.0);
-            let light = crate::theme::is_light();
-            let toggle = ghost(ui, if light { "🌙" } else { "☀" }).on_hover_text(if light {
-                "Switch to dark mode"
-            } else {
-                "Switch to light mode"
-            });
-            mark(ui, "theme_toggle", toggle.rect);
-            if toggle.clicked() {
-                crate::theme::set_light(ui.ctx(), !light);
-                st.requests.push(Request::SaveTheme);
             }
             if ed.project.is_some() {
                 let export = ghost(ui, "📤 Export").on_hover_text("Export your game for Windows, macOS, Linux…");
