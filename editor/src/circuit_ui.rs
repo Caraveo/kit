@@ -192,7 +192,10 @@ fn secrets(ed: &Editor) -> Option<PathBuf> {
 /// Project menu items: one per enabled Circuit that has settings or a dashboard.
 pub fn project_menu(ui: &mut Ui, ed: &mut Editor, win: &mut SettingsWindow) {
     let circuits: Vec<Manifest> =
-        active().into_iter().filter(|m| !m.config.is_empty() || m.circuit.dashboard.is_some()).collect();
+        active()
+            .into_iter()
+            .filter(|m| m.circuit.id != "kit.publish" && (!m.config.is_empty() || m.circuit.dashboard.is_some()))
+            .collect();
     for m in circuits {
         if ui
             .button(format!("{}…", m.circuit.name))
