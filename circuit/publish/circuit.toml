@@ -5,11 +5,11 @@ id = "kit.publish"
 name = "Publish"
 publisher = "kit"
 description = "Publish a Linux game to Kit Store for review and approval."
-version = "0.1.0"
+version = "0.1.1"
 channel = "alpha"
 license = "MIT"
 kit = ">=0.0.6"
-platforms = ["linux"]
+platforms = ["linux", "macos", "windows"]
 architectures = ["any"]
 permissions = ["network.client", "project.read", "project.write", "editor.ui"]
 documentation = "https://publish.kitgameengine.win/docs"
