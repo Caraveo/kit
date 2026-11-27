@@ -1,0 +1,23 @@
+schema = 1
+
+[circuit]
+id = "kit.publish"
+name = "Publish"
+publisher = "kit"
+description = "Publish a Linux game to Kit Store for review and approval."
+version = "0.1.0"
+channel = "alpha"
+license = "MIT"
+kit = ">=0.0.6"
+platforms = ["linux"]
+architectures = ["any"]
+permissions = ["network.client", "project.read", "project.write", "editor.ui"]
+documentation = "https://publish.kitgameengine.win/docs"
+repository = "https://github.com/caraveo/kit"
+dashboard = "https://publish.kitgameengine.win/developer"
+
+[config.store_url]
+type = "url"
+label = "Kit Store API"
+default = "https://publish.kitgameengine.win"
+description = "Official Kit Store backend."

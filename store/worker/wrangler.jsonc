@@ -1,0 +1,17 @@
+{
+  "name": "kit-store",
+  "main": "src/index.ts",
+  "account_id": "39bf5f7ab4e3524825a484793939cd6b",
+  "compatibility_date": "2026-11-01",
+  "routes": [{ "pattern": "publish.kitgameengine.win", "custom_domain": true }],
+  "d1_databases": [
+    { "binding": "DB", "database_name": "kit-store", "database_id": "f138d623-91b8-4396-bc5d-c6091ffbbb91" }
+  ],
+  "r2_buckets": [
+    { "binding": "STORE_BUCKET", "bucket_name": "kit-store-private" }
+  ],
+  "vars": {
+    "REX_API": "https://api.kitgameengine.win/api/v1",
+    "ADMIN_USER_IDS": ""
+  }
+}

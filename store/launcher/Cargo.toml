@@ -1,0 +1,14 @@
+[package]
+name = "kit-store"
+description = "Kit Store Linux desktop launcher."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "kit-store"
+path = "src/main.rs"
+
+[dependencies]
+eframe = "0.36"
+kit-launcher-core = { path = "../launcher-core" }

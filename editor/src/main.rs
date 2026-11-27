@@ -22,6 +22,7 @@ mod model_import;
 mod move_gizmo;
 mod new_project;
 mod preview;
+mod publish;
 mod rex_panel;
 mod rigg_mode;
 mod rigg_timeline;

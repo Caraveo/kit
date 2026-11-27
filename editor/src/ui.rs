@@ -31,7 +31,6 @@ pub enum Request {
     /// The light/dark theme was switched; remember it.
     SaveTheme,
 }
-
 #[derive(Clone, Copy)]
 enum ViewPane {
     Hierarchy,
@@ -99,6 +98,7 @@ pub struct UiState {
     pub diagram: crate::diagram_view::DiagramView,
     pub rigg: crate::rigg_mode::RiggState,
     pub rex: crate::rex_panel::RexPanel,
+    pub publish: crate::publish::PublishPanel,
     pub interface: Option<InterfaceEditor>,
     pub(crate) asset_preview: Option<crate::preview::AssetPreview>,
     pub(crate) center_diagram: Option<bool>,
@@ -445,6 +445,7 @@ impl UiState {
             diagram: Default::default(),
             rigg: Default::default(),
             rex: Default::default(),
+            publish: Default::default(),
             interface: None,
             asset_preview: None,
             center_diagram: None,
@@ -548,6 +549,7 @@ fn apply(ed: &mut Editor, st: &mut UiState, actions: Vec<Action>) {
 /// Build the whole editor UI for one frame.
 pub fn draw(root: &mut Ui, ed: &mut Editor, st: &mut UiState) {
     let ctx = root.ctx().clone();
+    crate::circuit_ui::sync(ed);
     if ed.selected != st.last_selected
         && ed.selected.is_some_and(|e| ed.world().has::<Camera>(e))
         && st.interface.as_ref().is_none_or(|interface| !interface.dirty())
@@ -867,8 +869,12 @@ pub fn draw(root: &mut Ui, ed: &mut Editor, st: &mut UiState) {
     rename_asset_dialog(&ctx, ed, st);
     delete_asset_dialog(&ctx, ed, st);
     crate::settings::window(&ctx, ed, &mut st.settings);
-    crate::circuit_ui::sync(ed);
     crate::circuit_manager::window(&ctx, ed, &mut st.circuits, &mut st.rex);
+    if crate::circuit_ui::is_enabled("kit.publish") {
+        crate::publish::window(&ctx, ed, &mut st.publish, &st.rex);
+    } else {
+        st.publish.open = false;
+    }
     crate::circuit_ui::settings_window(&ctx, ed, &mut st.circuit_settings);
     let wizard = crate::export_wizard::window(&ctx, ed, &mut st.export);
     if wizard.pick_folder {
@@ -1214,6 +1220,12 @@ fn header(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                 {
                     st.circuits.show_for(ed);
                     ui.close();
+                }
+                if crate::circuit_ui::is_enabled("kit.publish") {
+                    if ui.add_enabled(ed.project.is_some(), egui::Button::new("Publish…")).clicked() {
+                        st.publish.open = true;
+                        ui.close();
+                    }
                 }
                 // Each installed Circuit with settings (e.g. Multiplayer) gets its own item.
                 crate::circuit_ui::project_menu(ui, ed, &mut st.circuit_settings);

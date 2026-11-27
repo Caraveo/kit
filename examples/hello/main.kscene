@@ -71,9 +71,9 @@
             "tonemap": "Filmic"
           },
           "glow": {
-            "mode": "Inherit",
-            "threshold": 1.0,
-            "intensity": 0.8,
+            "mode": "On",
+            "threshold": 0.0,
+            "intensity": 2.63,
             "radius": 0.6
           },
           "focus": {
@@ -92,6 +92,17 @@
             "mode": "Inherit",
             "fxaa": true,
             "sharpen": 0.3
+          },
+          "fog": {
+            "mode": "Inherit",
+            "density": 0.0,
+            "tint": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "scattering": 0.0,
+            "max_distance": 100.0
           }
         }
       },

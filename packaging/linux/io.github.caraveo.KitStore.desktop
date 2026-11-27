@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Kit Store
+Comment=Browse, install, update, and play Kit games
+Exec=kit-store
+Icon=kit-store
+Terminal=false
+Categories=Game;
+StartupNotify=true

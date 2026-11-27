@@ -1,0 +1,18 @@
+[package]
+name = "kit-launcher-core"
+description = "Reusable Linux Kit Store catalog, download, verification, installation, and launch logic."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+flate2 = "1"
+serde.workspace = true
+serde_json.workspace = true
+sha2 = "0.10"
+tar = { version = "0.4", default-features = false }
+ureq = { version = "=3.5.1", default-features = false, features = ["rustls", "json"] }
+
+[dev-dependencies]
+tempfile = "3"

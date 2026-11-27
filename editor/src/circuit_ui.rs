@@ -51,6 +51,10 @@ pub(crate) fn active() -> Vec<Manifest> {
     ACTIVE.with_borrow(|a| a.circuits.clone())
 }
 
+pub(crate) fn is_enabled(id: &str) -> bool {
+    ACTIVE.with_borrow(|a| a.circuits.iter().any(|circuit| circuit.circuit.id == id))
+}
+
 // ------------------------------------------------------------------ components
 
 /// The "Circuits" part of "+ Add component".
