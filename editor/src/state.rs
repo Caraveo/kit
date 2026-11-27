@@ -21,8 +21,9 @@ pub struct AssetGroup {
     pub supported: bool,
 }
 
-pub const ASSET_GROUPS: [AssetGroup; 10] = [
+pub const ASSET_GROUPS: [AssetGroup; 11] = [
     AssetGroup { name: "Scenes", icon: "◈", extensions: &["kscene"], supported: true },
+    AssetGroup { name: "Fabs", icon: "⬢", extensions: &["kfab"], supported: true },
     AssetGroup { name: "Scripts", icon: "✏", extensions: &["x"], supported: true },
     AssetGroup { name: "Diagrams", icon: "◫", extensions: &["kdiagram"], supported: true },
     AssetGroup { name: "Interface", icon: "▤", extensions: &["xui"], supported: true },
@@ -588,6 +589,47 @@ impl Editor {
     fn model_imported(&mut self, imported: &str) {
         self.refresh_assets(true);
         self.notify(format!("{imported} is available under Assets → Models"));
+    }
+
+    /// Save an object (and everything inside it) as a Fab: `fabs/<Name>.kfab`,
+    /// ready to place from Assets or spawn with `INVOKE("Name")`.
+    pub fn save_as_fab(&mut self, e: Entity) -> Result<String> {
+        let project = self.project.as_ref().context("Open a project first")?;
+        let name = self.entity_label(e);
+        let safe: String = name.chars().map(|c| if c.is_alphanumeric() || " -_".contains(c) { c } else { '_' }).collect();
+        let safe = safe.trim().to_owned();
+        anyhow::ensure!(!safe.is_empty(), "Give the object a name first");
+        let mut fab = kit::gamesys::save_subtree(&self.app.world, e);
+        // The root keeps its rotation and scale, but sits at the origin: placing
+        // or spawning a Fab says where it goes.
+        if let Some(root) = fab.entities.first_mut() {
+            root.transform.translation = Vec3::ZERO;
+        }
+        let rel = format!("fabs/{safe}.{}", kit::gamesys::FAB_EXTENSION);
+        let path = project.root().join(&rel);
+        std::fs::create_dir_all(path.parent().unwrap())?;
+        std::fs::write(&path, fab.to_json())?;
+        self.refresh_assets(true);
+        self.notify(format!("Saved {rel}: place it from Assets → Fabs, or spawn it with INVOKE(\"{safe}\")"));
+        Ok(rel)
+    }
+
+    /// Place a Fab in the scene (in front of the camera) and select it.
+    pub fn place_fab(&mut self, path: &str, at: Option<Vec3>) -> Result<()> {
+        anyhow::ensure!(!self.playing, "Stop play mode before placing a Fab");
+        let project = self.project.as_ref().context("No project open")?;
+        let text = project.resources.read_text(path)?;
+        let fab = kit::gamesys::SceneFile::from_json(&text)?;
+        let spawned = kit::gamesys::load_scene(&mut self.app.world, &fab)?;
+        let root = *spawned.first().context("That Fab is empty")?;
+        let spot = at.unwrap_or(self.camera.target);
+        if let Some(mut t) = self.app.world.get_mut::<kit::scene::Transform>(root) {
+            t.translation = spot;
+        }
+        kit::scene::propagate_transforms(&mut self.app.world);
+        self.selected = Some(root);
+        self.normalize_root_order();
+        Ok(())
     }
 
     pub fn place_model(&mut self, path: &str) -> Result<()> {
@@ -1175,6 +1217,11 @@ impl Editor {
         if let Some(mut input) = self.app.world.try_resource_mut::<kit::input::Input>() {
             input.clear();
             input.end_frame();
+            // Play-time settings from scripts don't outlive the run.
+            let (screen, origin) = (input.screen, input.view_origin);
+            *input = kit::input::Input::default();
+            input.screen = screen;
+            input.view_origin = origin;
         }
         self.console().info("editor", "■ stop");
     }

@@ -2584,6 +2584,7 @@ dependencies = [
  "kit_resource",
  "kit_scene",
  "kit_x",
+ "serde_json",
 ]
 
 [[package]]

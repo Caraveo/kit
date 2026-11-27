@@ -48,6 +48,7 @@ export default defineConfig({
 						'scripting/classes',
 						'scripting/attaching-scripts',
 						'scripting/engine-modules',
+						'scripting/features',
 						'scripting/recipes',
 					],
 				},

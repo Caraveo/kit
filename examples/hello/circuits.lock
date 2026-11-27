@@ -1,0 +1,9 @@
+# Circuits this project uses. Kit writes this file; commit it with the project.
+version = 1
+
+[[circuit]]
+id = "kit.multiplayer"
+version = "0.1.1"
+sha256 = "54eb3d589c81e22a9504beeff41380abf8ec4e6c8e0896985fc5ac3b37bec854"
+source = "local build of circuit/multiplayer"
+enabled = true

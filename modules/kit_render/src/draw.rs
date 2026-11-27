@@ -42,7 +42,8 @@ pub fn key_light(world: &World) -> (Vec3, Vec3) {
     let mut dir = Vec3::new(-0.45, -0.8, -0.4).normalize();
     let mut color = Vec3::splat(1.05);
     if let Some(lights) = world.storage::<Light>() {
-        if let Some((e, l)) = lights.iter().next() {
+        let shining = |e: Entity| kit_scene::is_active(world, e) && !kit_gamesys::feature_disabled(world, e, "Light");
+        if let Some((e, l)) = lights.iter().find(|(e, _)| shining(*e)) {
             if let Some(g) = world.get::<GlobalTransform>(e) {
                 dir = g.0.transform_vector3(Vec3::NEG_Z).normalize_or(dir);
             }
@@ -228,7 +229,7 @@ pub fn draw_list<'a>(world: &World, view: &View, imported: impl Fn(&str) -> Opti
     let deformed = world.try_resource::<Deformed>();
     let deformed = deformed.as_deref();
     if let Some(models) = world.storage::<Model>() {
-        for (e, model) in models.iter().filter(|(_, model)| model.visible) {
+        for (e, model) in models.iter().filter(|(e, model)| model.visible && kit_scene::is_active(world, *e)) {
             let Some(transform) = world.get::<GlobalTransform>(e).map(|g| g.0) else { continue };
             let selected = view.selected.contains(&e) as u32 as f32;
             let ghost = view.ghosts.contains(&e);
@@ -295,7 +296,11 @@ pub fn draw_list<'a>(world: &World, view: &View, imported: impl Fn(&str) -> Opti
                 part(Geometry::Builtin(model.mesh), 0, None, None);
             } else if let Some(geometry) = imported(&model.mesh_asset) {
                 let frame = geometry.asset.as_ref().filter(|_| model.animation_enabled).map_or(0, |asset| {
-                    asset.frame(&model.animation, elapsed, model.animation_speed, model.animation_loop)
+                    match model.clock {
+                        // Started by a script (Model.Play): its own clock, speed already applied.
+                        Some(clock) => asset.frame(&model.animation, clock, 1.0, model.animation_loop),
+                        None => asset.frame(&model.animation, elapsed, model.animation_speed, model.animation_loop),
+                    }
                 });
                 for range in &geometry.frames[frame] {
                     let material = geometry.asset.as_ref().map(|asset| &asset.materials[range.material]);
@@ -305,7 +310,7 @@ pub fn draw_list<'a>(world: &World, view: &View, imported: impl Fn(&str) -> Opti
         }
     }
     if let Some(terrains) = world.storage::<Terrain>() {
-        for (e, _) in terrains.iter() {
+        for (e, _) in terrains.iter().filter(|(e, _)| kit_scene::is_active(world, *e)) {
             let Some(g) = world.get::<GlobalTransform>(e).map(|g| g.0) else { continue };
             let sel = view.selected.contains(&e) as u32 as f32;
             list.terrains.push(TerrainDraw {
@@ -315,7 +320,7 @@ pub fn draw_list<'a>(world: &World, view: &View, imported: impl Fn(&str) -> Opti
         }
     }
     if let Some(sprites) = world.storage::<Sprite>() {
-        for (e, sprite) in sprites.iter().filter(|(_, sprite)| sprite.visible) {
+        for (e, sprite) in sprites.iter().filter(|(e, sprite)| sprite.visible && kit_scene::is_active(world, *e)) {
             let Some(g) = world.get::<GlobalTransform>(e) else { continue };
             let selected = view.selected.contains(&e) as u32 as f32;
             let item = DrawItem {

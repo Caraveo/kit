@@ -52,6 +52,7 @@ Plus:
 - **Sculptable terrain**, lights, cameras, and **positional sound**.
 - **Effects:** post-processing volumes for bloom, color grading, fog, depth of field, vignette and more.
 - **Game Data:** datasets and constants your Diagrams can read.
+- **Fabs:** right-click an object → **Save as Fab** to reuse it anywhere: place it from **Assets → Fabs** or spawn it from a script.
 - **Six project templates** in the New Project wizard, plus the **Hello Kit** example that comes with every download.
 
 ---
@@ -97,7 +98,13 @@ Kit isn't notarized by Apple yet, so macOS blocks it the first time:
 
 ### First launch on Windows
 
-Windows SmartScreen may say "Windows protected your PC". Click **More info → Run anyway**. Keep the extracted folder together: `kit-editor.exe` needs the `players` and `examples` folders beside it.
+If your release offers a Windows `-setup.exe`, run it and open **Kit Editor** from the Start menu. Setup installs the Microsoft Visual C++ runtime automatically.
+
+The x64 installer also includes a Vulkan runtime and a CPU-based Vulkan driver. Setup offers **Reinstall** or **Skip** when the Vulkan runtime is already installed. For a VM or a machine without a Vulkan-capable GPU, open **Kit Editor (Software Vulkan)** from the Start menu.
+
+If you use the portable ZIP, extract the entire folder and install the Microsoft Visual C++ Redistributable for your Kit build before opening `kit-editor.exe`. [x64 download](https://aka.ms/vc14/vc_redist.x64.exe) · [ARM64 download](https://aka.ms/vc14/vc_redist.arm64.exe)
+
+Windows SmartScreen may say "Windows protected your PC". Click **More info → Run anyway**.
 
 ---
 
@@ -178,7 +185,7 @@ How it works:
 - **Physics is best effort.** The owner simulates and everyone else follows its transform ([networked-physics.md](circuit/multiplayer/networked-physics.md)).
 - **Players never need accounts.** Games get short-lived connection tokens, anonymously or from your own backend with a backend key.
 
-**Pricing** is a monthly plan measured in **Sync Time**. One sync-hour is one player connected for an hour, including 10 MB of data. Extra data counts too, and a busy room counts as at least 4 players. Plans: Starter $5 (600 sync-hours), Indie $19 (4,000 included, then $0.006 per sync-hour), Studio $99 (20,000 included, then $0.005), and Enterprise (rex@kitgameengine.win). Need more? **Buy Time:** sync-hour packs (500 for $5, 2,500 for $20, 10,000 for $60) never expire and are used before any overage. See [login.kitgameengine.win/pricing](https://login.kitgameengine.win/pricing#multiplayer). Multiplayer needs a plan: without one, games can't connect.
+**Pricing** is measured in **Sync Time**, and every account gets **10 sync-hours a month free** to build and playtest. One sync-hour is one player connected for an hour, including 10 MB of data. Extra data counts too, and a busy room counts as at least 4 players. Plans: Starter $5 (600 sync-hours), Indie $19 (4,000 included, then $0.006 per sync-hour), Studio $99 (20,000 included, then $0.005), and Enterprise (rex@kitgameengine.win). Need more? **Buy Time:** sync-hour packs (500 for $5, 2,500 for $20, 10,000 for $60) never expire and are used before any overage. See [login.kitgameengine.win/pricing](https://login.kitgameengine.win/pricing#multiplayer). Without a plan, games pause when the free hours and any packs run out, until next month.
 
 Details: [circuit/multiplayer](circuit/multiplayer) (README, [binary protocol](circuit/multiplayer/PROTOCOL.md), [AI NPC notes](circuit/multiplayer/ai-npc.md)).
 
@@ -214,7 +221,42 @@ CREATE Player[
 ]
 ```
 
-Fields are private unless marked `PUBLIC` or `EDIT`, and Diagrams can read `PUBLIC` fields and set `EDIT` fields. [Learn x](docs/x.md) · [Scripting recipes](documentation/src/content/docs/scripting/recipes.md)
+Fields are private unless marked `PUBLIC` or `EDIT`, and Diagrams can read `PUBLIC` fields and set `EDIT` fields.
+
+Scripts can reach other objects and the rest of the engine:
+
+```x
+TAKE Scene, Time, Transform
+CREATE Turret[
+    VOID CREATE Init()[
+        Time.Every(1.5, "Fire")                      # timers
+    ]
+    VOID CREATE Fire()[
+        ANY Shot: INSTANTIATE("Bullet", Transform.Position)   # spawn a Fab or a copy
+        Enemy E: GetFeature(Scene.Find("Goblin"), "Enemy")    # another object's script
+        E.TakeDamage(10)
+    ]
+    VOID CREATE OnClick()[
+        Time.Start("Overheat")                       # a coroutine
+    ]
+    VOID CREATE Overheat()[
+        BeActive(FALSE)
+        WAIT 3                                       # pause here for 3 seconds
+        BeActive(TRUE)
+    ]
+]
+```
+
+- **Spawning:** `INVOKE` (inside this object) and `INSTANTIATE` (top level) create shapes, models, Fabs or copies.
+- **Features:** `GetFeature`, `AddFeature`, `RemoveFeature`, `HasFeature`, `BeActive` and `.Enabled` work on scripts and on engine parts (Model, Physics, Audio, Light, Camera…) of any object.
+- **Lifecycle:** `Init`, `Update`, `FixedUpdate`, `LateUpdate`, `OnCollision(other, hit)`, `OnTrigger`, `OnClick`, `Final`.
+- **Time:** `Time.After`, `Time.Every`, and coroutines with `Time.Start` and `WAIT`.
+- **Math:** `Rotation.Blend`, `LookToward`, `TurnToward` and more, plus `Math.Blend`, `MoveToward`, `Smooth`, `Noise`.
+- **Physics:** collision point, normal and strength, `Physics.FindNear`, `SweepSphere`, layers, switching body kinds.
+- **And:** animation control (`Model.Play`), live sound volume and pitch, cameras and `ScreenToRay`, mouse lock, input actions you can rebind, touch, tags, saving (`Save.Set` / `Save.Get`) and debug lines.
+- **Diagrams and scripts talk both ways:** a **Run Script** node calls a script function and gets its result; `Diagram.Emit` sends events to diagrams.
+
+[Learn x](docs/x.md) · [Features, timers and more](documentation/src/content/docs/scripting/features.md) · [Scripting recipes](documentation/src/content/docs/scripting/recipes.md)
 
 ---
 
@@ -291,7 +333,7 @@ cargo test --workspace --locked                                 # all tests
 
 Set `KIT_VALIDATION=1` to turn on the Vulkan validation layers while developing.
 
-**Packaging:** after `cargo build --release`, run `packaging/linux/package.sh` (`.tar.gz` + `.deb`), `packaging/macos/package.sh` (`.dmg`), or `pwsh packaging/windows/package.ps1` (`.zip`). Pushing a `v*` tag runs [`.github/workflows/release.yml`](.github/workflows/release.yml), which builds all 8 packages and publishes a GitHub release.
+**Packaging:** after `cargo build --release`, run `packaging/linux/package.sh` (`.tar.gz` + `.deb`), `packaging/macos/package.sh` (`.dmg`), or `pwsh packaging/windows/package.ps1` (`.zip`). On Windows, add `-Installer` with Inno Setup 6.3 or newer installed to also build a setup EXE. Pushing a `v*` tag runs [the release workflow](.github/workflows/release.yml), which builds the packages and publishes a GitHub release.
 
 **Docs site:** `cd documentation && npm install && npm run dev`, then open http://localhost:4321.
 

@@ -24,11 +24,12 @@ pub mod ast;
 mod interp;
 pub mod lexer;
 mod parser;
+mod rotation;
 mod value;
 
-pub use interp::{Host, Interpreter, StdHost, set_random_seed};
+pub use interp::{Coroutine, Host, Interpreter, StdHost, set_random_seed};
 pub use parser::parse;
-pub use value::{Class, Instance, Value};
+pub use value::{Class, FeatureRef, Instance, Value};
 
 use std::fmt;
 

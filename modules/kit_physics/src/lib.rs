@@ -126,6 +126,64 @@ mod tests {
     }
 
     #[test]
+    fn collisions_report_where_and_how_hard_and_queries_find_things() {
+        let mut app = App::new();
+        app.add_module(SceneModule).add_module(GameSysModule).add_module(kit_collider::ColliderModule);
+        app.add_module(PhysicsModule::default());
+        let w = &mut app.world;
+        let ground = kit_scene::spawn_node(w, "Ground", Transform::from_xyz(0.0, -0.5, 0.0).with_scale(Vec3::new(20.0, 1.0, 20.0)));
+        w.insert(ground, Collider { layer: 3, ..Default::default() });
+        w.insert(ground, RigidBody { kind: BodyKind::Static, ..Default::default() });
+        let ball = kit_scene::spawn_node(w, "Ball", Transform::from_xyz(2.0, 3.0, 0.0));
+        w.insert(ball, Collider { shape: ColliderShape::Sphere { radius: 0.5 }, restitution: 0.0, ..Default::default() });
+        w.insert(ball, RigidBody::default());
+        let mut hit = None;
+        for _ in 0..120 {
+            app.update(1.0 / 60.0);
+            if let Some(ev) = app.world.resource::<kit_gamesys::CollisionEvents>().events.iter().find(|e| e.started) {
+                hit = Some(*ev);
+            }
+        }
+        let ev = hit.expect("the ball lands");
+        // Normal points from a to b; the contact is under the ball, on the ground's top.
+        let (ball_side, normal) = if ev.a == ball { (ev.a, ev.normal) } else { (ev.b, -ev.normal) };
+        assert_eq!(ball_side, ball);
+        assert!(normal.y < -0.9, "from the ball down into the ground: {normal:?}");
+        assert!((ev.point.x - 2.0).abs() < 0.3 && ev.point.y.abs() < 0.2, "{:?}", ev.point);
+        assert!(ev.strength > 0.0, "it hit with some force");
+
+        let phys = app.world.resource::<Physics>();
+        // FindNear: everything touching a sphere; layers filter.
+        let near = phys.0.overlap_sphere(Vec3::new(2.0, 0.5, 0.0), 1.0, None, u32::MAX);
+        assert!(near.contains(&ball) && near.contains(&ground), "{near:?}");
+        assert_eq!(phys.0.overlap_sphere(Vec3::new(2.0, 0.5, 0.0), 1.0, None, 1 << 3), vec![ground]);
+        // SweepSphere: a fat ray.
+        let sweep = phys.0.sphere_cast(Vec3::new(-5.0, 0.5, 0.0), Vec3::X, 0.25, 50.0, None, u32::MAX).unwrap();
+        assert_eq!(sweep.entity, ball);
+        assert!((sweep.distance - 6.25).abs() < 0.1, "{}", sweep.distance);
+        // Raycast only on layer 3 skips the ball and finds the ground.
+        let down = phys.0.raycast_layers(Vec3::new(2.0, 5.0, 0.0), Vec3::NEG_Y, 20.0, None, 1 << 3).unwrap();
+        assert_eq!(down.entity, ground);
+        drop(phys);
+
+        // Switching a body to kinematic: it stops falling and follows its transform.
+        app.world.get_mut::<RigidBody>(ball).unwrap().kind = BodyKind::Kinematic;
+        app.world.get_mut::<Transform>(ball).unwrap().translation = Vec3::new(2.0, 4.0, 0.0);
+        for _ in 0..30 {
+            app.update(1.0 / 60.0);
+        }
+        assert!((app.world.get::<Transform>(ball).unwrap().translation.y - 4.0).abs() < 1e-3);
+
+        // A switched-off collider leaves the world; switched back on, it returns.
+        app.world.insert(ball, kit_gamesys::DisabledFeatures(vec!["Collider".into()]));
+        app.update(1.0 / 60.0);
+        assert!(!app.world.resource::<Physics>().0.overlap_sphere(Vec3::new(2.0, 4.0, 0.0), 0.1, None, u32::MAX).contains(&ball));
+        app.world.remove::<kit_gamesys::DisabledFeatures>(ball);
+        app.update(1.0 / 60.0);
+        assert!(app.world.resource::<Physics>().0.overlap_sphere(Vec3::new(2.0, 4.0, 0.0), 0.1, None, u32::MAX).contains(&ball));
+    }
+
+    #[test]
     fn ball_rolls_down_a_terrain_hill() {
         use kit_gamesys::Terrain;
         let mut app = App::new();

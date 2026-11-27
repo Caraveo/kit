@@ -472,6 +472,7 @@ enum Action {
     Frame(Entity),
     ToggleCollapse(Entity),
     AttachSound(Entity, String),
+    SaveFab(Entity),
 }
 
 /// A sound asset being dragged from the Assets panel.
@@ -505,8 +506,9 @@ fn apply(ed: &mut Editor, st: &mut UiState, actions: Vec<Action>) {
         match a {
             Action::Select(e) => {
                 ed.selected = e;
-                // Selecting in the hierarchy brings the object into view, sized to fit.
-                if e.is_some() && !ed.playing {
+                // Selecting in the hierarchy brings the object into view, sized to fit,
+                // also while playing in Scene View (Game View shows the game's camera).
+                if e.is_some() && !(ed.playing && ed.settings.game_camera) {
                     ed.frame_selected();
                 }
             }
@@ -518,6 +520,10 @@ fn apply(ed: &mut Editor, st: &mut UiState, actions: Vec<Action>) {
             }
             Action::Delete(e) => ed.delete(e),
             Action::Duplicate(e) => ed.duplicate(e),
+            Action::SaveFab(e) => {
+                let r = ed.save_as_fab(e).map(|_| ());
+                ed.report(r);
+            }
             Action::Reparent(e, p, i) => ed.reparent(e, p, i),
             Action::StartRename(e) => ed.renaming = Some((e, ed.entity_label(e))),
             Action::Frame(e) => {
@@ -1067,9 +1073,7 @@ fn header(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                 ui.label(RichText::new("●").size(9.0).color(ACCENT())).on_hover_text("Unsaved changes");
             }
             // Save sits with the scene it saves (the shortcut still works).
-            ui.add_space(10.0);
-            ui.separator();
-            ui.add_space(4.0);
+            ui.add_space(14.0);
             let save = ghost(ui, "Save").on_hover_text(format!("Save ({})", ed.controls.label(Shortcut::Save)));
             mark(ui, "header_save", save.rect);
             if save.clicked() {
@@ -1585,6 +1589,10 @@ fn tree_row(ui: &mut Ui, ed: &mut Editor, st: &UiState, row: &Row, actions: &mut
                 actions.push(Action::Duplicate(e));
                 ui.close();
             }
+            if ui.button("Save as Fab").on_hover_text("Save this object as a reusable asset in fabs/").clicked() {
+                actions.push(Action::SaveFab(e));
+                ui.close();
+            }
             if ui.button(format!("Delete    {}", ed.controls.label(Shortcut::Delete))).clicked() {
                 actions.push(Action::Delete(e));
                 ui.close();
@@ -1863,6 +1871,9 @@ fn assets(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                             }
                             ed.report(result);
                         }
+                    } else if group.name == "Fabs" && r.double_clicked() {
+                        let result = ed.place_fab(&path, None);
+                        ed.report(result);
                     } else if active_preview && (r.double_clicked() || r.triple_clicked()) {
                         match group.name {
                             "Scripts" => ed.open_script(&path),
@@ -2648,6 +2659,29 @@ fn components(
                     .desired_width(f32::INFINITY),
             );
             mark(ui, "inspector_name", r.rect);
+        }
+        // Tags (Scene.FindTagged / Entity.HasTag), comma-separated.
+        {
+            let current = w.get::<kit::gamesys::Tags>(e).map(|t| t.0.join(", ")).unwrap_or_default();
+            let id = ui.id().with(("tags", e));
+            let mut text = ui.data_mut(|d| d.get_temp::<String>(id)).unwrap_or_else(|| current.clone());
+            let r = ui.horizontal(|ui| {
+                ui.label(RichText::new("Tags").size(11.0).color(MUTED()));
+                ui.add(egui::TextEdit::singleline(&mut text).hint_text("Enemy, Pickup").desired_width(f32::INFINITY))
+            }).inner;
+            mark(ui, "inspector_tags", r.rect);
+            if r.changed() {
+                ui.data_mut(|d| d.insert_temp(id, text.clone()));
+            }
+            if r.lost_focus() || (!r.has_focus() && text != current && !r.changed()) {
+                ui.data_mut(|d| d.remove::<String>(id));
+                let tags: Vec<String> = text.split(',').map(|t| t.trim().to_owned()).filter(|t| !t.is_empty()).collect();
+                if tags.is_empty() {
+                    w.remove::<kit::gamesys::Tags>(e);
+                } else {
+                    w.insert(e, kit::gamesys::Tags(tags));
+                }
+            }
         }
         ui.add_space(6.0);
 
@@ -3994,6 +4028,9 @@ fn viewport(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
         }
     }
     if ed.playing {
+        draw_debug_lines(&painter, ed, rect, &editor_view);
+    }
+    if ed.playing {
         if let Some(interface) = st.interface.as_mut() {
             let root = interface.document.as_ref().map(|d| d.root.clone());
             if let Some(root) = root {
@@ -4964,5 +5001,25 @@ mod view_tests {
         ui.restore_views(&egui::Context::default(), &mut editor);
         assert!(ui.views.game && ui.views.assets && ui.views.hierarchy && ui.views.inspector);
         assert!(!editor.settings.diagram && !editor.settings.console);
+    }
+}
+
+/// Lines scripts drew with `Debug.Line` / `Ray` / `Sphere`, over the game or scene view.
+fn draw_debug_lines(painter: &egui::Painter, ed: &Editor, rect: egui::Rect, editor_view: &kit::render::View) {
+    let Some(debug) = ed.world().try_resource::<kit::gamesys::DebugDraw>() else { return };
+    if debug.lines.is_empty() {
+        return;
+    }
+    let aspect = rect.width() / rect.height().max(1.0);
+    let game = ed.settings.game_camera.then(|| kit::render::View::from_camera(ed.world(), aspect)).flatten();
+    let view = game.as_ref().unwrap_or(editor_view);
+    let vp = view.view_proj();
+    for l in &debug.lines {
+        let (Some(a), Some(b)) = (crate::canvas::to_screen(vp, rect, l.from), crate::canvas::to_screen(vp, rect, l.to)) else {
+            continue;
+        };
+        let c = l.color.clamp(kit::math::Vec4::ZERO, kit::math::Vec4::ONE) * 255.0;
+        let color = egui::Color32::from_rgba_unmultiplied(c.x as u8, c.y as u8, c.z as u8, c.w as u8);
+        painter.line_segment([a, b], egui::Stroke::new(1.5, color));
     }
 }

@@ -53,6 +53,9 @@ pub struct EntityData {
     pub rig: Option<crate::Rig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rig_volume: Option<crate::RigVolume>,
+    /// Labels for `Scene.FindTagged` and `HasTag`.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
     /// Fields this version of Kit does not know (from newer versions or plugins).
     /// Kept and written back so saving never drops them.
     #[serde(flatten)]
@@ -111,6 +114,7 @@ fn entity_data(world: &World, e: Entity, id: u32, parent: Option<u32>) -> Entity
         diagram: world.get_cloned::<Diagram>(e),
         rig: world.get_cloned::<crate::Rig>(e),
         rig_volume: world.get_cloned::<crate::RigVolume>(e),
+        tags: world.get::<crate::Tags>(e).map(|t| t.0.clone()).unwrap_or_default(),
         extra: world.get::<ExtraData>(e).map(|x| x.0.clone()).unwrap_or_default(),
     }
 }
@@ -128,6 +132,12 @@ fn collect(world: &World, roots: &[Entity]) -> Vec<EntityData> {
         }
     }
     out
+}
+
+/// Serialize one object and everything inside it (a Fab), with its root at
+/// its own place relative to nothing (top level).
+pub fn save_subtree(world: &World, e: Entity) -> SceneFile {
+    SceneFile { version: VERSION, entities: collect(world, &[e]) }
 }
 
 /// Serialize every entity in the scene graph.
@@ -193,6 +203,9 @@ pub fn load_scene(world: &mut World, scene: &SceneFile) -> Result<Vec<Entity>> {
         }
         if let Some(v) = &d.rig_volume {
             world.insert(e, v.clone());
+        }
+        if !d.tags.is_empty() {
+            world.insert(e, crate::Tags(d.tags.clone()));
         }
         if !d.extra.is_empty() {
             world.insert(e, ExtraData(d.extra.clone()));

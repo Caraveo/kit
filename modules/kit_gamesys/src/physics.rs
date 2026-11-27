@@ -67,6 +67,8 @@ pub struct Collider {
     pub friction: f32,
     /// Bounciness, 0..1.
     pub restitution: f32,
+    /// Collision layer, 0–31. Ray casts and `FindNear` can look at chosen layers only.
+    pub layer: u8,
 }
 
 impl Default for Collider {
@@ -77,6 +79,7 @@ impl Default for Collider {
             trigger: false,
             friction: 0.6,
             restitution: 0.1,
+            layer: 0,
         }
     }
 }
@@ -137,7 +140,7 @@ impl Default for RigidBody {
 }
 
 /// One collision this frame between two entities.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CollisionEvent {
     pub a: Entity,
     pub b: Entity,
@@ -145,6 +148,12 @@ pub struct CollisionEvent {
     pub started: bool,
     /// One of the two colliders is a trigger.
     pub trigger: bool,
+    /// Where they touched (world space; zero when unknown, e.g. triggers).
+    pub point: Vec3,
+    /// Contact direction, pointing from `a` towards `b`.
+    pub normal: Vec3,
+    /// How hard they hit: the contact impulse (0 for triggers).
+    pub strength: f32,
 }
 
 /// Collision events produced by the last physics step (a world resource).
@@ -173,6 +182,19 @@ pub trait PhysicsApi: Any {
     /// Continuous force, applied during the next step only.
     fn add_force(&mut self, e: Entity, force: Vec3);
     fn raycast(&self, origin: Vec3, dir: Vec3, max_distance: f32, exclude: Option<Entity>) -> Option<RayHit>;
+    /// Like [`PhysicsApi::raycast`], only hitting colliders on these layers (bit mask).
+    fn raycast_layers(&self, origin: Vec3, dir: Vec3, max_distance: f32, exclude: Option<Entity>, layers: u32) -> Option<RayHit> {
+        let _ = layers;
+        self.raycast(origin, dir, max_distance, exclude)
+    }
+    /// Every collider overlapping a sphere (triggers included), on these layers.
+    fn overlap_sphere(&self, _center: Vec3, _radius: f32, _exclude: Option<Entity>, _layers: u32) -> Vec<Entity> {
+        Vec::new()
+    }
+    /// Sweep a sphere along `dir`; the first collider it would touch.
+    fn sphere_cast(&self, _origin: Vec3, _dir: Vec3, _radius: f32, _max: f32, _exclude: Option<Entity>, _layers: u32) -> Option<RayHit> {
+        None
+    }
     /// Entities currently touching `e`.
     fn contacts(&self, e: Entity) -> Vec<Entity>;
     /// Temporarily ignore gravity for one body (path following in "fly" mode).

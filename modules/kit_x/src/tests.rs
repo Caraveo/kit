@@ -270,3 +270,52 @@ fn public_and_edit_mistakes_are_explained() {
     assert!(e.message.contains("use PUBLIC"), "{}", e.message);
     assert!(crate::parse("CREATE A[\n    PUBLIC INDEX Items: []\n]").is_ok());
 }
+
+#[test]
+fn invoke_goes_to_the_host() {
+    struct Spawner(Vec<(Vec<Value>, bool)>);
+    impl Host for Spawner {
+        fn has_module(&self, _: &str) -> bool {
+            false
+        }
+        fn call_module(&mut self, _: &str, _: &str, _: &[Value]) -> Result<Value, String> {
+            Err("no modules".into())
+        }
+        fn display(&mut self, _: &str) {}
+        fn invoke(&mut self, args: &[Value], inside: bool) -> Result<Value, String> {
+            self.0.push((args.to_vec(), inside));
+            Ok(Value::Int(self.0.len() as i64))
+        }
+    }
+    let mut host = Spawner(Vec::new());
+    run(
+        "test.x",
+        r#"
+ANY Rock: INVOKE("Sphere", VECTOR(1, 2, 3))
+INVOKE("Cube")
+INSTANTIATE("Torus", VECTOR(0, 0, 0))
+# `Invoke` (not all caps) is still an ordinary name.
+INTEGER Invoke: Rock + 1
+CREATE Field[
+    VOID CREATE Init()[
+        INVOKE("Rock", VECTOR(0, 0, 0), VECTOR(0, 90, 0), 2)
+    ]
+]
+Field F: NEW Field()
+F.Init()
+"#,
+        &mut host,
+    )
+    .unwrap();
+    assert_eq!(host.0.len(), 4);
+    assert!(matches!(host.0[0].0[..], [Value::Str(ref s), Value::Vector([1.0, 2.0, 3.0])] if &**s == "Sphere"));
+    // INVOKE spawns inside the calling object; INSTANTIATE at the top level.
+    assert_eq!(host.0.iter().map(|c| c.1).collect::<Vec<_>>(), [true, true, false, true]);
+    assert_eq!(host.0[3].0.len(), 4);
+
+    // Without a game engine, INVOKE explains itself; bare INVOKE asks for parentheses.
+    assert!(err(r#"INVOKE("Sphere")"#).contains("run this script in Kit"));
+    assert!(err(r#"INSTANTIATE("Sphere")"#).starts_with("test.x:1: INSTANTIATE:") || err(r#"INSTANTIATE("Sphere")"#).contains("INSTANTIATE: spawning"));
+    assert!(err("ANY X: INVOKE").contains("INVOKE needs what to spawn"));
+    assert!(err("ANY X: INSTANTIATE").contains("INSTANTIATE needs what to spawn"));
+}

@@ -22,9 +22,11 @@ use kit_scene::GlobalTransform;
 use rapier3d::math::{Pose as RPose, Rotation as RRot, Vector as RVec};
 use rapier3d::pipeline::PhysicsWorld;
 use rapier3d::prelude::{
-    ActiveCollisionTypes, ActiveEvents, ChannelEventCollector, ColliderBuilder, ColliderHandle, CollisionEventFlags,
-    LockedAxes, QueryFilter, Ray, RigidBodyBuilder, RigidBodyHandle, RigidBodyType,
+    ActiveCollisionTypes, ActiveEvents, Ball, ChannelEventCollector, ColliderBuilder, ColliderHandle,
+    CollisionEventFlags, Group, InteractionGroups, InteractionTestMode, LockedAxes, QueryFilter, Ray, RigidBodyBuilder,
+    RigidBodyHandle, RigidBodyType,
 };
+use rapier3d::parry::query::ShapeCastOptions;
 use std::any::Any;
 use std::collections::{HashMap, HashSet};
 
@@ -123,6 +125,12 @@ fn build_collider(c: &Collider, scale: Vec3, body: Option<&RigidBody>) -> rapier
         .friction(c.friction.max(0.0))
         .restitution(c.restitution.clamp(0.0, 1.0))
         .active_events(ActiveEvents::COLLISION_EVENTS)
+        // Member of its layer; collides with everything (layers filter queries).
+        .collision_groups(InteractionGroups::new(
+            Group::from_bits_truncate(1u32 << c.layer.min(31)),
+            Group::ALL,
+            InteractionTestMode::And,
+        ))
         // Report touches between every kind of body (kinematic vs static too).
         .active_collision_types(ActiveCollisionTypes::all());
     if let Some(b) = body.filter(|b| b.kind == BodyKind::Dynamic) {
@@ -192,6 +200,8 @@ impl CollisionWorld {
         if let Some(terrains) = world.storage::<Terrain>() {
             live.extend(terrains.iter().filter(|(_, t)| t.collide).map(|(e, _)| e));
         }
+        // Switched off by a script: inactive objects and disabled colliders.
+        live.retain(|&e| kit_scene::is_active(world, e) && !kit_gamesys::feature_disabled(world, e, "Collider"));
         let stale: Vec<Entity> = self.entries.keys().filter(|e| !live.contains(e)).copied().collect();
         for e in stale {
             self.remove(e);
@@ -204,7 +214,7 @@ impl CollisionWorld {
             // Terrains are static ground.
             let body_cfg = if terrain.is_some() {
                 Some(RigidBody { kind: BodyKind::Static, ..Default::default() })
-            } else if self.dynamics {
+            } else if self.dynamics && !kit_gamesys::feature_disabled(world, e, "Physics") {
                 world.get_cloned::<RigidBody>(e)
             } else {
                 None
@@ -336,9 +346,37 @@ impl CollisionWorld {
             } else {
                 self.contacts.remove(&pair(a, b));
             }
-            events.push(CollisionEvent { a, b, started, trigger: flags.contains(CollisionEventFlags::SENSOR) });
+            let trigger = flags.contains(CollisionEventFlags::SENSOR);
+            let mut ev = CollisionEvent { a, b, started, trigger, point: Vec3::ZERO, normal: Vec3::ZERO, strength: 0.0 };
+            if started && !trigger {
+                self.contact_details(h1, h2, &mut ev);
+            }
+            events.push(ev);
         }
         events
+    }
+
+    /// Fill in where and how hard two colliders touched (normal from `a` to `b`).
+    fn contact_details(&self, h1: ColliderHandle, h2: ColliderHandle, ev: &mut CollisionEvent) {
+        let Some(pair) = self.world.narrow_phase.contact_pair(h1, h2) else { return };
+        // The pair may list the colliders the other way around.
+        let flip = if pair.collider1 == h1 { 1.0 } else { -1.0 };
+        if let Some((manifold, contact)) = pair.find_deepest_contact() {
+            if let Some(c1) = self.world.colliders.get(pair.collider1) {
+                ev.point = gv(c1.position().transform_point(contact.local_p1));
+            }
+            ev.normal = gv(manifold.data.normal) * flip;
+        }
+        ev.strength = pair.total_impulse_magnitude();
+    }
+
+    fn filter(&self, exclude: Option<Entity>, layers: u32) -> QueryFilter<'static> {
+        let mut filter = QueryFilter::default()
+            .groups(InteractionGroups::new(Group::ALL, Group::from_bits_truncate(layers), InteractionTestMode::And));
+        if let Some(en) = exclude.and_then(|e| self.entries.get(&e)) {
+            filter = filter.exclude_rigid_body(en.body);
+        }
+        filter
     }
 
     /// Write simulated poses of dynamic bodies back to their transforms.
@@ -389,19 +427,49 @@ impl PhysicsApi for CollisionWorld {
         self.apply(e, Pending::Force(force));
     }
     fn raycast(&self, origin: Vec3, dir: Vec3, max_distance: f32, exclude: Option<Entity>) -> Option<RayHit> {
+        self.raycast_layers(origin, dir, max_distance, exclude, u32::MAX)
+    }
+    fn raycast_layers(&self, origin: Vec3, dir: Vec3, max_distance: f32, exclude: Option<Entity>, layers: u32) -> Option<RayHit> {
         let dir = dir.normalize_or_zero();
         if dir == Vec3::ZERO {
             return None;
         }
-        let mut filter = QueryFilter::default().exclude_sensors();
-        if let Some(en) = exclude.and_then(|e| self.entries.get(&e)) {
-            filter = filter.exclude_rigid_body(en.body);
-        }
+        let filter = self.filter(exclude, layers).exclude_sensors();
         let ray = Ray::new(rv(origin), rv(dir));
         let (h, hit) = self.world.cast_ray_and_get_normal(&ray, max_distance, true, filter)?;
         let entity = *self.by_collider.get(&h)?;
         let distance = hit.time_of_impact;
         Some(RayHit { entity, distance, point: origin + dir * distance, normal: gv(hit.normal) })
+    }
+    fn overlap_sphere(&self, center: Vec3, radius: f32, exclude: Option<Entity>, layers: u32) -> Vec<Entity> {
+        let ball = Ball::new(radius.max(1e-4));
+        let mut out: Vec<Entity> = self
+            .world
+            .intersect_shape(rpose(center, Quat::IDENTITY), &ball, self.filter(exclude, layers))
+            .filter_map(|(h, _)| self.by_collider.get(&h).copied())
+            .collect();
+        out.sort();
+        out.dedup();
+        out
+    }
+    fn sphere_cast(&self, origin: Vec3, dir: Vec3, radius: f32, max: f32, exclude: Option<Entity>, layers: u32) -> Option<RayHit> {
+        let dir = dir.normalize_or_zero();
+        if dir == Vec3::ZERO {
+            return None;
+        }
+        let ball = Ball::new(radius.max(1e-4));
+        let options = ShapeCastOptions { compute_impact_geometry_on_penetration: true, ..ShapeCastOptions::with_max_time_of_impact(max) };
+        let (h, hit) = self.world.cast_shape(
+            &rpose(origin, Quat::IDENTITY),
+            rv(dir),
+            &ball,
+            options,
+            self.filter(exclude, layers).exclude_sensors(),
+        )?;
+        let entity = *self.by_collider.get(&h)?;
+        let distance = hit.time_of_impact;
+        let point = self.world.colliders.get(h).map(|c| gv(c.position().transform_point(hit.witness2))).unwrap_or(origin + dir * distance);
+        Some(RayHit { entity, distance, point, normal: -gv(hit.normal1) })
     }
     fn contacts(&self, e: Entity) -> Vec<Entity> {
         let mut out: Vec<Entity> = self

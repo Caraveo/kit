@@ -203,6 +203,11 @@ impl Parser {
                 }
                 Ok(Stmt::Take { targets, line })
             }
+            Tok::Kw(Kw::WAIT) => {
+                self.advance();
+                let seconds = self.expr()?;
+                Ok(Stmt::Wait { seconds, line })
+            }
             Tok::Kw(Kw::CREATE) => {
                 self.advance();
                 let name = self.ident("a class or function name after CREATE")?;
@@ -580,6 +585,16 @@ impl Parser {
                 let class = self.ident("a class name after NEW")?;
                 let args = if self.at(&Tok::LParen) { self.args()? } else { Vec::new() };
                 ExprKind::New { class, args }
+            }
+            Tok::Kw(k @ (Kw::INVOKE | Kw::INSTANTIATE)) => {
+                if !self.at(&Tok::LParen) {
+                    return self.err(format!(
+                        "{} needs what to spawn in parentheses, e.g. {}(\"Sphere\")",
+                        k.as_str(),
+                        k.as_str()
+                    ));
+                }
+                ExprKind::Invoke { args: self.args()?, inside: k == Kw::INVOKE }
             }
             Tok::Kw(k) if k.is_type() && self.at(&Tok::LParen) => {
                 let args = self.args()?;

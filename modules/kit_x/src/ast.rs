@@ -97,6 +97,9 @@ pub enum ExprKind {
     },
     /// `INTEGER(x)`, `STRING(x)`, `VECTOR(x, y, z)` ...
     Convert(Type, Vec<Expr>),
+    /// `INVOKE("Sphere", position, ...)` spawns an object inside the calling
+    /// object (`inside: true`); `INSTANTIATE(...)` spawns it at the top level.
+    Invoke { args: Vec<Expr>, inside: bool },
     /// `EXIST(expr)` / `EXIST expr`: true when the value is not NULL.
     Exist(Box<Expr>),
 }
@@ -215,6 +218,11 @@ pub enum Stmt {
     },
     Display {
         values: Vec<Expr>,
+        line: u32,
+    },
+    /// `WAIT seconds`: pause a coroutine (a method started with `Time.Start`).
+    Wait {
+        seconds: Expr,
         line: u32,
     },
     /// `NEW Name Class(args)` — declares `Name` as a new instance.

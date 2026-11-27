@@ -170,6 +170,7 @@ struct Runner {
     gpu: Option<Gpu>,
     last: Instant,
     error: Option<anyhow::Error>,
+    pointer: winit_input::Pointer,
 }
 
 impl Runner {
@@ -272,8 +273,16 @@ impl ApplicationHandler for Runner {
         }
     }
 
+    fn device_event(&mut self, _event_loop: &ActiveEventLoop, _id: winit::event::DeviceId, event: winit::event::DeviceEvent) {
+        winit_input::handle_device_event(&self.app.world, &event);
+    }
+
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
         if let Some(gpu) = &self.gpu {
+            let size = gpu.window.inner_size();
+            winit_input::set_view(&self.app.world, glam::Vec2::ZERO, glam::Vec2::new(size.width as f32, size.height as f32));
+            let focused = gpu.window.has_focus();
+            winit_input::apply_pointer(&gpu.window, &self.app.world, focused, &mut self.pointer);
             gpu.window.request_redraw();
         }
     }
@@ -292,7 +301,7 @@ pub fn run(mut app: App, config: EngineConfig) -> Result<()> {
     }
     let event_loop = EventLoop::new().context("creating event loop")?;
     event_loop.set_control_flow(ControlFlow::Poll);
-    let mut runner = Runner { app, config, gpu: None, last: Instant::now(), error: None };
+    let mut runner = Runner { app, config, gpu: None, last: Instant::now(), error: None, pointer: Default::default() };
     event_loop.run_app(&mut runner)?;
     match runner.error {
         Some(e) => Err(e),

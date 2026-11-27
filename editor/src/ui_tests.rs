@@ -970,6 +970,33 @@ fn selecting_in_hierarchy_frames_the_object() {
     }
     assert!(h.ed.camera.target.distance(kit::math::Vec3::new(40.0, 0.0, 0.0)) < 0.01, "camera moved to it");
     assert!(h.ed.camera.distance > small_dist, "zoomed out for a big object");
+
+    // While playing in Scene View it frames too.
+    let cube = h.ed.spawn(crate::state::Preset::Mesh(kit::gamesys::MeshKind::Cube), None);
+    h.ed.app.world.get_mut::<kit::scene::Transform>(cube).unwrap().translation = kit::math::Vec3::new(0.0, 0.0, -30.0);
+    h.ed.app.world.get_mut::<kit::scene::Name>(cube).unwrap().0 = "Far Cube".into();
+    kit::scene::propagate_transforms(&mut h.ed.app.world);
+    h.ed.play();
+    h.ed.settings.game_camera = false;
+    h.frame(vec![]);
+    h.click(h.row("Far Cube").center());
+    assert_eq!(h.ed.selected, Some(cube));
+    for _ in 0..90 {
+        h.ed.camera.tick(1.0 / 60.0);
+    }
+    assert!(h.ed.camera.target.distance(kit::math::Vec3::new(0.0, 0.0, -30.0)) < 0.01, "framed while playing");
+
+    // In Game View the editor camera stays put (the game's camera is showing).
+    h.ed.settings.game_camera = true;
+    let before = h.ed.camera.target;
+    h.frame(vec![]);
+    h.click(h.row("Sphere").center());
+    assert_eq!(h.ed.selected, Some(big));
+    for _ in 0..90 {
+        h.ed.camera.tick(1.0 / 60.0);
+    }
+    assert_eq!(h.ed.camera.target, before);
+    h.ed.stop();
 }
 
 #[test]
@@ -1762,4 +1789,66 @@ fn scene_view_and_game_view_tabs() {
     // The tabs sit in order: Game View, Scene View, Preview.
     let (g, s, p) = (ui::marked(&h.ctx, "return_game_view").unwrap(), ui::marked(&h.ctx, "scene_view").unwrap(), ui::marked(&h.ctx, "open_preview").unwrap());
     assert!(g.left() < s.left() && s.left() < p.left());
+}
+
+#[test]
+fn fabs_save_place_and_spawn_from_scripts() {
+    let mut h = Harness::new("fabs");
+    let cube = h.ed.spawn(crate::state::Preset::Mesh(kit::gamesys::MeshKind::Cube), None);
+    h.ed.app.world.get_mut::<kit::scene::Name>(cube).unwrap().0 = "Crate".into();
+    h.ed.app.world.get_mut::<kit::scene::Transform>(cube).unwrap().translation = kit::math::Vec3::new(5.0, 0.0, 0.0);
+    h.ed.app.world.insert(cube, kit::gamesys::Tags(vec!["Loot".into()]));
+    let child = h.ed.spawn(crate::state::Preset::Mesh(kit::gamesys::MeshKind::Sphere), Some(cube));
+    let _ = child;
+
+    // Right-click → Save as Fab.
+    h.frame(vec![]);
+    let rel = h.ed.save_as_fab(cube).unwrap();
+    assert_eq!(rel, "fabs/Crate.kfab");
+    assert!(h.ed.assets.iter().any(|a| a == "fabs/Crate.kfab"), "listed under Assets");
+    h.frame(vec![]);
+    assert!(ui::marked(&h.ctx, "inspector_tags").is_some(), "tags can be edited");
+
+    // Place it from Assets: a copy with its child and tags, where the camera looks.
+    h.ed.place_fab(&rel, Some(kit::math::Vec3::new(0.0, 0.0, -3.0))).unwrap();
+    let placed = h.ed.selected.unwrap();
+    assert_ne!(placed, cube);
+    assert_eq!(kit::scene::children(h.ed.world(), placed).len(), 1);
+    assert_eq!(h.ed.world().get::<kit::gamesys::Tags>(placed).unwrap().0, ["Loot"]);
+    assert_eq!(h.ed.world().get::<kit::scene::Transform>(placed).unwrap().translation, kit::math::Vec3::new(0.0, 0.0, -3.0));
+
+    // Tags are saved with the scene.
+    let saved = kit::gamesys::save_scene(h.ed.world()).to_json();
+    assert!(saved.contains("\"tags\"") && saved.contains("Loot"));
+
+    // A script can spawn it by file or by name.
+    std::fs::create_dir_all(h.ed.project.as_ref().unwrap().root().join("scripts")).unwrap();
+    std::fs::write(
+        h.ed.project.as_ref().unwrap().root().join("scripts/Spawner.x"),
+        "CREATE Spawner[\n    VOID CREATE Init()[\n        INSTANTIATE(\"Crate\", VECTOR(0, 9, 0))\n        INSTANTIATE(\"fabs/Crate.kfab\", VECTOR(0, 8, 0))\n    ]\n]\n",
+    )
+    .unwrap();
+    // Remove the scene objects named Crate so the bare name means the Fab.
+    let crates: Vec<_> = h.ed.world().storage::<kit::scene::Name>().unwrap().iter().filter(|(_, n)| n.0 == "Crate").map(|(e, _)| e).collect();
+    for c in crates {
+        kit::scene::despawn_recursive(&mut h.ed.app.world, c);
+    }
+    let spawner = h.ed.spawn(crate::state::Preset::Empty, None);
+    h.ed.app.world.insert(spawner, kit::gamesys::Script::new("scripts/Spawner.x"));
+    h.ed.play();
+    h.ed.app.update(1.0 / 60.0);
+    let heights: Vec<f32> = h
+        .ed
+        .world()
+        .storage::<kit::scene::Name>()
+        .unwrap()
+        .iter()
+        .filter(|(_, n)| n.0 == "Crate")
+        .map(|(e, _)| h.ed.world().get::<kit::scene::Transform>(e).unwrap().translation.y)
+        .collect();
+    let mut heights = heights;
+    heights.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let console: Vec<String> = h.ed.world().resource::<kit::core::Console>().lines().iter().map(|l| l.text.clone()).collect();
+    assert_eq!(heights, [8.0, 9.0], "{console:?}");
+    h.ed.stop();
 }

@@ -257,6 +257,8 @@ struct EditorApp {
     startup_project: Option<PathBuf>,
     error: Option<anyhow::Error>,
     title: String,
+    /// What the window's pointer is set to (scripts can lock / hide it).
+    pointer: kit::engine::winit_input::Pointer,
 }
 
 // ------------------------------------------------------------- recent projects
@@ -627,9 +629,22 @@ impl EditorApp {
         let textures_set: Vec<_> = output.textures_delta.set.drain().collect();
         let textures_free: Vec<_> = output.textures_delta.free.drain().collect();
 
-        // Simulation.
+        // Simulation. Scripts see the viewport as their screen.
+        let ppp = output.pixels_per_point;
+        let vp = self.ui.viewport_rect;
+        if vp.is_positive() {
+            kit::engine::winit_input::set_view(
+                &self.editor.app.world,
+                kit::math::Vec2::new(vp.min.x * ppp, vp.min.y * ppp),
+                kit::math::Vec2::new(vp.width() * ppp, vp.height() * ppp),
+            );
+        }
         self.editor.camera.tick(dt);
         self.editor.app.update(dt);
+        // The game owns the pointer only while playing in Game View with the
+        // viewport focused (Esc gives it back).
+        let owns_pointer = self.editor.playing && self.editor.settings.game_camera && self.ui.viewport_focused;
+        kit::engine::winit_input::apply_pointer(&gpu.window, &self.editor.app.world, owns_pointer, &mut self.pointer);
         let at_rest = !self.egui_ctx.input(|i| i.pointer.any_down()) && self.egui_ctx.memory(|m| m.focused().is_none());
         self.editor.track_changes(at_rest);
 
@@ -902,6 +917,12 @@ impl ApplicationHandler for EditorApp {
         }
     }
 
+    fn device_event(&mut self, _event_loop: &ActiveEventLoop, _id: winit::event::DeviceId, event: winit::event::DeviceEvent) {
+        if self.editor.playing && self.ui.viewport_focused {
+            kit::engine::winit_input::handle_device_event(&self.editor.app.world, &event);
+        }
+    }
+
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
         if let Some(gpu) = &self.gpu {
             if self.editor.playing || self.editor.camera.auto_rotate || self.editor.camera.animating() {
@@ -1047,6 +1068,7 @@ fn run(project: Option<PathBuf>, auto: Automation) -> Result<()> {
         startup_project: project,
         error: None,
         title: String::new(),
+        pointer: Default::default(),
     };
     let mut builder = EventLoop::builder();
     #[cfg(target_os = "linux")]

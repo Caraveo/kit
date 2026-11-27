@@ -1,0 +1,7 @@
+# Circuit settings for this project (Project menu → each Circuit). Commit it with the project.
+["kit.multiplayer"]
+connect_url = "wss://circuit.kitgameengine.win/api/v1/realtime/connect"
+environment = "env_JUpaRnO6s8aYBzbS"
+token_url = ""
+tokens = "anonymous"
+world = "main"

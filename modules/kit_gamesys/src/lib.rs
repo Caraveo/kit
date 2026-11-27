@@ -32,7 +32,12 @@ pub use post::{
     AmbientFx, AoQuality, ColorFx, ExposureFx, FocusFx, GlowFx, ImageFx, Override, PostEffects, PostVolume, Tonemap,
     VolumeAffect, VolumeShape,
 };
-pub use scene_file::{EntityData, ExtraData, SCENE_EXTENSION, SceneFile, clone_subtree, load_scene, save_scene};
+pub use scene_file::{
+    EntityData, ExtraData, SCENE_EXTENSION, SceneFile, clone_subtree, load_scene, save_scene, save_subtree,
+};
+
+/// File extension of a Fab: a saved object to place or spawn from anywhere.
+pub const FAB_EXTENSION: &str = "kfab";
 
 use glam::{Mat4, Vec2, Vec3, Vec4};
 use kit_core::{App, Module};
@@ -172,6 +177,10 @@ pub struct Model {
     pub texture: String,
     pub unlit: bool,
     pub visible: bool,
+    /// Seconds into the animation (already scaled by speed), once a script
+    /// starts one with `Model.Play`; until then animations follow game time.
+    #[serde(skip)]
+    pub clock: Option<f64>,
 }
 
 impl Default for Model {
@@ -187,6 +196,7 @@ impl Default for Model {
             texture: String::new(),
             unlit: false,
             visible: true,
+            clock: None,
         }
     }
 }
@@ -271,7 +281,10 @@ impl Module for GameSysModule {
         app.world.insert_resource(ScriptCalls::default());
         app.world.insert_resource(scenes::SceneRequests::default());
         app.world.insert_resource(scenes::SceneEvents::default());
+        app.world.insert_resource(DebugDraw::default());
         app.add_play_system(kit_core::Stage::First, "clear_scene_events", scenes::clear_scene_events);
+        app.add_play_system(kit_core::Stage::First, "debug_draw_expire", expire_debug_draw);
+        app.add_play_system(kit_core::Stage::Update, "animation_clocks", advance_animation_clocks);
         app.add_play_system(kit_core::Stage::Last, "scene_requests", scenes::apply_scene_requests);
     }
 }
@@ -284,4 +297,58 @@ pub fn active_camera(world: &kit_ecs::World) -> Option<kit_ecs::Entity> {
         order.extend(kit_scene::descendants_and_self(world, root));
     }
     order.into_iter().find(|e| cams.get(*e).is_some_and(|c| c.active))
+}
+
+/// Features (components) a script switched off with `feature.Enabled: FALSE`
+/// (those without a switch of their own, unlike Model and Sprite visibility).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct DisabledFeatures(pub Vec<String>);
+
+/// Has a script switched this feature off on `e`?
+pub fn feature_disabled(world: &kit_ecs::World, e: kit_ecs::Entity, feature: &str) -> bool {
+    world.get::<DisabledFeatures>(e).is_some_and(|d| d.0.iter().any(|f| f.eq_ignore_ascii_case(feature)))
+}
+
+/// Labels for finding groups of objects (`Scene.FindTagged("Enemy")`), saved
+/// with the scene.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Tags(pub Vec<String>);
+
+/// Advance the animation clocks scripts started (`Model.Play`), by speed.
+pub fn advance_animation_clocks(world: &mut kit_ecs::World) {
+    let dt = world.resource::<kit_core::Time>().delta as f64;
+    if world.storage::<Model>().is_none() {
+        return;
+    }
+    let mut models = world.storage_mut::<Model>();
+    for (_, m) in models.iter_mut() {
+        if let Some(c) = m.clock.as_mut() {
+            if m.animation_enabled {
+                *c += dt * m.animation_speed.max(0.0) as f64;
+            }
+        }
+    }
+}
+
+/// A line drawn by `Debug.Line` and friends (shown in the editor's viewport).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DebugLine {
+    pub from: glam::Vec3,
+    pub to: glam::Vec3,
+    pub color: glam::Vec4,
+    /// Game time after which it disappears (this frame only by default).
+    pub until: f64,
+}
+
+/// Lines scripts asked to see this frame.
+#[derive(Default, Debug)]
+pub struct DebugDraw {
+    pub lines: Vec<DebugLine>,
+}
+
+fn expire_debug_draw(world: &mut kit_ecs::World) {
+    let now = world.resource::<kit_core::Time>().elapsed;
+    if let Some(mut d) = world.try_resource_mut::<DebugDraw>() {
+        d.lines.retain(|l| l.until >= now);
+    }
 }

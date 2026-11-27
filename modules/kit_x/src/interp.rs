@@ -2,7 +2,7 @@
 
 use crate::XError;
 use crate::ast::*;
-use crate::value::{Class, Instance, Value};
+use crate::value::{Class, FeatureRef, Instance, Value};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
@@ -19,6 +19,28 @@ pub trait Host {
     /// Source of another script for `TAKE "file.x"`.
     fn load_source(&mut self, _path: &str) -> Option<String> {
         None
+    }
+    /// `INVOKE(what, ...)` / `INSTANTIATE(what, ...)`: spawn an object and give
+    /// back its id; `inside` puts it inside the object running the script.
+    fn invoke(&mut self, _args: &[Value], _inside: bool) -> Result<Value, String> {
+        Err("spawning objects needs a game; run this script in Kit".into())
+    }
+    /// `GetFeature`, `AddFeature`, `RemoveFeature`, `HasFeature`, `BeActive`,
+    /// `IsActive` (see [`FEATURE_FUNCTIONS`]).
+    fn feature(&mut self, op: &str, _args: &[Value]) -> Result<Value, String> {
+        Err(format!("{op} works on objects in a game; run this script in Kit"))
+    }
+    /// `feature.Member(args)`.
+    fn call_feature(&mut self, f: &FeatureRef, member: &str, _args: &[Value]) -> Result<Value, String> {
+        Err(format!("{}.{member}: features need a game", f.name))
+    }
+    /// `feature.Field` read.
+    fn get_feature(&mut self, f: &FeatureRef, field: &str) -> Result<Value, String> {
+        Err(format!("{}.{field}: features need a game", f.name))
+    }
+    /// `feature.Field: value`.
+    fn set_feature(&mut self, f: &FeatureRef, field: &str, _value: Value) -> Result<(), String> {
+        Err(format!("{}.{field}: features need a game", f.name))
     }
 }
 
@@ -49,8 +71,22 @@ impl Host for StdHost {
 }
 
 /// Modules implemented by the interpreter itself.
-const INTERNAL_MODULES: &[&str] = &["Math"];
-const BUILTINS: &[&str] = &["RANGE", "LENGTH", "TYPEOF"];
+const INTERNAL_MODULES: &[&str] = &["Math", "Rotation"];
+const BUILTINS: &[&str] = &[
+    "RANGE",
+    "LENGTH",
+    "TYPEOF",
+    "GetFeature",
+    "AddFeature",
+    "RemoveFeature",
+    "HasFeature",
+    "BeActive",
+    "IsActive",
+];
+
+/// Built-ins that work on objects in the game, answered by [`Host::feature`].
+pub const FEATURE_FUNCTIONS: &[&str] =
+    &["GetFeature", "AddFeature", "RemoveFeature", "HasFeature", "BeActive", "IsActive"];
 
 #[derive(Clone)]
 struct Var {
@@ -72,6 +108,54 @@ impl Frame {
     }
     fn find(&mut self, name: &str) -> Option<&mut Var> {
         self.scopes.iter_mut().rev().find_map(|s| s.iter_mut().find(|(n, _)| &**n == name).map(|(_, v)| v))
+    }
+}
+
+/// A method running over several frames (see [`Interpreter::start_coroutine`]).
+pub struct Coroutine {
+    frame: Frame,
+    stack: Vec<Cursor>,
+}
+
+/// Where a coroutine is inside each block, loop and GRAB it's in.
+enum Cursor {
+    Block { body: Rc<Vec<Stmt>>, idx: usize, entered: bool },
+    Loop { cond: Expr, body: Rc<Vec<Stmt>>, line: u32 },
+    Grab { var: Rc<str>, items: Vec<Value>, idx: usize, body: Rc<Vec<Stmt>>, scoped: bool, line: u32 },
+}
+
+impl Coroutine {
+    /// Leave blocks up to the nearest LOOP/GRAB: out of it (EXIT) or to its next round (SKIP).
+    fn unwind(&mut self, exit: bool, line: u32) -> R<()> {
+        loop {
+            match self.stack.last_mut() {
+                None => return Err(rt(line, "EXIT/SKIP used outside of LOOP or GRAB")),
+                Some(Cursor::Block { entered, .. }) => {
+                    if *entered {
+                        self.frame.scopes.pop();
+                    }
+                    self.stack.pop();
+                }
+                Some(Cursor::Loop { .. } | Cursor::Grab { .. }) => {
+                    if exit {
+                        if let Some(Cursor::Grab { scoped: true, .. }) = self.stack.last() {
+                            self.frame.scopes.pop();
+                        }
+                        self.stack.pop();
+                    }
+                    return Ok(());
+                }
+            }
+        }
+    }
+
+    fn unwind_all(&mut self) {
+        self.stack.clear();
+    }
+
+    /// Has it run to its end?
+    pub fn finished(&self) -> bool {
+        self.stack.is_empty()
     }
 }
 
@@ -100,6 +184,7 @@ pub struct Interpreter {
     depth: u32,
     loaded_files: HashSet<String>,
     rng: u64,
+    noise_seed: u64,
 }
 
 const MAX_DEPTH: u32 = 200;
@@ -139,6 +224,7 @@ impl Interpreter {
             depth: 0,
             loaded_files: HashSet::new(),
             rng: seed | 1,
+            noise_seed: 0,
         }
     }
 
@@ -256,6 +342,16 @@ impl Interpreter {
 
     pub fn has_method(&self, instance: &Value, name: &str) -> bool {
         matches!(instance, Value::Instance(i) if i.class.method(name).is_some())
+    }
+
+    /// Set a field on an instance from outside (another script), with the same
+    /// type rules as `Instance.Field: value` in x.
+    pub fn set_field(&self, instance: &Value, name: &str, v: Value) -> Result<(), String> {
+        let Value::Instance(inst) = instance else { return Err("not a script instance".into()) };
+        let ty = inst.field_type(name).ok_or_else(|| format!("`{}` has no field `{name}`", inst.class.name()))?;
+        let v = self.coerce(&ty, v, 0, name).map_err(|e| e.message)?;
+        inst.set_raw(name, v);
+        Ok(())
     }
 
     /// Call `instance.name(args)`.
@@ -501,8 +597,152 @@ impl Interpreter {
             Stmt::Expr(e) => {
                 self.eval(e, frame, host)?;
             }
+            Stmt::Wait { line, .. } => {
+                return Err(rt(
+                    *line,
+                    "WAIT only works in a coroutine's own body: start the method with Time.Start(\"Name\")",
+                ));
+            }
         }
         Ok(Flow::Normal)
+    }
+
+    // ------------------------------------------------------------- coroutines
+
+    /// Get a method ready to run as a coroutine (it runs on [`Interpreter::resume`]).
+    pub fn start_coroutine(&mut self, instance: &Value, name: &str, args: Vec<Value>) -> R<Coroutine> {
+        let (f, this) = match instance {
+            Value::Instance(i) => (
+                i.class.method(name).ok_or_else(|| self.located(rt(0, format!("`{}` has no method `{name}`", i.class.name()))))?,
+                Some(i.clone()),
+            ),
+            _ => match self.globals.get(name) {
+                Some(Var { value: Value::Func(f), .. }) => (f.clone(), None),
+                _ => return Err(self.located(rt(0, format!("no function `{name}`")))),
+            },
+        };
+        if args.len() != f.params.len() {
+            return Err(self.located(rt(f.line, format!("`{}` expects {} argument(s), got {}", f.name, f.params.len(), args.len()))));
+        }
+        let mut scope = Vec::new();
+        for (p, a) in f.params.iter().zip(args) {
+            let v = self.coerce(&p.ty, a, f.line, &p.name).map_err(|e| self.located(e))?;
+            scope.push((p.name.clone(), Var { ty: p.ty.clone(), value: v }));
+        }
+        Ok(Coroutine {
+            frame: Frame { scopes: vec![scope], this },
+            stack: vec![Cursor::Block { body: Rc::new(f.body.clone()), idx: 0, entered: false }],
+        })
+    }
+
+    /// Run a coroutine until its next `WAIT` (gives back the seconds to wait)
+    /// or its end (`None`).
+    pub fn resume(&mut self, co: &mut Coroutine, host: &mut dyn Host) -> R<Option<f64>> {
+        self.steps = 0;
+        self.resume_inner(co, host).map_err(|e| self.located(e))
+    }
+
+    fn resume_inner(&mut self, co: &mut Coroutine, host: &mut dyn Host) -> R<Option<f64>> {
+        loop {
+            let Some(top) = co.stack.last_mut() else { return Ok(None) };
+            match top {
+                Cursor::Block { body, idx, entered } => {
+                    if !*entered {
+                        co.frame.scopes.push(Vec::new());
+                        *entered = true;
+                    }
+                    if *idx >= body.len() {
+                        co.frame.scopes.pop();
+                        co.stack.pop();
+                        continue;
+                    }
+                    let body = body.clone();
+                    let s = &body[*idx];
+                    *idx += 1;
+                    self.tick(stmt_line(s))?;
+                    match s {
+                        Stmt::Wait { seconds, line } => {
+                            let v = self.eval(seconds, &mut co.frame, host)?;
+                            let secs = v.as_f64().ok_or_else(|| rt(*line, "WAIT needs a number of seconds"))?;
+                            return Ok(Some(secs.max(0.0)));
+                        }
+                        Stmt::If { branches, otherwise, .. } => {
+                            let mut chosen = None;
+                            for b in branches {
+                                if self.eval(&b.cond, &mut co.frame, host)?.truthy() {
+                                    chosen = Some(b.body.clone());
+                                    break;
+                                }
+                            }
+                            if let Some(b) = chosen.or_else(|| otherwise.clone()) {
+                                co.stack.push(Cursor::Block { body: Rc::new(b), idx: 0, entered: false });
+                            }
+                        }
+                        Stmt::Loop { cond, body, line } => {
+                            co.stack.push(Cursor::Loop { cond: cond.clone(), body: Rc::new(body.clone()), line: *line });
+                        }
+                        Stmt::Grab { var, iter, body, line } => {
+                            let items: Vec<Value> = match self.eval(iter, &mut co.frame, host)? {
+                                Value::List(l) => l.borrow().clone(),
+                                Value::Str(s) => s.chars().map(|c| Value::Str(c.to_string().into())).collect(),
+                                Value::Object(o) => o.borrow().iter().map(|(k, _)| Value::Str(k.clone())).collect(),
+                                Value::Int(n) => (0..n.max(0)).map(Value::Int).collect(),
+                                other => return Err(rt(*line, format!("cannot GRAB items from {}", other.type_name()))),
+                            };
+                            co.stack.push(Cursor::Grab {
+                                var: var.clone(),
+                                items,
+                                idx: 0,
+                                body: Rc::new(body.clone()),
+                                scoped: false,
+                                line: *line,
+                            });
+                        }
+                        Stmt::Give { .. } => {
+                            co.unwind_all();
+                            return Ok(None);
+                        }
+                        Stmt::Exit { line } => co.unwind(true, *line)?,
+                        Stmt::Skip { line } => co.unwind(false, *line)?,
+                        other => match self.exec(other, &mut co.frame, host)? {
+                            Flow::Normal => {}
+                            Flow::Give(_) => {
+                                co.unwind_all();
+                                return Ok(None);
+                            }
+                            Flow::Exit => co.unwind(true, stmt_line(other))?,
+                            Flow::Skip => co.unwind(false, stmt_line(other))?,
+                        },
+                    }
+                }
+                Cursor::Loop { cond, body, line } => {
+                    let (cond, body, line) = (cond.clone(), body.clone(), *line);
+                    self.tick(line)?;
+                    if self.eval(&cond, &mut co.frame, host)?.truthy() {
+                        co.stack.push(Cursor::Block { body, idx: 0, entered: false });
+                    } else {
+                        co.stack.pop();
+                    }
+                }
+                Cursor::Grab { var, items, idx, body, scoped, line } => {
+                    if *scoped {
+                        co.frame.scopes.pop();
+                        *scoped = false;
+                    }
+                    self.tick(*line)?;
+                    if *idx < items.len() {
+                        let item = items[*idx].clone();
+                        *idx += 1;
+                        *scoped = true;
+                        let (var, body) = (var.clone(), body.clone());
+                        co.frame.scopes.push(vec![(var, Var { ty: Type::Any, value: item })]);
+                        co.stack.push(Cursor::Block { body, idx: 0, entered: false });
+                    } else {
+                        co.stack.pop();
+                    }
+                }
+            }
+        }
     }
 
     fn take(&mut self, t: &TakeTarget, line: u32, host: &mut dyn Host) -> R<()> {
@@ -570,6 +810,8 @@ impl Interpreter {
             (Type::Object, Value::Object(_) | Value::Null) => true,
             (Type::Class(_), Value::Null) => true,
             (Type::Class(c), Value::Instance(i)) => i.class.is_a(c),
+            // `Enemy E: GetFeature(Target, "Enemy")`
+            (Type::Class(c), Value::Feature(f)) => *f.name == **c,
             _ => false,
         };
         if ok {
@@ -641,6 +883,9 @@ impl Interpreter {
                     Value::Module(m) => {
                         host.call_module(&m, &format!("Set{name}"), &[v]).map_err(|e| rt(line, e))?;
                         Ok(())
+                    }
+                    Value::Feature(f) => {
+                        host.set_feature(&f, name, v).map_err(|e| rt(line, format!("{}.{name}: {e}", f.name)))
                     }
                     other => Err(rt(line, format!("cannot set `{name}` on {}", other.type_name()))),
                 }
@@ -781,6 +1026,11 @@ impl Interpreter {
                 let a = self.eval_args(args, frame, host)?;
                 convert(ty, a).map_err(|m| rt(line, m))?
             }
+            ExprKind::Invoke { args, inside } => {
+                let a = self.eval_args(args, frame, host)?;
+                let name = if *inside { "INVOKE" } else { "INSTANTIATE" };
+                host.invoke(&a, *inside).map_err(|m| rt(line, format!("{name}: {m}")))?
+            }
         })
     }
 
@@ -789,6 +1039,9 @@ impl Interpreter {
             Value::Func(f) => self.call_func(&f, None, args, line, host),
             Value::Method(this, f) => self.call_func(&f, Some(this), args, line, host),
             Value::Class(c) => self.construct(&c, args, line, host),
+            Value::Builtin(b) if FEATURE_FUNCTIONS.contains(&b) => {
+                host.feature(b, &args).map_err(|m| rt(line, format!("{b}: {m}")))
+            }
             Value::Builtin(b) => builtin(b, args).map_err(|m| rt(line, m)),
             other => Err(rt(line, format!("{} is not callable", other.type_name()))),
         }
@@ -800,7 +1053,13 @@ impl Interpreter {
                 if &**m == "Math" {
                     return self.math(name, &args).map_err(|e| rt(line, e));
                 }
+                if &**m == "Rotation" {
+                    return crate::rotation::rotation(name, &args).map_err(|e| rt(line, e));
+                }
                 host.call_module(m, name, &args).map_err(|e| rt(line, format!("{m}.{name}: {e}")))
+            }
+            Value::Feature(f) => {
+                host.call_feature(f, name, &args).map_err(|e| rt(line, format!("{}.{name}: {e}", f.name)))
             }
             Value::Instance(i) => {
                 if let Some(f) = i.class.method(name) {
@@ -844,6 +1103,7 @@ impl Interpreter {
             },
             // Property-style access: `Time.Delta`, `Math.PI`.
             Value::Module(_) => self.call_member(base, name, Vec::new(), line, host),
+            Value::Feature(f) => host.get_feature(f, name).map_err(|e| rt(line, format!("{}.{name}: {e}", f.name))),
             _ => builtin_method(&base, name, Vec::new()).map_err(|m| rt(line, m)),
         }
     }
@@ -949,10 +1209,83 @@ impl Interpreter {
                 want(3)?;
                 f(num(0)?.clamp(num(1)?, num(2)?.max(num(1)?)))
             }
-            "Lerp" => {
+            // Blend(a, b, t): from a (t = 0) to b (t = 1); numbers or VECTORs. Lerp is the same.
+            "Lerp" | "Blend" => {
                 want(3)?;
                 let t = num(2)?;
-                f(num(0)? + (num(1)? - num(0)?) * t)
+                match (&a[0], &a[1]) {
+                    (Value::Vector(x), Value::Vector(y)) => {
+                        Ok(Value::Vector(std::array::from_fn(|i| x[i] + (y[i] - x[i]) * t)))
+                    }
+                    _ => f(num(0)? + (num(1)? - num(0)?) * t),
+                }
+            }
+            // MoveToward(current, target, maxStep): step toward a target without overshooting.
+            "MoveToward" => {
+                want(3)?;
+                let max = num(2)?.max(0.0);
+                match (&a[0], &a[1]) {
+                    (Value::Vector(x), Value::Vector(y)) => {
+                        let d: [f64; 3] = std::array::from_fn(|i| y[i] - x[i]);
+                        let l = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
+                        Ok(Value::Vector(if l <= max || l == 0.0 { *y } else { std::array::from_fn(|i| x[i] + d[i] / l * max) }))
+                    }
+                    _ => {
+                        let (c, t) = (num(0)?, num(1)?);
+                        f(if (t - c).abs() <= max { t } else { c + (t - c).signum() * max })
+                    }
+                }
+            }
+            // Smooth(current, target, speed, dt): ease toward a target, the same at any frame rate.
+            "Smooth" => {
+                want(4)?;
+                let k = 1.0 - (-num(2)?.max(0.0) * num(3)?.max(0.0)).exp();
+                match (&a[0], &a[1]) {
+                    (Value::Vector(x), Value::Vector(y)) => {
+                        Ok(Value::Vector(std::array::from_fn(|i| x[i] + (y[i] - x[i]) * k)))
+                    }
+                    _ => f(num(0)? + (num(1)? - num(0)?) * k),
+                }
+            }
+            // Remap(x, fromLow, fromHigh, toLow, toHigh): move a value from one range to another.
+            "Remap" => {
+                want(5)?;
+                let (x, a0, a1, b0, b1) = (num(0)?, num(1)?, num(2)?, num(3)?, num(4)?);
+                let t = if (a1 - a0).abs() < 1e-12 { 0.0 } else { (x - a0) / (a1 - a0) };
+                f(b0 + (b1 - b0) * t)
+            }
+            // Angle(v1, v2): degrees between two directions.
+            "Angle" => {
+                want(2)?;
+                let (x, y) = (
+                    a[0].as_vector().ok_or("Math.Angle expects two VECTORs")?,
+                    a[1].as_vector().ok_or("Math.Angle expects two VECTORs")?,
+                );
+                let l = ((x[0] * x[0] + x[1] * x[1] + x[2] * x[2]) * (y[0] * y[0] + y[1] * y[1] + y[2] * y[2])).sqrt();
+                if l == 0.0 {
+                    return f(0.0);
+                }
+                f(((x[0] * y[0] + x[1] * y[1] + x[2] * y[2]) / l).clamp(-1.0, 1.0).acos().to_degrees())
+            }
+            // Seed(n): make Random repeat the same sequence for the same seed.
+            "Seed" => {
+                want(1)?;
+                self.rng = (num(0)? as i64 as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;
+                Ok(Value::Null)
+            }
+            // Noise(x[, y[, z]]): smooth random 0..1 that changes gradually (terrain, wobble...).
+            "Noise" => {
+                let p: [f64; 3] = match a {
+                    [Value::Vector(v)] => *v,
+                    _ => std::array::from_fn(|i| a.get(i).and_then(|v| v.as_f64()).unwrap_or(0.0)),
+                };
+                f(crate::rotation::noise(p, self.noise_seed))
+            }
+            // NoiseSeed(n): pick a different noise pattern.
+            "NoiseSeed" => {
+                want(1)?;
+                self.noise_seed = num(0)? as i64 as u64;
+                Ok(Value::Null)
             }
             "Random" => {
                 want(0)?;
@@ -984,6 +1317,7 @@ fn stmt_line(s: &Stmt) -> u32 {
         | Stmt::Exit { line }
         | Stmt::Skip { line }
         | Stmt::Display { line, .. }
+        | Stmt::Wait { line, .. }
         | Stmt::NewInstance { line, .. } => *line,
         Stmt::Class(c) => c.line,
         Stmt::Func(f) => f.line,

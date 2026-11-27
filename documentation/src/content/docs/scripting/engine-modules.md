@@ -53,6 +53,34 @@ Any object, by id:
 | `Exists(id)`, `Name(id)`, `Destroy(id)` | |
 | `Position(id)`, `SetPosition(id, v)`, `Move(id, v)`, … | Every Transform member, with the id first |
 
+## Spawning objects: INVOKE and INSTANTIATE
+
+`INVOKE` and `INSTANTIATE` create an object in the scene right away and give
+back its id, so you can move it or destroy it on the next line. No `TAKE` is
+needed. They're the same except for where the new object goes:
+
+* `INVOKE` puts it **inside the object whose script called it**, as a child in
+  the Hierarchy. Its position, rotation and scale are relative to that object,
+  and it moves with it.
+* `INSTANTIATE` puts it **at the top level**, so its position is in world space.
+
+```x
+ANY Rock: INVOKE("Sphere", VECTOR(0, 5, 0))                # 5 above this object, inside it
+INSTANTIATE("models/ship/Ship.kmodel", VECTOR(0, 0, -10))  # at a world position
+ANY Enemy: INSTANTIATE("Enemy Template")                   # copy an object in the scene
+INVOKE(Enemy, VECTOR(4, 0, 0), VECTOR(0, 90, 0), 2)        # copy by id, rotated and scaled
+```
+
+Both take `(what[, position[, rotation[, scale]]])`:
+
+* `what` is a shape (`"Cube"`, `"Sphere"`, `"Cylinder"`, `"Torus"`, `"Plane"`,
+  `"Quad"`), a `.kmodel` file, or an object in the scene, given by name or id.
+  A copy brings its children, components and scripts along, and its scripts
+  start running on their own. A good pattern is a hidden template object that
+  you copy.
+* `rotation` is in degrees, and `scale` is a number or a `VECTOR`.
+* Objects created while playing go away when you press Stop.
+
 ## Model / Sprite
 `Model.SetColor(r, g, b[, a])`, `Model.SetVisible(BOOL)`.
 `Sprite.SetColor(r, g, b[, a])`, `Sprite.Color`, `Sprite.SetSize(w, h)`, `Sprite.SetFlipX(BOOL)`, `Sprite.SetFlipY(BOOL)`, `Sprite.SetVisible(BOOL)`.

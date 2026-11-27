@@ -80,7 +80,13 @@ jobs:
       - name: Package (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: packaging/windows/package.ps1 -Target ${{ matrix.target }}
+        run: |
+          $innoSetup = Join-Path $env:RUNNER_TEMP 'innosetup.exe'
+          $innoDir = Join-Path $env:RUNNER_TEMP 'inno-setup'
+          Invoke-WebRequest 'https://github.com/jrsoftware/issrc/releases/download/is-6_5_3/innosetup-6.5.3.exe' -OutFile $innoSetup
+          $process = Start-Process $innoSetup -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CURRENTUSER /DIR=`"$innoDir`"" -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Inno Setup installation failed with exit code $($process.ExitCode)" }
+          packaging/windows/package.ps1 -Target ${{ matrix.target }} -Installer -InnoCompiler (Join-Path $innoDir 'ISCC.exe')
 
       - uses: actions/upload-artifact@v4
         with:
@@ -90,6 +96,7 @@ jobs:
             dist/*.deb
             dist/*.dmg
             dist/*.zip
+            dist/*-setup.exe
           if-no-files-found: error
 
   publish:

@@ -20,6 +20,22 @@ pub struct Input {
     pub mouse_delta: Vec2,
     /// Scroll since last frame (lines).
     pub scroll: f32,
+    /// Size of the game's view in pixels (set by the editor or player window).
+    pub screen: Vec2,
+    /// Top-left of the game's view inside the window, in pixels (the editor's
+    /// viewport); mouse and touch positions are relative to it.
+    pub view_origin: Vec2,
+    /// A script asked to capture the mouse (hidden, unlimited movement).
+    pub mouse_locked: bool,
+    /// A script asked to hide the pointer.
+    pub mouse_hidden: bool,
+    /// Gamepad sticks and triggers: `"leftx"`, `"lefty"`, `"rightx"`,
+    /// `"righty"` (-1..1, up is +1), `"lefttrigger"`, `"righttrigger"` (0..1).
+    analog: std::collections::HashMap<String, f32>,
+    /// Fingers on a touch screen: (finger id, position in pixels).
+    pub touches: Vec<(u64, Vec2)>,
+    /// Named actions → the keys / buttons that trigger them (`Input.Bind`).
+    bindings: std::collections::HashMap<String, Vec<String>>,
 }
 
 /// Canonical (lowercase) key name, so scripts can say `"a"`, `"A"` or `"KeyA"`,
@@ -57,17 +73,48 @@ impl Input {
         }
     }
 
-    /// Is the key held this frame?
+    /// The keys a name stands for: an action's bound keys, or the key itself.
+    fn keys_for(&self, key: &str) -> Vec<String> {
+        let k = normalize_key(key);
+        match self.bindings.get(&k) {
+            Some(keys) => keys.clone(),
+            None => vec![k],
+        }
+    }
+
+    /// Is the key (or any key bound to this action) held this frame?
     pub fn down(&self, key: &str) -> bool {
-        self.down.contains(&normalize_key(key))
+        self.keys_for(key).iter().any(|k| self.down.contains(k))
     }
-    /// Did the key go down this frame?
+    /// Did the key (or action) go down this frame?
     pub fn pressed(&self, key: &str) -> bool {
-        self.pressed.contains(&normalize_key(key))
+        self.keys_for(key).iter().any(|k| self.pressed.contains(k))
     }
-    /// Did the key go up this frame?
+    /// Did the key (or action) go up this frame?
     pub fn released(&self, key: &str) -> bool {
-        self.released.contains(&normalize_key(key))
+        self.keys_for(key).iter().any(|k| self.released.contains(k))
+    }
+
+    /// Give an action a set of keys/buttons (replacing what it had):
+    /// `bind("Jump", ["Space", "PadA"])`. Actions work anywhere a key name does.
+    pub fn bind(&mut self, action: &str, keys: &[String]) {
+        self.bindings.insert(normalize_key(action), keys.iter().map(|k| normalize_key(k)).collect());
+    }
+    /// Forget an action's keys.
+    pub fn unbind(&mut self, action: &str) {
+        self.bindings.remove(&normalize_key(action));
+    }
+    /// The keys bound to an action (empty when it isn't bound).
+    pub fn bound(&self, action: &str) -> Vec<String> {
+        self.bindings.get(&normalize_key(action)).cloned().unwrap_or_default()
+    }
+
+    /// A gamepad stick axis or trigger (see [`Input::analog`] names).
+    pub fn analog(&self, name: &str) -> f32 {
+        self.analog.get(&normalize_key(name)).copied().unwrap_or(0.0)
+    }
+    pub fn set_analog(&mut self, name: &str, value: f32) {
+        self.analog.insert(normalize_key(name), value);
     }
 
     /// -1, 0 or +1 from a pair of keys, e.g. `axis("Left", "Right")`.
@@ -75,14 +122,41 @@ impl Input {
         (self.down(positive) as i32 - self.down(negative) as i32) as f32
     }
 
+    /// The last key, mouse or gamepad button pressed this frame, for "press a
+    /// key to rebind" screens.
+    pub fn any_pressed(&self) -> Option<String> {
+        self.pressed.iter().next().cloned()
+    }
+
     /// Keys pressed this frame (canonical names).
     pub fn pressed_keys(&self) -> Vec<String> {
         self.pressed.iter().cloned().collect()
     }
 
+    /// The pointer moved to `pos` (window pixels).
     pub fn set_mouse(&mut self, pos: Vec2) {
-        self.mouse_delta += pos - self.mouse;
+        let pos = pos - self.view_origin;
+        // While locked, movement comes from `add_mouse_motion` (raw device motion).
+        if !self.mouse_locked {
+            self.mouse_delta += pos - self.mouse;
+        }
         self.mouse = pos;
+    }
+
+    /// Raw mouse movement (used while the mouse is locked).
+    pub fn add_mouse_motion(&mut self, delta: Vec2) {
+        if self.mouse_locked {
+            self.mouse_delta += delta;
+        }
+    }
+
+    /// A finger touched, moved or lifted (window pixels).
+    pub fn touch(&mut self, id: u64, pos: Vec2, down: bool) {
+        let pos = pos - self.view_origin;
+        self.touches.retain(|(t, _)| *t != id);
+        if down {
+            self.touches.push((id, pos));
+        }
     }
 
     /// Release everything (window lost focus).

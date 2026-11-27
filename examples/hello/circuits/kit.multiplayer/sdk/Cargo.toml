@@ -1,0 +1,21 @@
+[package]
+name = "kit_realtime"
+# The Multiplayer Circuit is versioned on its own (circuit/multiplayer/circuit.toml).
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+description = "Kit Multiplayer Circuit SDK: the Realtime binary protocol, a non-blocking WebSocket client, transform/state/world sync and per-component network policies."
+license = "MIT"
+
+[dependencies]
+glam.workspace = true
+log.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tungstenite = { version = "0.27", default-features = false, features = ["handshake", "rustls-tls-webpki-roots"] }
+
+[dev-dependencies]
+toml.workspace = true

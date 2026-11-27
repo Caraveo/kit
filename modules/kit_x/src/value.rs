@@ -99,6 +99,18 @@ pub enum Value {
     Module(Rc<str>),
     /// A built-in function such as `RANGE`.
     Builtin(&'static str),
+    /// A feature (component) on an object, from `GetFeature`: one of its
+    /// scripts or an engine feature such as `Model`. Members go to the host.
+    Feature(Rc<FeatureRef>),
+}
+
+/// Which object and which of its features a [`Value::Feature`] refers to.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FeatureRef {
+    /// The object's id (as the host hands them out).
+    pub target: i64,
+    /// `"Model"`, `"Physics"`, … or a script's class name.
+    pub name: Rc<str>,
 }
 
 impl Value {
@@ -129,6 +141,7 @@ impl Value {
             Value::Func(_) | Value::Method(..) | Value::Builtin(_) => "FUNCTION".into(),
             Value::Class(_) => "CLASS".into(),
             Value::Module(_) => "MODULE".into(),
+            Value::Feature(f) => f.name.to_string(),
         }
     }
 
@@ -185,6 +198,7 @@ impl Value {
             (Value::Instance(a), Value::Instance(b)) => Rc::ptr_eq(a, b),
             (Value::Class(a), Value::Class(b)) => Rc::ptr_eq(a, b),
             (Value::Module(a), Value::Module(b)) => a == b,
+            (Value::Feature(a), Value::Feature(b)) => a == b,
             (a, b) => match (a.as_f64(), b.as_f64()) {
                 (Some(x), Some(y)) => x == y,
                 _ => false,
@@ -244,6 +258,7 @@ impl fmt::Display for Value {
             Value::Func(func) | Value::Method(_, func) => write!(f, "<function {}>", func.name),
             Value::Class(c) => write!(f, "<class {}>", c.name()),
             Value::Module(m) => write!(f, "<module {m}>"),
+            Value::Feature(r) => write!(f, "<{} feature of {}>", r.name, r.target),
             Value::Builtin(b) => write!(f, "<builtin {b}>"),
         }
     }

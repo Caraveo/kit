@@ -356,3 +356,20 @@ mod tests {
         assert!(approx(t.euler_degrees(), Vec3::new(10.0, 20.0, 30.0)));
     }
 }
+
+/// Switched off with `BeActive(FALSE)`: the object and everything inside it
+/// stop drawing, colliding and running scripts until switched back on.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Inactive;
+
+/// Is `e` active, i.e. neither it nor any of its parents is [`Inactive`]?
+pub fn is_active(world: &World, e: Entity) -> bool {
+    let mut cur = Some(e);
+    while let Some(c) = cur {
+        if world.has::<Inactive>(c) {
+            return false;
+        }
+        cur = world.get::<Parent>(c).map(|p| p.0);
+    }
+    true
+}
