@@ -11,6 +11,10 @@ use egui::{Context, RichText, Window};
 pub struct PublishPanel {
     pub open: bool,
     title: String,
+    description: String,
+    tags: String,
+    cover_art: String,
+    screenshots: String,
     version: String,
     note: String,
 }
@@ -43,9 +47,9 @@ pub fn window(ctx: &Context, ed: &mut Editor, panel: &mut PublishPanel, rex: &Re
     let mut open = panel.open;
     Window::new(RichText::new("Publish to Kit Store").strong())
         .open(&mut open)
-        .default_size([540.0, 420.0])
+        .default_size([620.0, 620.0])
         .show(ctx, |ui| {
-            ui.label("Manage your games in the Kit account's Circuits page.");
+            ui.label("Game listing details and release submission");
             ui.add_space(8.0);
             if matches!(rex.auth, crate::rex_panel::Auth::SignedIn) {
                 ui.colored_label(egui::Color32::from_rgb(90, 190, 120), "REX developer account signed in");
@@ -61,6 +65,38 @@ pub fn window(ctx: &Context, ed: &mut Editor, panel: &mut PublishPanel, rex: &Re
             if !slug.is_empty() {
                 ui.small(format!("Store slug: {slug}"));
             }
+            ui.label("Description");
+            ui.add(egui::TextEdit::multiline(&mut panel.description).desired_rows(4).desired_width(f32::INFINITY));
+            ui.horizontal(|ui| {
+                ui.label("Tags");
+                ui.text_edit_singleline(&mut panel.tags);
+            });
+            ui.horizontal(|ui| {
+                ui.label("Cover art");
+                ui.add(egui::TextEdit::singleline(&mut panel.cover_art).desired_width(360.0));
+                if ui.button("Choose…").clicked() {
+                    if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("Images", &["png", "jpg", "jpeg", "webp"])
+                        .pick_file()
+                    {
+                        panel.cover_art = path.display().to_string();
+                    }
+                }
+            });
+            ui.label("Screenshots (one image path per line)");
+            ui.add(egui::TextEdit::multiline(&mut panel.screenshots).desired_rows(3).desired_width(f32::INFINITY));
+            if ui.button("Add screenshot…").clicked() {
+                if let Some(path) = rfd::FileDialog::new()
+                    .add_filter("Images", &["png", "jpg", "jpeg", "webp"])
+                    .pick_file()
+                {
+                    if !panel.screenshots.is_empty() {
+                        panel.screenshots.push('\n');
+                    }
+                    panel.screenshots.push_str(&path.display().to_string());
+                }
+            }
+            ui.separator();
             ui.horizontal(|ui| {
                 ui.label("Version");
                 ui.text_edit_singleline(&mut panel.version);
@@ -72,8 +108,8 @@ pub fn window(ctx: &Context, ed: &mut Editor, panel: &mut PublishPanel, rex: &Re
                 if ui.button("Open account Circuits").clicked() {
                     export::open_url("https://login.kitgameengine.win/account/circuits");
                 }
-                if ui.button("Export Linux build").clicked() {
-                    ed.notify("Use Project → Export to create the Linux build, then upload it from the Store dashboard.");
+                if ui.button("Export build").clicked() {
+                    ed.notify("Choose the target and export folder in Project → Export; these listing details are ready for submission.");
                 }
             });
             ui.small("Every submitted release becomes an immutable revision and stays private until an administrator approves it.");
