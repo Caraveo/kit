@@ -1264,12 +1264,147 @@ fn header(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
     if ed.project.is_some() {
         let search_rect = egui::Rect::from_center_size(header_rect.center(), egui::vec2(440.0, 38.0));
         ui.scope_builder(egui::UiBuilder::new().max_rect(search_rect), |ui| {
-            project_filter(ui, &mut st.project_filter);
+            project_filter(ui, ed, st);
         });
     }
 }
 
-fn project_filter(ui: &mut Ui, filter: &mut String) {
+#[derive(Clone)]
+enum SearchAction {
+    Select(Entity),
+    OpenScene(String),
+    OpenScript(String),
+    PreviewAsset(String),
+    View(ViewPane),
+    CircuitManager,
+    AddComponent(&'static str),
+}
+
+struct SearchItem {
+    label: String,
+    kind: &'static str,
+    detail: String,
+    action: SearchAction,
+}
+
+fn search_items(ed: &Editor, query: &str) -> Vec<SearchItem> {
+    if query.trim().is_empty() {
+        return Vec::new();
+    }
+    let query = query.to_lowercase();
+    let matches = |label: &str, kind: &str| {
+        query.split_whitespace().all(|word| label.to_lowercase().contains(word) || kind.to_lowercase().contains(word))
+    };
+    let mut items = Vec::new();
+    for e in ed.world().query::<(Name,)>() {
+        let label = ed.entity_label(e);
+        if matches(&label, "object entity") {
+            items.push(SearchItem {
+                label,
+                kind: "Object",
+                detail: "Select in the scene".into(),
+                action: SearchAction::Select(e),
+            });
+        }
+    }
+    for path in &ed.assets {
+        let kind = if path.ends_with(".kscene") { "Scene" } else if path.ends_with(".x") { "Script" } else { "Asset" };
+        if matches(path, kind) {
+            let action = if kind == "Scene" {
+                SearchAction::OpenScene(path.clone())
+            } else if kind == "Script" {
+                SearchAction::OpenScript(path.clone())
+            } else {
+                SearchAction::PreviewAsset(path.clone())
+            };
+            items.push(SearchItem { label: path.clone(), kind, detail: "Open project item".into(), action });
+        }
+    }
+    for (pane, label) in ViewPane::ALL {
+        if matches(label, "View") {
+            items.push(SearchItem {
+                label: label.into(),
+                kind: "View",
+                detail: "Open editor view".into(),
+                action: SearchAction::View(pane),
+            });
+        }
+    }
+    if matches("Circuit Manager", "Circuit") {
+        items.push(SearchItem {
+            label: "Circuit Manager".into(),
+            kind: "Circuit",
+            detail: "Manage installed and available Circuits".into(),
+            action: SearchAction::CircuitManager,
+        });
+    }
+    if let Some(project) = &ed.project {
+        if let Ok(circuits) = kit_circuit::install::enabled(&project.root()) {
+            for circuit in circuits {
+                if matches(&circuit.circuit.name, "Circuit") {
+                    items.push(SearchItem {
+                        label: circuit.circuit.name.clone(),
+                        kind: "Circuit",
+                        detail: format!("Open the {} Circuit settings", circuit.circuit.name),
+                        action: SearchAction::CircuitManager,
+                    });
+                }
+            }
+        }
+    }
+    for (label, component) in [
+        ("Model", "Model"),
+        ("Sprite", "Sprite"),
+        ("Camera", "Camera"),
+        ("Light", "Light"),
+        ("Particle Emitter", "Particle Emitter"),
+        ("Fog Emitter", "Fog Emitter"),
+        ("Collider", "Collider"),
+        ("Diagram", "Diagram"),
+        ("Script", "Script"),
+    ] {
+        if matches(label, "Component") {
+            items.push(SearchItem {
+                label: label.into(),
+                kind: "Component",
+                detail: "Add to the selected object".into(),
+                action: SearchAction::AddComponent(component),
+            });
+        }
+    }
+    items.truncate(30);
+    items
+}
+
+fn activate_search_item(item: SearchItem, ed: &mut Editor, st: &mut UiState) {
+    match item.action {
+        SearchAction::Select(entity) => {
+            if ed.world().is_alive(entity) {
+                ed.selected = Some(entity);
+                ed.frame_selected();
+            }
+        }
+        SearchAction::OpenScene(path) => {
+            if let Err(error) = ed.save_if_dirty().and_then(|_| ed.open_scene(&path)) {
+                ed.report(Err(error));
+            }
+        }
+        SearchAction::OpenScript(path) => ed.open_script(&path),
+        SearchAction::PreviewAsset(path) => st.preview_asset(ed, &path),
+        SearchAction::View(pane) => st.toggle_pane(ed, pane),
+        SearchAction::CircuitManager => st.circuits.show_for(ed),
+        SearchAction::AddComponent(component) => {
+            if let Some(entity) = ed.selected.filter(|e| ed.world().is_alive(*e)) {
+                add_named_component(ed, entity, component);
+            } else {
+                ed.notify("Select an object before adding a component.");
+            }
+        }
+    }
+}
+
+fn project_filter(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
+    let query = st.project_filter.clone();
     Frame::new()
         .fill(BG())
         .stroke(Stroke::new(1.0, STAGE_BORDER()))
@@ -1278,7 +1413,7 @@ fn project_filter(ui: &mut Ui, filter: &mut String) {
         .show(ui, |ui| {
             ui.horizontal_centered(|ui| {
                 let response = ui.add(
-                    egui::TextEdit::singleline(filter)
+                    egui::TextEdit::singleline(&mut st.project_filter)
                         .frame(Frame::NONE)
                         .hint_text("Search objects, assets, and more…")
                         .desired_width(370.0),
@@ -1286,17 +1421,79 @@ fn project_filter(ui: &mut Ui, filter: &mut String) {
                 mark(ui, "project_filter", response.rect);
                 if ui
                     .add_enabled(
-                        !filter.is_empty(),
+                        !st.project_filter.is_empty(),
                         egui::Button::new(RichText::new("×").size(20.0)).frame(false).min_size(egui::vec2(28.0, 28.0)),
                     )
                     .on_hover_text("Clear search")
                     .clicked()
                 {
-                    filter.clear();
+                    st.project_filter.clear();
                     response.request_focus();
                 }
             });
         });
+    let items = search_items(ed, &query);
+    if !items.is_empty() {
+        let mut chosen = None;
+        Frame::new()
+            .fill(CARD())
+            .stroke(Stroke::new(1.0, CARD_BORDER()))
+            .corner_radius(CornerRadius::same(10))
+            .inner_margin(Margin::same(6))
+            .show(ui, |ui| {
+                for item in items {
+                    let response = ui
+                        .add(
+                            egui::Button::new(
+                                RichText::new(format!("{}  {}", item.kind, item.label)).color(TEXT_STRONG()),
+                            )
+                            .frame(false)
+                            .min_size(egui::vec2(ui.available_width(), 28.0)),
+                        )
+                        .on_hover_text(&item.detail);
+                    if response.clicked() {
+                        chosen = Some(item);
+                    }
+                }
+            });
+        if let Some(item) = chosen {
+            activate_search_item(item, ed, st);
+            st.project_filter.clear();
+        }
+    }
+}
+
+fn add_named_component(ed: &mut Editor, entity: Entity, component: &str) {
+    match component {
+        "Model" if !ed.world().has::<Model>(entity) => {
+            ed.app.world.insert(entity, Model::default());
+        }
+        "Sprite" if !ed.world().has::<Sprite>(entity) => {
+            ed.app.world.insert(entity, Sprite::default());
+        }
+        "Camera" if !ed.world().has::<Camera>(entity) => {
+            ed.app.world.insert(entity, Camera::perspective());
+        }
+        "Light" if !ed.world().has::<Light>(entity) => {
+            ed.app.world.insert(entity, Light::default());
+        }
+        "Particle Emitter" if !ed.world().has::<kit::gamesys::ParticleEmitter>(entity) => {
+            ed.app.world.insert(entity, kit::gamesys::ParticleEmitter::default());
+        }
+        "Fog Emitter" if !ed.world().has::<FogEmitter>(entity) => {
+            ed.app.world.insert(entity, FogEmitter::default());
+        }
+        "Collider" if !ed.world().has::<kit::gamesys::Collider>(entity) => {
+            ed.app.world.insert(entity, kit::gamesys::Collider::default());
+        }
+        "Script" if !ed.world().has::<Script>(entity) => {
+            ed.app.world.insert(entity, Script::default());
+        }
+        "Diagram" if !ed.world().has::<kit::gamesys::Diagram>(entity) => {
+            let _ = crate::diagram_view::add_diagram(ed, entity);
+        }
+        _ => {}
+    }
 }
 
 fn matches_project_filter(query: &str, label: &str, category: &str) -> bool {
