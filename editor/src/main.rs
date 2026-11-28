@@ -361,17 +361,20 @@ fn app_icon() -> Option<winit::window::Icon> {
 impl EditorApp {
     fn popup_size(kind: PopupKind) -> ((u32, u32), (u32, u32)) {
         match kind {
-            PopupKind::Script => ((760, 620), (520, 360)),
-            PopupKind::NewAsset => ((500, 280), (420, 220)),
-            PopupKind::RenameAsset => ((580, 300), (480, 240)),
-            PopupKind::DeleteAsset => ((560, 280), (460, 220)),
-            PopupKind::Settings => ((680, 680), (560, 480)),
-            PopupKind::Circuits => ((900, 650), (700, 480)),
-            PopupKind::CircuitSettings => ((600, 520), (500, 380)),
-            PopupKind::Publish => ((720, 780), (600, 560)),
-            PopupKind::Export => ((640, 720), (560, 560)),
-            PopupKind::NewProject => ((680, 720), (560, 520)),
-            PopupKind::Help => ((540, 620), (460, 420)),
+            // These match the egui window/modal content widths plus their
+            // frame margins. Keep the native surface from adding blank space
+            // around the prompt.
+            PopupKind::Script => ((600, 520), (560, 460)),
+            PopupKind::NewAsset => ((404, 220), (380, 190)),
+            PopupKind::RenameAsset => ((484, 250), (450, 220)),
+            PopupKind::DeleteAsset => ((464, 220), (430, 190)),
+            PopupKind::Settings => ((476, 560), (440, 500)),
+            PopupKind::Circuits => ((820, 540), (760, 480)),
+            PopupKind::CircuitSettings => ((476, 460), (440, 400)),
+            PopupKind::Publish => ((620, 620), (580, 560)),
+            PopupKind::Export => ((600, 600), (560, 540)),
+            PopupKind::NewProject => ((638, 620), (590, 520)),
+            PopupKind::Help => ((428, 520), (390, 460)),
         }
     }
 
