@@ -1563,6 +1563,7 @@ fn activate_search_item(item: SearchItem, ed: &mut Editor, st: &mut UiState) {
 
 fn project_filter(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
     let query = st.project_filter.clone();
+    let search_rect = ui.max_rect();
     Frame::new()
         .fill(BG())
         .stroke(Stroke::new(1.0, STAGE_BORDER()))
@@ -1609,33 +1610,38 @@ fn project_filter(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
     let items = search_items(ed, &query, st.project_filter_kind);
     if !items.is_empty() {
         let mut chosen = None;
-        Frame::new()
-            .fill(CARD())
-            .stroke(Stroke::new(1.0, CARD_BORDER()))
-            .corner_radius(CornerRadius::same(10))
-            .inner_margin(Margin::same(6))
-            .show(ui, |ui| {
-                for item in items {
-                    let response = Frame::new()
-                        .fill(Color32::TRANSPARENT)
-                        .inner_margin(Margin::symmetric(8, 5))
-                        .show(ui, |ui| {
-                            ui.set_width(ui.available_width());
-                            ui.horizontal(|ui| {
-                                badge(ui, item.kind);
-                                ui.vertical(|ui| {
-                                    ui.label(RichText::new(&item.label).strong().color(TEXT_STRONG()));
-                                    ui.label(RichText::new(&item.detail).size(11.0).color(MUTED()));
+        egui::Area::new(egui::Id::new("project_filter_results"))
+            .order(egui::Order::Foreground)
+            .fixed_pos(search_rect.left_bottom() + egui::vec2(0.0, 6.0))
+            .show(ui.ctx(), |ui| {
+                Frame::new()
+                    .fill(CARD())
+                    .stroke(Stroke::new(1.0, CARD_BORDER()))
+                    .corner_radius(CornerRadius::same(10))
+                    .inner_margin(Margin::same(6))
+                    .show(ui, |ui| {
+                        ui.set_width(search_rect.width());
+                        for item in items {
+                            let response = Frame::new()
+                                .fill(Color32::TRANSPARENT)
+                                .inner_margin(Margin::symmetric(8, 5))
+                                .show(ui, |ui| {
+                                    ui.set_width(ui.available_width());
+                                    ui.horizontal(|ui| {
+                                        badge(ui, item.kind);
+                                        ui.vertical(|ui| {
+                                            ui.label(RichText::new(&item.label).strong().color(TEXT_STRONG()));
+                                            ui.label(RichText::new(&item.detail).size(11.0).color(MUTED()));
+                                        });
+                                    });
                                 });
-                            });
-                        })
-                        .response
-                        .interact(egui::Sense::click())
-                        .on_hover_text(&item.detail);
-                    if response.clicked() {
-                        chosen = Some(item);
-                    }
-                }
+                            let response = response.response.interact(egui::Sense::click()).on_hover_text(&item.detail);
+                            if response.clicked() {
+                                chosen = Some(item);
+                            }
+                            ui.add_space(2.0);
+                        }
+                    });
             });
         if let Some(item) = chosen {
             activate_search_item(item, ed, st);
