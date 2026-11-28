@@ -105,6 +105,7 @@ pub struct UiState {
     preview_open: bool,
     last_preview: Option<String>,
     project_filter: String,
+    project_filter_kind: SearchFilter,
     last_selected: Option<Entity>,
     /// Camera preview (picture-in-picture): texture and desired pixel size; [0, 0] = hidden.
     pub preview_tex: Option<egui::TextureId>,
@@ -126,6 +127,43 @@ pub(crate) enum AssetKind {
     Script,
     Scene,
     Interface,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SearchFilter {
+    All,
+    Objects,
+    Assets,
+    Scenes,
+    Views,
+    Circuits,
+    Components,
+}
+
+impl SearchFilter {
+    fn label(self) -> &'static str {
+        match self {
+            Self::All => "All",
+            Self::Objects => "Objects",
+            Self::Assets => "Assets",
+            Self::Scenes => "Scenes",
+            Self::Views => "Views",
+            Self::Circuits => "Circuits",
+            Self::Components => "Components",
+        }
+    }
+
+    fn matches(self, kind: &str) -> bool {
+        match self {
+            Self::All => true,
+            Self::Objects => kind == "Object",
+            Self::Assets => matches!(kind, "Asset" | "Script" | "Scene"),
+            Self::Scenes => kind == "Scene",
+            Self::Views => kind == "View",
+            Self::Circuits => kind == "Circuit",
+            Self::Components => kind == "Component",
+        }
+    }
 }
 
 pub struct InterfaceEditor {
@@ -452,6 +490,7 @@ impl UiState {
             preview_open: false,
             last_preview: None,
             project_filter: String::new(),
+            project_filter_kind: SearchFilter::All,
             last_selected: None,
             preview_tex: None,
             preview_px: [0, 0],
@@ -1403,7 +1442,7 @@ struct SearchItem {
     action: SearchAction,
 }
 
-fn search_items(ed: &Editor, query: &str) -> Vec<SearchItem> {
+fn search_items(ed: &Editor, query: &str, filter: SearchFilter) -> Vec<SearchItem> {
     if query.trim().is_empty() {
         return Vec::new();
     }
@@ -1488,6 +1527,7 @@ fn search_items(ed: &Editor, query: &str) -> Vec<SearchItem> {
             });
         }
     }
+    items.retain(|item| filter.matches(item.kind));
     items.truncate(30);
     items
 }
@@ -1528,11 +1568,27 @@ fn project_filter(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
         .inner_margin(Margin::symmetric(12, 4))
         .show(ui, |ui| {
             ui.horizontal_centered(|ui| {
+                egui::ComboBox::from_id_salt("project_filter_kind")
+                    .selected_text(st.project_filter_kind.label())
+                    .width(92.0)
+                    .show_ui(ui, |ui| {
+                        for filter in [
+                            SearchFilter::All,
+                            SearchFilter::Objects,
+                            SearchFilter::Assets,
+                            SearchFilter::Scenes,
+                            SearchFilter::Views,
+                            SearchFilter::Circuits,
+                            SearchFilter::Components,
+                        ] {
+                            ui.selectable_value(&mut st.project_filter_kind, filter, filter.label());
+                        }
+                    });
                 let response = ui.add(
                     egui::TextEdit::singleline(&mut st.project_filter)
                         .frame(Frame::NONE)
                         .hint_text("Search objects, assets, and more…")
-                        .desired_width(370.0),
+                        .desired_width(270.0),
                 );
                 mark(ui, "project_filter", response.rect);
                 if ui
@@ -1548,7 +1604,7 @@ fn project_filter(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                 }
             });
         });
-    let items = search_items(ed, &query);
+    let items = search_items(ed, &query, st.project_filter_kind);
     if !items.is_empty() {
         let mut chosen = None;
         Frame::new()
@@ -1558,14 +1614,21 @@ fn project_filter(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
             .inner_margin(Margin::same(6))
             .show(ui, |ui| {
                 for item in items {
-                    let response = ui
-                        .add(
-                            egui::Button::new(
-                                RichText::new(format!("{}  {}", item.kind, item.label)).color(TEXT_STRONG()),
-                            )
-                            .frame(false)
-                            .min_size(egui::vec2(ui.available_width(), 28.0)),
-                        )
+                    let response = Frame::new()
+                        .fill(Color32::TRANSPARENT)
+                        .inner_margin(Margin::symmetric(8, 5))
+                        .show(ui, |ui| {
+                            ui.set_width(ui.available_width());
+                            ui.horizontal(|ui| {
+                                badge(ui, item.kind);
+                                ui.vertical(|ui| {
+                                    ui.label(RichText::new(&item.label).strong().color(TEXT_STRONG()));
+                                    ui.label(RichText::new(&item.detail).size(11.0).color(MUTED()));
+                                });
+                            });
+                        })
+                        .response
+                        .interact(egui::Sense::click())
                         .on_hover_text(&item.detail);
                     if response.clicked() {
                         chosen = Some(item);
