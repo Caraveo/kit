@@ -102,7 +102,7 @@ pub fn script_window(ctx: &egui::Context, ed: &mut Editor) {
         .default_size([600.0, 520.0])
         .default_pos([380.0, 120.0])
         .min_size([360.0, 240.0])
-        .resizable(false)
+        .resizable(true)
         .movable(false)
         .collapsible(false)
         .frame(

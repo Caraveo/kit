@@ -385,6 +385,7 @@ impl EditorApp {
             .with_title("Kit")
             .with_transparent(true)
             .with_decorations(false)
+            .with_resizable(kind == PopupKind::Script)
             .with_inner_size(LogicalSize::new(width, height))
             .with_min_inner_size(LogicalSize::new(min_width, min_height))
             .with_window_icon(app_icon());
@@ -974,6 +975,21 @@ impl EditorApp {
         let mut output = popup
             .egui_ctx
             .run_ui(raw, |ui| ui::draw_popup(ui, &mut self.editor, &mut self.ui, kind));
+        if kind == PopupKind::Script {
+            let used = popup.egui_ctx.globally_used_rect().size();
+            let scale = popup.window.scale_factor();
+            let desired = [used.x.max(1.0), used.y.max(1.0)];
+            let current = popup.window.inner_size();
+            let current_logical = [
+                f64::from(current.width) / scale,
+                f64::from(current.height) / scale,
+            ];
+            if (current_logical[0] - f64::from(desired[0])).abs() > 2.0
+                || (current_logical[1] - f64::from(desired[1])).abs() > 2.0
+            {
+                let _ = popup.window.request_inner_size(LogicalSize::new(desired[0], desired[1]));
+            }
+        }
         popup
             .egui_state
             .handle_platform_output(&popup.window, std::mem::take(&mut output.platform_output));

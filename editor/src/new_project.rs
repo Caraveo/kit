@@ -86,7 +86,9 @@ pub enum Action {
 
 pub fn window(ctx: &egui::Context, wizard: &mut Wizard) -> Option<Action> {
     let mut action = None;
-    let modal = egui::Modal::new(Id::new("new_project_wizard")).show(ctx, |ui| {
+    let modal = egui::Modal::new(Id::new("new_project_wizard"))
+        .backdrop_color(egui::Color32::TRANSPARENT)
+        .show(ctx, |ui| {
         ui.set_width(ui.ctx().content_rect().width().min(590.0) - 28.0);
         ui.heading(RichText::new("New Project").strong());
         ui.label("Choose a template and where Kit should create the project.");
@@ -107,7 +109,7 @@ pub fn window(ctx: &egui::Context, wizard: &mut Wizard) -> Option<Action> {
                             wizard.suggestion = 0;
                         }
                     }
-                });
+                    });
                 ui.label(wizard.options.template.blurb());
             });
             ui.add_space(8.0);
