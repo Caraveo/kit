@@ -107,8 +107,7 @@ pub fn script_window(ctx: &egui::Context, ed: &mut Editor) {
                 .fill(DIALOG_BG())
                 .stroke(Stroke::new(1.0, DIALOG_BORDER()))
                 .corner_radius(CornerRadius::same(15))
-                .inner_margin(Margin::same(14))
-                .shadow(egui::Shadow { offset: [0, 18], blur: 60, spread: 0, color: Color32::from_black_alpha(170) }),
+                .inner_margin(Margin::same(14)),
         )
         .show(ctx, |ui| {
             let _ = &title;

@@ -279,8 +279,7 @@ pub fn window(ctx: &egui::Context, ed: &mut Editor, cm: &mut CircuitManager, rex
                 .fill(DIALOG_BG())
                 .stroke(Stroke::new(1.0, DIALOG_BORDER()))
                 .corner_radius(CornerRadius::same(15))
-                .inner_margin(Margin::same(18))
-                .shadow(egui::Shadow { offset: [0, 18], blur: 60, spread: 0, color: Color32::from_black_alpha(170) }),
+                .inner_margin(Margin::same(18)),
         )
         .show(ctx, |ui| body(ui, ed, cm, rex));
 }

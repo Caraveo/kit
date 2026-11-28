@@ -3,7 +3,7 @@
 use crate::controls::{BindingEditor, Controls};
 use crate::state::Editor;
 use crate::theme::*;
-use egui::{Color32, CornerRadius, Frame, Id, Margin, RichText, Stroke};
+use egui::{CornerRadius, Frame, Id, Margin, RichText, Stroke};
 use kit::resource::ProjectConfig;
 
 /// Draft of the settings being edited (None = window closed).
@@ -76,8 +76,7 @@ pub fn window(ctx: &egui::Context, ed: &mut Editor, win: &mut SettingsWindow) {
                 .fill(DIALOG_BG())
                 .stroke(Stroke::new(1.0, DIALOG_BORDER()))
                 .corner_radius(CornerRadius::same(15))
-                .inner_margin(Margin::same(18))
-                .shadow(egui::Shadow { offset: [0, 18], blur: 60, spread: 0, color: Color32::from_black_alpha(170) }),
+                .inner_margin(Margin::same(18)),
         )
         .show(ctx, |ui| {
             ui.horizontal(|ui| {
