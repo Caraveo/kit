@@ -1007,6 +1007,9 @@ impl EditorApp {
                 popup.egui_renderer.free_texture(id)?;
             }
         }
+        if !ui::popup_kinds(&self.ui, &self.editor).contains(&kind) {
+            gpu.window.request_redraw();
+        }
         Ok(())
     }
 
