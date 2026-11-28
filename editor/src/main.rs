@@ -48,7 +48,7 @@ use std::time::{Duration, Instant};
 use ui::{PopupKind, Request, UiState};
 use winit::application::ApplicationHandler;
 use winit::dpi::LogicalSize;
-use winit::event::WindowEvent;
+use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowId};
 
@@ -211,6 +211,7 @@ struct Gpu {
 struct PopupGpu {
     kind: PopupKind,
     window: Arc<Window>,
+    cursor_pos: [f64; 2],
     egui_ctx: egui::Context,
     egui_state: egui_winit::State,
     egui_renderer: egui_ash_renderer::Renderer<egui_ash_renderer::allocator::GpuAllocator>,
@@ -382,6 +383,8 @@ impl EditorApp {
         let ((width, height), (min_width, min_height)) = Self::popup_size(kind);
         let attributes = Window::default_attributes()
             .with_title("Kit")
+            .with_transparent(true)
+            .with_decorations(false)
             .with_inner_size(LogicalSize::new(width, height))
             .with_min_inner_size(LogicalSize::new(min_width, min_height))
             .with_window_icon(app_icon());
@@ -395,7 +398,7 @@ impl EditorApp {
         let display = window.display_handle()?.as_raw();
         let surface = gfx.create_surface(display, window.window_handle()?.as_raw())?;
         let size = window.inner_size();
-        let presenter = Presenter::new(gfx, surface, size.width, size.height, true)?;
+        let presenter = Presenter::new_transparent(gfx, surface, size.width, size.height, true)?;
         let egui_renderer = egui_ash_renderer::Renderer::with_gpu_allocator(
             gfx.allocator().clone(),
             gfx.device.clone(),
@@ -422,7 +425,7 @@ impl EditorApp {
             None,
             Some(4096),
         );
-        Ok(PopupGpu { kind, window, egui_ctx, egui_state, egui_renderer, presenter })
+        Ok(PopupGpu { kind, window, cursor_pos: [0.0, 0.0], egui_ctx, egui_state, egui_renderer, presenter })
     }
 
     fn sync_popup(&mut self, event_loop: &ActiveEventLoop) -> Result<()> {
@@ -983,19 +986,12 @@ impl EditorApp {
         }
         let primitives = popup.egui_ctx.tessellate(std::mem::take(&mut output.shapes), output.pixels_per_point);
         if let Some(frame) = popup.presenter.begin_frame(&gpu.gfx)? {
-            let [r, g, b, _] = theme::BG().to_array();
-            let bg = kit::render::srgb_to_linear(kit::math::Vec4::new(
-                r as f32 / 255.0,
-                g as f32 / 255.0,
-                b as f32 / 255.0,
-                1.0,
-            ));
             let color = [vk::RenderingAttachmentInfo::default()
                 .image_view(frame.view)
                 .image_layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
                 .load_op(vk::AttachmentLoadOp::CLEAR)
                 .store_op(vk::AttachmentStoreOp::STORE)
-                .clear_value(vk::ClearValue { color: vk::ClearColorValue { float32: bg.to_array() } })];
+                .clear_value(vk::ClearValue { color: vk::ClearColorValue { float32: [0.0, 0.0, 0.0, 0.0] } })];
             let rendering = vk::RenderingInfo::default()
                 .render_area(vk::Rect2D { offset: vk::Offset2D::default(), extent: frame.extent })
                 .layer_count(1)
@@ -1059,6 +1055,15 @@ impl ApplicationHandler for EditorApp {
                 popup.window.request_redraw();
             }
             match event {
+                WindowEvent::CursorMoved { position, .. } => {
+                    popup.cursor_pos = [position.x, position.y];
+                }
+                WindowEvent::MouseInput { state: ElementState::Pressed, button: MouseButton::Left, .. }
+                    if popup.cursor_pos[1] <= 34.0
+                        && popup.cursor_pos[0] < (f64::from(popup.window.inner_size().width) - 48.0).max(0.0) =>
+                {
+                    let _ = popup.window.drag_window();
+                }
                 WindowEvent::CloseRequested => {
                     ui::close_popup(popup.kind, &mut self.ui, &mut self.editor);
                     popup.window.request_redraw();

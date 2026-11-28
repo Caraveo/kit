@@ -42,12 +42,34 @@ pub struct Presenter {
     frames: Vec<FrameSync>,
     current: usize,
     pub vsync: bool,
+    transparent: bool,
     dirty: bool,
     wanted: vk::Extent2D,
 }
 
 impl Presenter {
     pub fn new(gfx: &Gfx, surface: vk::SurfaceKHR, width: u32, height: u32, vsync: bool) -> Result<Self> {
+        Self::new_with_transparency(gfx, surface, width, height, vsync, false)
+    }
+
+    pub fn new_transparent(
+        gfx: &Gfx,
+        surface: vk::SurfaceKHR,
+        width: u32,
+        height: u32,
+        vsync: bool,
+    ) -> Result<Self> {
+        Self::new_with_transparency(gfx, surface, width, height, vsync, true)
+    }
+
+    fn new_with_transparency(
+        gfx: &Gfx,
+        surface: vk::SurfaceKHR,
+        width: u32,
+        height: u32,
+        vsync: bool,
+        transparent: bool,
+    ) -> Result<Self> {
         let surface_fn = gfx.surface_fn.as_ref().context("Gfx has no surface support")?;
         let formats = unsafe { surface_fn.get_physical_device_surface_formats(gfx.physical, surface)? };
         // Prefer an sRGB format so shading happens in linear space.
@@ -100,6 +122,7 @@ impl Presenter {
             frames,
             current: 0,
             vsync,
+            transparent,
             dirty: true,
             wanted: vk::Extent2D { width, height },
         };
@@ -139,12 +162,22 @@ impl Presenter {
         if caps.max_image_count > 0 {
             image_count = image_count.min(caps.max_image_count);
         }
-        let composite = [
-            vk::CompositeAlphaFlagsKHR::OPAQUE,
-            vk::CompositeAlphaFlagsKHR::INHERIT,
-            vk::CompositeAlphaFlagsKHR::PRE_MULTIPLIED,
-            vk::CompositeAlphaFlagsKHR::POST_MULTIPLIED,
-        ]
+        let composite_modes = if self.transparent {
+            [
+                vk::CompositeAlphaFlagsKHR::PRE_MULTIPLIED,
+                vk::CompositeAlphaFlagsKHR::POST_MULTIPLIED,
+                vk::CompositeAlphaFlagsKHR::INHERIT,
+                vk::CompositeAlphaFlagsKHR::OPAQUE,
+            ]
+        } else {
+            [
+                vk::CompositeAlphaFlagsKHR::OPAQUE,
+                vk::CompositeAlphaFlagsKHR::INHERIT,
+                vk::CompositeAlphaFlagsKHR::PRE_MULTIPLIED,
+                vk::CompositeAlphaFlagsKHR::POST_MULTIPLIED,
+            ]
+        };
+        let composite = composite_modes
         .into_iter()
         .find(|c| caps.supported_composite_alpha.contains(*c))
         .unwrap_or(vk::CompositeAlphaFlagsKHR::OPAQUE);
