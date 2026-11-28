@@ -546,8 +546,120 @@ fn apply(ed: &mut Editor, st: &mut UiState, actions: Vec<Action>) {
     }
 }
 
+/// Whether one of the editor's popup surfaces should be visible.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PopupKind {
+    Script,
+    NewAsset,
+    RenameAsset,
+    DeleteAsset,
+    Settings,
+    Circuits,
+    CircuitSettings,
+    Publish,
+    Export,
+    NewProject,
+    Help,
+}
+
+pub fn popup_kinds(st: &UiState, ed: &Editor) -> Vec<PopupKind> {
+    let mut kinds = Vec::new();
+    if ed.active_script.is_some() {
+        kinds.push(PopupKind::Script);
+    }
+    if st.new_asset.is_some() {
+        kinds.push(PopupKind::NewAsset);
+    }
+    if st.rename_asset.is_some() {
+        kinds.push(PopupKind::RenameAsset);
+    }
+    if st.delete_asset.is_some() {
+        kinds.push(PopupKind::DeleteAsset);
+    }
+    if st.settings.draft.is_some() {
+        kinds.push(PopupKind::Settings);
+    }
+    if st.circuits.open {
+        kinds.push(PopupKind::Circuits);
+    }
+    if st.circuit_settings.is_open() {
+        kinds.push(PopupKind::CircuitSettings);
+    }
+    if st.publish.open {
+        kinds.push(PopupKind::Publish);
+    }
+    if st.export.open {
+        kinds.push(PopupKind::Export);
+    }
+    if st.new_project.is_some() {
+        kinds.push(PopupKind::NewProject);
+    }
+    if st.help {
+        kinds.push(PopupKind::Help);
+    }
+    kinds
+}
+
+pub fn close_popup(kind: PopupKind, st: &mut UiState, ed: &mut Editor) {
+    match kind {
+        PopupKind::Script => ed.active_script = None,
+        PopupKind::NewAsset => st.new_asset = None,
+        PopupKind::RenameAsset => st.rename_asset = None,
+        PopupKind::DeleteAsset => st.delete_asset = None,
+        PopupKind::Settings => st.settings.draft = None,
+        PopupKind::Circuits => st.circuits.open = false,
+        PopupKind::CircuitSettings => st.circuit_settings.close(),
+        PopupKind::Publish => st.publish.open = false,
+        PopupKind::Export => st.export.open = false,
+        PopupKind::NewProject => st.new_project = None,
+        PopupKind::Help => st.help = false,
+    }
+}
+
+pub fn draw_popup(root: &mut Ui, ed: &mut Editor, st: &mut UiState, kind: PopupKind) {
+    let ctx = root.ctx().clone();
+    match kind {
+        PopupKind::Script => code::script_window(&ctx, ed),
+        PopupKind::NewAsset => new_asset_dialog(&ctx, ed, st),
+        PopupKind::RenameAsset => rename_asset_dialog(&ctx, ed, st),
+        PopupKind::DeleteAsset => delete_asset_dialog(&ctx, ed, st),
+        PopupKind::Settings => crate::settings::window(&ctx, ed, &mut st.settings),
+        PopupKind::Circuits => crate::circuit_manager::window(&ctx, ed, &mut st.circuits, &mut st.rex),
+        PopupKind::CircuitSettings => crate::circuit_ui::settings_window(&ctx, ed, &mut st.circuit_settings),
+        PopupKind::Publish => {
+            if crate::circuit_ui::is_enabled("kit.publish") {
+                crate::publish::window(&ctx, ed, &mut st.publish, &st.rex);
+            } else {
+                st.publish.open = false;
+            }
+        }
+        PopupKind::Export => {
+            let wizard = crate::export_wizard::window(&ctx, ed, &mut st.export);
+            if wizard.pick_folder {
+                st.requests.push(Request::PickExportFolder);
+            }
+            if wizard.import_key {
+                st.requests.push(Request::ImportPublisherKey);
+            }
+        }
+        PopupKind::NewProject => {
+            if let Some(wizard) = st.new_project.as_mut() {
+                match crate::new_project::window(&ctx, wizard) {
+                    Some(crate::new_project::Action::Browse) => st.requests.push(Request::BrowseNewProject),
+                    Some(crate::new_project::Action::Create(path, options)) => {
+                        st.requests.push(Request::CreateProject(path, options))
+                    }
+                    Some(crate::new_project::Action::Close) => st.new_project = None,
+                    None => {}
+                }
+            }
+        }
+        PopupKind::Help => help(&ctx, st, &ed.controls),
+    }
+}
+
 /// Build the whole editor UI for one frame.
-pub fn draw(root: &mut Ui, ed: &mut Editor, st: &mut UiState) {
+pub fn draw(root: &mut Ui, ed: &mut Editor, st: &mut UiState, detached: bool) {
     let ctx = root.ctx().clone();
     crate::circuit_ui::sync(ed);
     if ed.selected != st.last_selected
@@ -604,6 +716,7 @@ pub fn draw(root: &mut Ui, ed: &mut Editor, st: &mut UiState) {
     }
     ed.refresh_assets(false);
 
+    if !detached {
     egui::Panel::top("header")
         .exact_size(64.0)
         .frame(Frame::NONE.inner_margin(Margin::symmetric(28, 0)).fill(BG()))
@@ -858,44 +971,47 @@ pub fn draw(root: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                 st.hide_viewport();
             }
         });
+    }
 
     crate::rigg_mode::sync(ed, &mut st.rigg, fit_before, ctx.input(|i| i.pointer.any_down()));
 
     if std::mem::take(&mut ed.request_settings) {
         st.settings.open(ed);
     }
-    code::script_window(&ctx, ed);
-    new_asset_dialog(&ctx, ed, st);
-    rename_asset_dialog(&ctx, ed, st);
-    delete_asset_dialog(&ctx, ed, st);
-    crate::settings::window(&ctx, ed, &mut st.settings);
-    crate::circuit_manager::window(&ctx, ed, &mut st.circuits, &mut st.rex);
-    if crate::circuit_ui::is_enabled("kit.publish") {
-        crate::publish::window(&ctx, ed, &mut st.publish, &st.rex);
-    } else {
-        st.publish.open = false;
-    }
-    crate::circuit_ui::settings_window(&ctx, ed, &mut st.circuit_settings);
-    let wizard = crate::export_wizard::window(&ctx, ed, &mut st.export);
-    if wizard.pick_folder {
-        st.requests.push(Request::PickExportFolder);
-    }
-    if wizard.import_key {
-        st.requests.push(Request::ImportPublisherKey);
-    }
-    welcome(&ctx, ed, st);
-    if let Some(wizard) = st.new_project.as_mut() {
-        match crate::new_project::window(&ctx, wizard) {
-            Some(crate::new_project::Action::Browse) => st.requests.push(Request::BrowseNewProject),
-            Some(crate::new_project::Action::Create(path, options)) => {
-                st.requests.push(Request::CreateProject(path, options))
-            }
-            Some(crate::new_project::Action::Close) => st.new_project = None,
-            None => {}
+    if detached {
+        code::script_window(&ctx, ed);
+        new_asset_dialog(&ctx, ed, st);
+        rename_asset_dialog(&ctx, ed, st);
+        delete_asset_dialog(&ctx, ed, st);
+        crate::settings::window(&ctx, ed, &mut st.settings);
+        crate::circuit_manager::window(&ctx, ed, &mut st.circuits, &mut st.rex);
+        if crate::circuit_ui::is_enabled("kit.publish") {
+            crate::publish::window(&ctx, ed, &mut st.publish, &st.rex);
+        } else {
+            st.publish.open = false;
         }
+        crate::circuit_ui::settings_window(&ctx, ed, &mut st.circuit_settings);
+        let wizard = crate::export_wizard::window(&ctx, ed, &mut st.export);
+        if wizard.pick_folder {
+            st.requests.push(Request::PickExportFolder);
+        }
+        if wizard.import_key {
+            st.requests.push(Request::ImportPublisherKey);
+        }
+        welcome(&ctx, ed, st);
+        if let Some(wizard) = st.new_project.as_mut() {
+            match crate::new_project::window(&ctx, wizard) {
+                Some(crate::new_project::Action::Browse) => st.requests.push(Request::BrowseNewProject),
+                Some(crate::new_project::Action::Create(path, options)) => {
+                    st.requests.push(Request::CreateProject(path, options))
+                }
+                Some(crate::new_project::Action::Close) => st.new_project = None,
+                None => {}
+            }
+        }
+        help(&ctx, st, &ed.controls);
+        notice(&ctx, ed);
     }
-    help(&ctx, st, &ed.controls);
-    notice(&ctx, ed);
 }
 
 fn diagram_panel(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {

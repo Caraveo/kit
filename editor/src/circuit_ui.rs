@@ -184,6 +184,17 @@ pub struct SettingsWindow {
     error: Option<String>,
 }
 
+impl SettingsWindow {
+    pub fn is_open(&self) -> bool {
+        self.open.is_some()
+    }
+
+    pub fn close(&mut self) {
+        self.open = None;
+        self.error = None;
+    }
+}
+
 fn secrets(ed: &Editor) -> Option<PathBuf> {
     let root = ed.project.as_ref()?.root().to_path_buf();
     crate::export::config_dir().map(|d| kit_circuit::settings::secrets_path(&d, &root))

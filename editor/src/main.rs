@@ -45,7 +45,7 @@ use state::Editor;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use ui::{Request, UiState};
+use ui::{PopupKind, Request, UiState};
 use winit::application::ApplicationHandler;
 use winit::dpi::LogicalSize;
 use winit::event::WindowEvent;
@@ -208,6 +208,15 @@ struct Gpu {
     gfx: Gfx,
 }
 
+struct PopupGpu {
+    kind: PopupKind,
+    window: Arc<Window>,
+    egui_ctx: egui::Context,
+    egui_state: egui_winit::State,
+    egui_renderer: egui_ash_renderer::Renderer<egui_ash_renderer::allocator::GpuAllocator>,
+    presenter: Presenter,
+}
+
 /// Debug/automation options (used for docs screenshots and smoke tests).
 #[derive(Default)]
 struct Automation {
@@ -254,6 +263,7 @@ struct EditorApp {
     ui: UiState,
     egui_ctx: egui::Context,
     gpu: Option<Gpu>,
+    popups: Vec<PopupGpu>,
     last: Instant,
     fps_acc: (f32, u32),
     startup_project: Option<PathBuf>,
@@ -349,6 +359,82 @@ fn app_icon() -> Option<winit::window::Icon> {
 }
 
 impl EditorApp {
+    fn create_popup(&self, event_loop: &ActiveEventLoop, gfx: &Gfx, kind: PopupKind) -> Result<PopupGpu> {
+        let attributes = Window::default_attributes()
+            .with_title("Kit")
+            .with_inner_size(LogicalSize::new(900, 700))
+            .with_min_inner_size(LogicalSize::new(520, 360))
+            .with_window_icon(app_icon());
+        #[cfg(target_os = "linux")]
+        let attributes = winit::platform::wayland::WindowAttributesExtWayland::with_name(
+            attributes,
+            "io.github.caraveo.Kit",
+            "kit-editor-popup",
+        );
+        let window = Arc::new(event_loop.create_window(attributes)?);
+        let display = window.display_handle()?.as_raw();
+        let surface = gfx.create_surface(display, window.window_handle()?.as_raw())?;
+        let size = window.inner_size();
+        let presenter = Presenter::new(gfx, surface, size.width, size.height, true)?;
+        let egui_renderer = egui_ash_renderer::Renderer::with_gpu_allocator(
+            gfx.allocator().clone(),
+            gfx.device.clone(),
+            RenderMode::DynamicRendering(DynamicRendering {
+                color_attachment_format: presenter.format,
+                depth_attachment_format: None,
+                stencil_attachment_format: None,
+            }),
+            Options {
+                in_flight_frames: kit::graphics::FRAMES_IN_FLIGHT,
+                enable_depth_test: false,
+                enable_depth_write: false,
+                srgb_framebuffer: true,
+            },
+        )?;
+        let egui_ctx = egui::Context::default();
+        theme::apply(&egui_ctx);
+        theme::set_light(&egui_ctx, theme::is_light());
+        let egui_state = egui_winit::State::new(
+            egui_ctx.clone(),
+            egui::ViewportId::ROOT,
+            &*window,
+            Some(window.scale_factor() as f32),
+            None,
+            Some(4096),
+        );
+        Ok(PopupGpu { kind, window, egui_ctx, egui_state, egui_renderer, presenter })
+    }
+
+    fn sync_popup(&mut self, event_loop: &ActiveEventLoop) -> Result<()> {
+        let wanted = ui::popup_kinds(&self.ui, &self.editor);
+        let missing: Vec<_> = wanted
+            .iter()
+            .copied()
+            .filter(|kind| !self.popups.iter().any(|popup| popup.kind == *kind))
+            .collect();
+        let mut created = Vec::new();
+        {
+            let Some(gpu) = self.gpu.as_ref() else { return Ok(()) };
+            for kind in missing {
+                created.push(self.create_popup(event_loop, &gpu.gfx, kind)?);
+            }
+        }
+        self.popups.extend(created);
+        let mut keep = Vec::with_capacity(self.popups.len());
+        for mut popup in self.popups.drain(..) {
+            if wanted.contains(&popup.kind) {
+                keep.push(popup);
+            } else {
+                let Some(gpu) = self.gpu.as_ref() else { continue };
+                gpu.gfx.wait_idle();
+                drop(popup.egui_renderer);
+                popup.presenter.destroy(&gpu.gfx);
+            }
+        }
+        self.popups = keep;
+        Ok(())
+    }
+
     fn init(&mut self, event_loop: &ActiveEventLoop) -> Result<()> {
         let attributes = Window::default_attributes()
             .with_title("Kit")
@@ -624,11 +710,13 @@ impl EditorApp {
             self.fps_acc = (0.0, 0);
         }
 
+        self.sync_popup(event_loop)?;
         let Some(gpu) = self.gpu.as_mut() else { return Ok(()) };
+        let detached = false;
         let raw = gpu.egui_state.take_egui_input(&gpu.window);
         let editor = &mut self.editor;
         let ui_state = &mut self.ui;
-        let mut output = self.egui_ctx.run_ui(raw, |ui| ui::draw(ui, editor, ui_state));
+        let mut output = self.egui_ctx.run_ui(raw, |ui| ui::draw(ui, editor, ui_state, detached));
         gpu.egui_state.handle_platform_output(&gpu.window, std::mem::take(&mut output.platform_output));
         // Take texture changes out right away; egui asserts they are all applied.
         let textures_set: Vec<_> = output.textures_delta.set.drain().collect();
@@ -826,6 +914,10 @@ impl EditorApp {
             }
         }
 
+        for index in 0..self.popups.len() {
+            self.render_popup(index)?;
+        }
+
         self.handle_requests();
 
         // Keep animating while something moves; otherwise sleep until egui needs us.
@@ -846,11 +938,74 @@ impl EditorApp {
             // Poll slowly so script/texture hot reload is noticed.
             event_loop.set_control_flow(ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(500)));
         }
+
+        Ok(())
+    }
+
+    fn render_popup(&mut self, index: usize) -> Result<()> {
+        let Some(popup) = self.popups.get_mut(index) else { return Ok(()) };
+        let Some(gpu) = self.gpu.as_mut() else { return Ok(()) };
+        let raw = popup.egui_state.take_egui_input(&popup.window);
+        let kind = popup.kind;
+        let mut output = popup
+            .egui_ctx
+            .run_ui(raw, |ui| ui::draw_popup(ui, &mut self.editor, &mut self.ui, kind));
+        popup
+            .egui_state
+            .handle_platform_output(&popup.window, std::mem::take(&mut output.platform_output));
+        let textures_set: Vec<_> = output.textures_delta.set.drain().collect();
+        let textures_free: Vec<_> = output.textures_delta.free.drain().collect();
+        for (id, deltas) in &textures_set {
+            for delta in deltas {
+                popup.egui_renderer.set_texture(gpu.gfx.queue, gpu.gfx.upload_pool, *id, delta)?;
+            }
+        }
+        let primitives = popup.egui_ctx.tessellate(std::mem::take(&mut output.shapes), output.pixels_per_point);
+        if let Some(frame) = popup.presenter.begin_frame(&gpu.gfx)? {
+            let [r, g, b, _] = theme::BG().to_array();
+            let bg = kit::render::srgb_to_linear(kit::math::Vec4::new(
+                r as f32 / 255.0,
+                g as f32 / 255.0,
+                b as f32 / 255.0,
+                1.0,
+            ));
+            let color = [vk::RenderingAttachmentInfo::default()
+                .image_view(frame.view)
+                .image_layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
+                .load_op(vk::AttachmentLoadOp::CLEAR)
+                .store_op(vk::AttachmentStoreOp::STORE)
+                .clear_value(vk::ClearValue { color: vk::ClearColorValue { float32: bg.to_array() } })];
+            let rendering = vk::RenderingInfo::default()
+                .render_area(vk::Rect2D { offset: vk::Offset2D::default(), extent: frame.extent })
+                .layer_count(1)
+                .color_attachments(&color);
+            unsafe { gpu.gfx.device.cmd_begin_rendering(frame.cmd, &rendering) };
+            popup.egui_renderer.cmd_draw(frame.cmd, frame.extent, output.pixels_per_point, &primitives)?;
+            unsafe { gpu.gfx.device.cmd_end_rendering(frame.cmd) };
+            popup.presenter.end_frame(&gpu.gfx, frame)?;
+        }
+        if !textures_free.is_empty() {
+            gpu.gfx.wait_idle();
+            for id in textures_free {
+                popup.egui_renderer.free_texture(id)?;
+            }
+        }
         Ok(())
     }
 
     fn shutdown(&mut self) {
         self.editor.stop();
+        if !self.popups.is_empty() {
+            if let Some(gpu) = &self.gpu {
+                gpu.gfx.wait_idle();
+            }
+            for mut popup in self.popups.drain(..) {
+                drop(popup.egui_renderer);
+                if let Some(gpu) = &self.gpu {
+                    popup.presenter.destroy(&gpu.gfx);
+                }
+            }
+        }
         if let Some(mut gpu) = self.gpu.take() {
             gpu.gfx.wait_idle();
             gpu.renderer.destroy(&gpu.gfx);
@@ -873,8 +1028,38 @@ impl ApplicationHandler for EditorApp {
         }
     }
 
-    fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+    fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
         let Some(gpu) = self.gpu.as_mut() else { return };
+        let popup_index = self.popups.iter().position(|popup| popup.window.id() == id);
+        if let Some(popup_index) = popup_index {
+            let popup = &mut self.popups[popup_index];
+            let response = popup.egui_state.on_window_event(&popup.window, &event);
+            if response.repaint {
+                popup.window.request_redraw();
+            }
+            match event {
+                WindowEvent::CloseRequested => {
+                    ui::close_popup(popup.kind, &mut self.ui, &mut self.editor);
+                    popup.window.request_redraw();
+                }
+                WindowEvent::Resized(size) => {
+                    popup.presenter.resize(size.width, size.height);
+                    popup.window.request_redraw();
+                }
+                WindowEvent::RedrawRequested => {
+                    if let Err(e) = self.render_popup(popup_index) {
+                        self.error = Some(e);
+                        self.shutdown();
+                        event_loop.exit();
+                    }
+                }
+                _ => {}
+            }
+            return;
+        }
+        if id != gpu.window.id() {
+            return;
+        }
         // The running game gets input only while the viewport has focus.
         if self.editor.playing && self.ui.viewport_focused {
             kit::engine::winit_input::handle_event(&self.editor.app.world, &event);
@@ -1073,6 +1258,7 @@ fn run(project: Option<PathBuf>, auto: Automation) -> Result<()> {
         ui: UiState::new(load_recent(), String::new()),
         egui_ctx,
         gpu: None,
+        popups: Vec::new(),
         last: Instant::now(),
         fps_acc: (0.0, 0),
         startup_project: project,
