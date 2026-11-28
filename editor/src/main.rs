@@ -365,15 +365,15 @@ impl EditorApp {
             // These match the egui window/modal content widths plus their
             // frame margins. Keep the native surface from adding blank space
             // around the prompt.
-            PopupKind::Script => ((600, 520), (560, 460)),
+            PopupKind::Script => ((600, 560), (560, 500)),
             PopupKind::NewAsset => ((404, 220), (380, 190)),
             PopupKind::RenameAsset => ((484, 250), (450, 220)),
             PopupKind::DeleteAsset => ((464, 220), (430, 190)),
-            PopupKind::Settings => ((476, 560), (440, 500)),
-            PopupKind::Circuits => ((820, 540), (760, 480)),
-            PopupKind::CircuitSettings => ((476, 460), (440, 400)),
-            PopupKind::Publish => ((620, 620), (580, 560)),
-            PopupKind::Export => ((600, 600), (560, 540)),
+            PopupKind::Settings => ((476, 600), (440, 540)),
+            PopupKind::Circuits => ((820, 580), (760, 520)),
+            PopupKind::CircuitSettings => ((476, 500), (440, 440)),
+            PopupKind::Publish => ((620, 660), (580, 600)),
+            PopupKind::Export => ((600, 640), (560, 580)),
             PopupKind::NewProject => ((638, 620), (590, 520)),
             PopupKind::Help => ((428, 520), (390, 460)),
         }
