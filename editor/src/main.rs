@@ -48,7 +48,7 @@ use std::time::{Duration, Instant};
 use ui::{PopupKind, Request, UiState};
 use winit::application::ApplicationHandler;
 use winit::dpi::LogicalSize;
-use winit::event::WindowEvent;
+use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowId};
 
@@ -211,6 +211,7 @@ struct Gpu {
 struct PopupGpu {
     kind: PopupKind,
     window: Arc<Window>,
+    cursor_pos: [f64; 2],
     egui_ctx: egui::Context,
     egui_state: egui_winit::State,
     egui_renderer: egui_ash_renderer::Renderer<egui_ash_renderer::allocator::GpuAllocator>,
@@ -423,7 +424,7 @@ impl EditorApp {
             None,
             Some(4096),
         );
-        Ok(PopupGpu { kind, window, egui_ctx, egui_state, egui_renderer, presenter })
+        Ok(PopupGpu { kind, window, cursor_pos: [0.0, 0.0], egui_ctx, egui_state, egui_renderer, presenter })
     }
 
     fn sync_popup(&mut self, event_loop: &ActiveEventLoop) -> Result<()> {
@@ -1060,6 +1061,15 @@ impl ApplicationHandler for EditorApp {
                 popup.window.request_redraw();
             }
             match event {
+                WindowEvent::CursorMoved { position, .. } => {
+                    popup.cursor_pos = [position.x, position.y];
+                }
+                WindowEvent::MouseInput { state: ElementState::Pressed, button: MouseButton::Left, .. }
+                    if popup.cursor_pos[1] <= 34.0
+                        && popup.cursor_pos[0] < (f64::from(popup.window.inner_size().width) - 48.0).max(0.0) =>
+                {
+                    let _ = popup.window.drag_window();
+                }
                 WindowEvent::CloseRequested => {
                     ui::close_popup(popup.kind, &mut self.ui, &mut self.editor);
                     popup.window.request_redraw();
