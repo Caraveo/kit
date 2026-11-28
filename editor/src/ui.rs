@@ -978,6 +978,8 @@ pub fn draw(root: &mut Ui, ed: &mut Editor, st: &mut UiState, detached: bool) {
     if std::mem::take(&mut ed.request_settings) {
         st.settings.open(ed);
     }
+    welcome(&ctx, ed, st);
+    notice(&ctx, ed);
     if detached {
         code::script_window(&ctx, ed);
         new_asset_dialog(&ctx, ed, st);
@@ -998,7 +1000,6 @@ pub fn draw(root: &mut Ui, ed: &mut Editor, st: &mut UiState, detached: bool) {
         if wizard.import_key {
             st.requests.push(Request::ImportPublisherKey);
         }
-        welcome(&ctx, ed, st);
         if let Some(wizard) = st.new_project.as_mut() {
             match crate::new_project::window(&ctx, wizard) {
                 Some(crate::new_project::Action::Browse) => st.requests.push(Request::BrowseNewProject),
@@ -1010,7 +1011,6 @@ pub fn draw(root: &mut Ui, ed: &mut Editor, st: &mut UiState, detached: bool) {
             }
         }
         help(&ctx, st, &ed.controls);
-        notice(&ctx, ed);
     }
 }
 
