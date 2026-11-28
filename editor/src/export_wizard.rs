@@ -141,6 +141,7 @@ pub fn window(ctx: &egui::Context, ed: &mut Editor, wiz: &mut ExportWizard) -> W
     let title = ed.project.as_ref().map(|p| p.config.project.title.clone()).unwrap_or_default();
     egui::Window::new(RichText::new("Export").strong())
         .id(Id::new("export_wizard"))
+        .title_bar(false)
         .default_width(560.0)
         .resizable(false)
         .collapsible(false)

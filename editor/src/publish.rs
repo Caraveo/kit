@@ -45,6 +45,7 @@ pub fn window(ctx: &Context, ed: &mut Editor, panel: &mut PublishPanel, rex: &Re
         return;
     }
     Window::new(RichText::new("Publish to Kit Store").strong())
+        .title_bar(false)
         .default_size([620.0, 620.0])
         .show(ctx, |ui| {
             ui.label("Game listing details and release submission");

@@ -232,6 +232,7 @@ pub fn settings_window(ctx: &egui::Context, ed: &mut Editor, win: &mut SettingsW
     let mut save = false;
     egui::Window::new(RichText::new(&m.circuit.name).strong())
         .id(Id::new(("circuit_settings", &m.circuit.id)))
+        .title_bar(false)
         .default_width(440.0)
         .resizable(false)
         .collapsible(false)

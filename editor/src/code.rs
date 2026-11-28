@@ -97,6 +97,7 @@ pub fn script_window(ctx: &egui::Context, ed: &mut Editor) {
     let close_button = ed.controls.gestures.close_script_tab.egui();
     egui::Window::new(RichText::new("Script").strong())
         .id(Id::new("script_window"))
+        .title_bar(false)
         .default_size([600.0, 520.0])
         .default_pos([380.0, 120.0])
         .min_size([360.0, 240.0])

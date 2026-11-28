@@ -68,6 +68,7 @@ pub fn window(ctx: &egui::Context, ed: &mut Editor, win: &mut SettingsWindow) {
     let scenes = ed.assets_with(&["kscene"]);
     egui::Window::new(RichText::new("Project Settings").strong())
         .id(Id::new("project_settings"))
+        .title_bar(false)
         .default_width(440.0)
         .resizable(false)
         .collapsible(false)

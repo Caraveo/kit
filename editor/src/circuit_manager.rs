@@ -272,6 +272,7 @@ pub fn window(ctx: &egui::Context, ed: &mut Editor, cm: &mut CircuitManager, rex
     }
     egui::Window::new(RichText::new("Circuit Manager").strong())
         .id(Id::new("circuit_manager"))
+        .title_bar(false)
         .default_size([820.0, 540.0])
         .collapsible(false)
         .frame(
