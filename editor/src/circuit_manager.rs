@@ -275,6 +275,7 @@ pub fn window(ctx: &egui::Context, ed: &mut Editor, cm: &mut CircuitManager, rex
         .id(Id::new("circuit_manager"))
         .open(&mut open)
         .default_size([820.0, 540.0])
+        .resizable(false)
         .collapsible(false)
         .frame(
             Frame::new()

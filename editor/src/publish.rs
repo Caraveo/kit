@@ -48,6 +48,7 @@ pub fn window(ctx: &Context, ed: &mut Editor, panel: &mut PublishPanel, rex: &Re
     Window::new(RichText::new("Publish to Kit Store").strong())
         .open(&mut open)
         .default_size([620.0, 620.0])
+        .resizable(false)
         .show(ctx, |ui| {
             ui.label("Game listing details and release submission");
             ui.add_space(8.0);
