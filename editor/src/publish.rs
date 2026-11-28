@@ -45,10 +45,15 @@ pub fn window(ctx: &Context, ed: &mut Editor, panel: &mut PublishPanel, rex: &Re
         return;
     }
     let mut open = panel.open;
+    let mut toolbar_close = false;
     Window::new(RichText::new("Publish to Kit Store").strong())
         .open(&mut open)
+        .title_bar(false)
         .default_size([620.0, 620.0])
         .show(ctx, |ui| {
+            if crate::ui::popup_toolbar(ui, "Publish to Kit Store") {
+                toolbar_close = true;
+            }
             ui.label("Game listing details and release submission");
             ui.add_space(8.0);
             if matches!(rex.auth, crate::rex_panel::Auth::SignedIn) {
@@ -114,5 +119,5 @@ pub fn window(ctx: &Context, ed: &mut Editor, panel: &mut PublishPanel, rex: &Re
             });
             ui.small("Every submitted release becomes an immutable revision and stays private until an administrator approves it.");
         });
-    panel.open = open;
+    panel.open = open && !toolbar_close;
 }

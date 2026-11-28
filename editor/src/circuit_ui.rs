@@ -230,10 +230,12 @@ pub fn project_menu(ui: &mut Ui, ed: &mut Editor, win: &mut SettingsWindow) {
 pub fn settings_window(ctx: &egui::Context, ed: &mut Editor, win: &mut SettingsWindow) {
     let Some((m, values)) = win.open.as_mut() else { return };
     let mut open = true;
+    let mut toolbar_close = false;
     let mut save = false;
     egui::Window::new(RichText::new(&m.circuit.name).strong())
         .id(Id::new(("circuit_settings", &m.circuit.id)))
         .open(&mut open)
+        .title_bar(false)
         .default_width(440.0)
         .resizable(false)
         .collapsible(false)
@@ -245,6 +247,9 @@ pub fn settings_window(ctx: &egui::Context, ed: &mut Editor, win: &mut SettingsW
                 .inner_margin(Margin::same(18)),
         )
         .show(ctx, |ui| {
+            if crate::ui::popup_toolbar(ui, &m.circuit.name) {
+                toolbar_close = true;
+            }
             ui.label(RichText::new(&m.circuit.description).size(12.0).color(MUTED()));
             ui.add_space(6.0);
             if !m.config.is_empty() {
@@ -291,7 +296,7 @@ pub fn settings_window(ctx: &egui::Context, ed: &mut Editor, win: &mut SettingsW
                 }
                 Err(e) => win.error = Some(format!("{e:#}")),
             }
-            if !open {
+            if toolbar_close || !open {
                 win.open = None;
             }
 
