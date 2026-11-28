@@ -89,7 +89,6 @@ pub fn script_window(ctx: &egui::Context, ed: &mut Editor) {
         ed.active_script = None;
         return;
     }
-    let mut open = true;
     let mut save = None;
     let mut close = None;
     let mut switch = None;
@@ -98,7 +97,6 @@ pub fn script_window(ctx: &egui::Context, ed: &mut Editor) {
     let close_button = ed.controls.gestures.close_script_tab.egui();
     egui::Window::new(RichText::new("Script").strong())
         .id(Id::new("script_window"))
-        .open(&mut open)
         .default_size([600.0, 520.0])
         .default_pos([380.0, 120.0])
         .min_size([360.0, 240.0])
@@ -181,9 +179,6 @@ pub fn script_window(ctx: &egui::Context, ed: &mut Editor) {
         }
         ed.scripts.remove(i);
         ed.active_script = if ed.scripts.is_empty() { None } else { Some(i.min(ed.scripts.len() - 1)) };
-    }
-    if !open {
-        ed.active_script = None;
     }
 }
 

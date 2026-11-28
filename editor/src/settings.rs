@@ -63,13 +63,11 @@ pub fn apply(ed: &mut Editor, config: ProjectConfig) -> anyhow::Result<()> {
 
 pub fn window(ctx: &egui::Context, ed: &mut Editor, win: &mut SettingsWindow) {
     let Some(draft) = win.draft.as_mut() else { return };
-    let mut open = true;
     let mut save = false;
     let mut close = false;
     let scenes = ed.assets_with(&["kscene"]);
     egui::Window::new(RichText::new("Project Settings").strong())
         .id(Id::new("project_settings"))
-        .open(&mut open)
         .default_width(440.0)
         .resizable(false)
         .collapsible(false)
@@ -186,7 +184,7 @@ pub fn window(ctx: &egui::Context, ed: &mut Editor, win: &mut SettingsWindow) {
         close = result.is_ok();
         ed.report(result);
     }
-    if close || !open {
+    if close {
         win.draft = None;
     }
 }
