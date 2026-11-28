@@ -70,7 +70,6 @@ pub fn window(ctx: &egui::Context, ed: &mut Editor, win: &mut SettingsWindow) {
     egui::Window::new(RichText::new("Project Settings").strong())
         .id(Id::new("project_settings"))
         .open(&mut open)
-        .title_bar(false)
         .default_width(440.0)
         .resizable(false)
         .collapsible(false)
@@ -82,9 +81,6 @@ pub fn window(ctx: &egui::Context, ed: &mut Editor, win: &mut SettingsWindow) {
                 .inner_margin(Margin::same(18)),
         )
         .show(ctx, |ui| {
-            if crate::ui::popup_toolbar(ui, "Project Settings") {
-                close = true;
-            }
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut win.controls_tab, false, "Project");
                 ui.selectable_value(&mut win.controls_tab, true, "Editor Controls");

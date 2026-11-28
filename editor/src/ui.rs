@@ -699,30 +699,6 @@ pub fn draw_popup(root: &mut Ui, ed: &mut Editor, st: &mut UiState, kind: PopupK
     }
 }
 
-pub(crate) fn popup_toolbar(ui: &mut Ui, title: &str) -> bool {
-    let mut close = false;
-    Frame::new()
-        .fill(BG())
-        .inner_margin(Margin::symmetric(10, 6))
-        .show(ui, |ui| {
-            ui.set_min_height(30.0);
-            ui.horizontal(|ui| {
-                ui.label(RichText::new(title).strong().color(TEXT_STRONG()));
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if ui
-                        .add(egui::Button::new(RichText::new("×").size(18.0).color(MUTED())).frame(false))
-                        .on_hover_text("Close")
-                        .clicked()
-                    {
-                        close = true;
-                    }
-                });
-            });
-        });
-    ui.separator();
-    close
-}
-
 /// Build the whole editor UI for one frame.
 pub fn draw(root: &mut Ui, ed: &mut Editor, st: &mut UiState, detached: bool) {
     let ctx = root.ctx().clone();

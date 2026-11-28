@@ -48,7 +48,7 @@ use std::time::{Duration, Instant};
 use ui::{PopupKind, Request, UiState};
 use winit::application::ApplicationHandler;
 use winit::dpi::LogicalSize;
-use winit::event::{ElementState, MouseButton, WindowEvent};
+use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowId};
 
@@ -211,7 +211,6 @@ struct Gpu {
 struct PopupGpu {
     kind: PopupKind,
     window: Arc<Window>,
-    cursor_pos: [f64; 2],
     egui_ctx: egui::Context,
     egui_state: egui_winit::State,
     egui_renderer: egui_ash_renderer::Renderer<egui_ash_renderer::allocator::GpuAllocator>,
@@ -365,15 +364,15 @@ impl EditorApp {
             // These match the egui window/modal content widths plus their
             // frame margins. Keep the native surface from adding blank space
             // around the prompt.
-            PopupKind::Script => ((600, 560), (560, 500)),
+            PopupKind::Script => ((600, 520), (560, 460)),
             PopupKind::NewAsset => ((404, 220), (380, 190)),
             PopupKind::RenameAsset => ((484, 250), (450, 220)),
             PopupKind::DeleteAsset => ((464, 220), (430, 190)),
-            PopupKind::Settings => ((476, 600), (440, 540)),
-            PopupKind::Circuits => ((820, 580), (760, 520)),
-            PopupKind::CircuitSettings => ((476, 500), (440, 440)),
-            PopupKind::Publish => ((620, 660), (580, 600)),
-            PopupKind::Export => ((600, 640), (560, 580)),
+            PopupKind::Settings => ((476, 560), (440, 500)),
+            PopupKind::Circuits => ((820, 540), (760, 480)),
+            PopupKind::CircuitSettings => ((476, 460), (440, 400)),
+            PopupKind::Publish => ((620, 620), (580, 560)),
+            PopupKind::Export => ((600, 600), (560, 540)),
             PopupKind::NewProject => ((638, 620), (590, 520)),
             PopupKind::Help => ((428, 520), (390, 460)),
         }
@@ -383,7 +382,6 @@ impl EditorApp {
         let ((width, height), (min_width, min_height)) = Self::popup_size(kind);
         let attributes = Window::default_attributes()
             .with_title("Kit")
-            .with_decorations(false)
             .with_inner_size(LogicalSize::new(width, height))
             .with_min_inner_size(LogicalSize::new(min_width, min_height))
             .with_window_icon(app_icon());
@@ -424,7 +422,7 @@ impl EditorApp {
             None,
             Some(4096),
         );
-        Ok(PopupGpu { kind, window, cursor_pos: [0.0, 0.0], egui_ctx, egui_state, egui_renderer, presenter })
+        Ok(PopupGpu { kind, window, egui_ctx, egui_state, egui_renderer, presenter })
     }
 
     fn sync_popup(&mut self, event_loop: &ActiveEventLoop) -> Result<()> {
@@ -1061,15 +1059,6 @@ impl ApplicationHandler for EditorApp {
                 popup.window.request_redraw();
             }
             match event {
-                WindowEvent::CursorMoved { position, .. } => {
-                    popup.cursor_pos = [position.x, position.y];
-                }
-                WindowEvent::MouseInput { state: ElementState::Pressed, button: MouseButton::Left, .. }
-                    if popup.cursor_pos[1] <= 34.0
-                        && popup.cursor_pos[0] < (f64::from(popup.window.inner_size().width) - 48.0).max(0.0) =>
-                {
-                    let _ = popup.window.drag_window();
-                }
                 WindowEvent::CloseRequested => {
                     ui::close_popup(popup.kind, &mut self.ui, &mut self.editor);
                     popup.window.request_redraw();

@@ -137,14 +137,12 @@ pub fn window(ctx: &egui::Context, ed: &mut Editor, wiz: &mut ExportWizard) -> W
         return WizardRequests::default();
     }
     let mut open = true;
-    let mut toolbar_close = false;
     let mut pick_folder = false;
     let mut import_key = false;
     let title = ed.project.as_ref().map(|p| p.config.project.title.clone()).unwrap_or_default();
     egui::Window::new(RichText::new("Export").strong())
         .id(Id::new("export_wizard"))
         .open(&mut open)
-        .title_bar(false)
         .default_width(560.0)
         .resizable(false)
         .collapsible(false)
@@ -157,9 +155,6 @@ pub fn window(ctx: &egui::Context, ed: &mut Editor, wiz: &mut ExportWizard) -> W
                 .inner_margin(Margin::same(20)),
         )
         .show(ctx, |ui| {
-            if crate::ui::popup_toolbar(ui, "Export") {
-                toolbar_close = true;
-            }
             ui.set_width(560.0);
             ui.label(RichText::new(format!("Ship “{title}”")).size(18.0).strong().color(TEXT_STRONG()));
             ui.label(
@@ -352,7 +347,7 @@ pub fn window(ctx: &egui::Context, ed: &mut Editor, wiz: &mut ExportWizard) -> W
                 _ => {}
             }
         });
-    if (toolbar_close || !open) && !ed.exporting() {
+    if !open && !ed.exporting() {
         wiz.open = false;
     }
     WizardRequests { pick_folder, import_key }

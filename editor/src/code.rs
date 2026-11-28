@@ -99,7 +99,6 @@ pub fn script_window(ctx: &egui::Context, ed: &mut Editor) {
     egui::Window::new(RichText::new("Script").strong())
         .id(Id::new("script_window"))
         .open(&mut open)
-        .title_bar(false)
         .default_size([600.0, 520.0])
         .default_pos([380.0, 120.0])
         .min_size([360.0, 240.0])
@@ -113,9 +112,6 @@ pub fn script_window(ctx: &egui::Context, ed: &mut Editor) {
                 .inner_margin(Margin::same(14)),
         )
         .show(ctx, |ui| {
-            if crate::ui::popup_toolbar(ui, "Script") {
-                close = Some(active);
-            }
             let _ = &title;
             // Tabs.
             ui.horizontal_wrapped(|ui| {

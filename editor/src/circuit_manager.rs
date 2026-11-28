@@ -274,7 +274,6 @@ pub fn window(ctx: &egui::Context, ed: &mut Editor, cm: &mut CircuitManager, rex
     egui::Window::new(RichText::new("Circuit Manager").strong())
         .id(Id::new("circuit_manager"))
         .open(&mut open)
-        .title_bar(false)
         .default_size([820.0, 540.0])
         .collapsible(false)
         .frame(
@@ -284,12 +283,7 @@ pub fn window(ctx: &egui::Context, ed: &mut Editor, cm: &mut CircuitManager, rex
                 .corner_radius(CornerRadius::same(15))
                 .inner_margin(Margin::same(18)),
         )
-        .show(ctx, |ui| {
-            if crate::ui::popup_toolbar(ui, "Circuit Manager") {
-                cm.open = false;
-            }
-            body(ui, ed, cm, rex);
-        });
+        .show(ctx, |ui| body(ui, ed, cm, rex));
     cm.open = open;
 }
 
