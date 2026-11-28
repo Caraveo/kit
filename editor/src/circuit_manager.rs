@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender, channel};
 
-use egui::{Color32, CornerRadius, Frame, Id, Margin, RichText, Stroke};
+use egui::{Align, Color32, CornerRadius, Frame, Id, Layout, Margin, RichText, Stroke};
 use kit_circuit::install::{self, Installed};
 use kit_circuit::manifest::{PERMISSIONS, host_platform, kit_version};
 use kit_circuit::registry::{ApiError, Circuit, Client, Query, Release, api_base};
@@ -389,6 +389,11 @@ fn body(ui: &mut egui::Ui, ed: &mut Editor, cm: &mut CircuitManager, rex: &mut c
                             if let Some(v) = &row.installed {
                                 badge(ui, &format!("installed {v}"), Color32::from_rgb(98, 214, 160));
                             }
+                            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                if row.tags.iter().any(|tag| tag.eq_ignore_ascii_case("Pro")) {
+                                    badge(ui, "Pro", ACCENT());
+                                }
+                            });
                         });
                         ui.label(RichText::new(&row.description).size(12.0).color(TEXT()));
                         ui.label(
@@ -422,6 +427,7 @@ struct Row {
     description: String,
     publisher: String,
     official: bool,
+    tags: Vec<String>,
     latest: Option<String>,
     installed: Option<String>,
 }
@@ -437,6 +443,7 @@ fn rows(cm: &CircuitManager) -> Vec<Row> {
         description: c.description.clone(),
         publisher: c.publisher.name.clone(),
         official: c.official,
+        tags: c.tags.clone(),
         latest: c.latest.as_ref().map(|l| l.version.clone()),
         installed: cm.installed_version(&c.id).map(|i| i.lock.version.clone()),
     };
@@ -453,6 +460,7 @@ fn rows(cm: &CircuitManager) -> Vec<Row> {
                     description: i.manifest.as_ref().map(|m| m.circuit.description.clone()).unwrap_or_default(),
                     publisher: i.manifest.as_ref().map(|m| m.circuit.publisher.clone()).unwrap_or_default(),
                     official: false,
+                    tags: i.manifest.as_ref().map(|m| m.circuit.tags.clone()).unwrap_or_default(),
                     latest: None,
                     installed: Some(i.lock.version.clone()),
                 },

@@ -7,6 +7,7 @@ id = "kit.multiplayer"
 name = "Multiplayer"
 publisher = "kit"
 description = "Serverless realtime multiplayer: worlds divided into sectors (one per scene), streamed transforms, shared state, and seed + diff procedural worlds. No servers to run."
+tags = ["Pro"]
 version = "0.1.1"
 channel = "beta"
 license = "MIT"

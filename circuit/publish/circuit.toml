@@ -5,6 +5,7 @@ id = "kit.publish"
 name = "Publish"
 publisher = "kit"
 description = "Publish a Linux game to Kit Store for review and approval."
+tags = ["Pro"]
 version = "0.1.1"
 channel = "alpha"
 license = "MIT"

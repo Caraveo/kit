@@ -50,6 +50,8 @@ pub struct Circuit {
     #[serde(default)]
     pub official: bool,
     #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
     pub license: Option<String>,
     #[serde(default)]
     pub documentation: Option<String>,

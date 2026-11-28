@@ -108,6 +108,9 @@ pub struct Info {
     /// Publisher identifier (the part of `id` before the dot).
     pub publisher: String,
     pub description: String,
+    /// Product labels shown by the Circuit Manager, such as "Pro".
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
     /// Semantic version of this release.
     pub version: String,
     #[serde(default = "stable")]
