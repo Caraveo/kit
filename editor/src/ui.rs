@@ -1431,6 +1431,7 @@ enum SearchAction {
     Select(Entity),
     OpenScene(String),
     OpenScript(String),
+    OpenInterface(String),
     PreviewAsset(String),
     View(ViewPane),
     CircuitManager,
@@ -1465,12 +1466,22 @@ fn search_items(ed: &Editor, query: &str, filter: SearchFilter) -> Vec<SearchIte
         }
     }
     for path in &ed.assets {
-        let kind = if path.ends_with(".kscene") { "Scene" } else if path.ends_with(".x") { "Script" } else { "Asset" };
+        let kind = if path.ends_with(".kscene") {
+            "Scene"
+        } else if path.ends_with(".x") {
+            "Script"
+        } else if path.ends_with(".xui") {
+            "Interface"
+        } else {
+            "Asset"
+        };
         if matches(path, kind) {
             let action = if kind == "Scene" {
                 SearchAction::OpenScene(path.clone())
             } else if kind == "Script" {
                 SearchAction::OpenScript(path.clone())
+            } else if kind == "Interface" {
+                SearchAction::OpenInterface(path.clone())
             } else {
                 SearchAction::PreviewAsset(path.clone())
             };
@@ -1548,6 +1559,7 @@ fn activate_search_item(item: SearchItem, ed: &mut Editor, st: &mut UiState) {
             }
         }
         SearchAction::OpenScript(path) => ed.open_script(&path),
+        SearchAction::OpenInterface(path) => open_interface_asset(ed, st, &path),
         SearchAction::PreviewAsset(path) => st.preview_asset(ed, &path),
         SearchAction::View(pane) => st.toggle_pane(ed, pane),
         SearchAction::CircuitManager => st.circuits.show_for(ed),
@@ -1557,6 +1569,23 @@ fn activate_search_item(item: SearchItem, ed: &mut Editor, st: &mut UiState) {
             } else {
                 ed.notify("Select an object before adding a component.");
             }
+        }
+    }
+}
+
+fn open_interface_asset(ed: &mut Editor, st: &mut UiState, path: &str) {
+    if st.interface.as_ref().is_some_and(|interface| interface.path == path) {
+        st.show_game_view(ed);
+    } else if st.has_unsaved_interface() {
+        ed.notify("Save or revert the current interface before opening another one.");
+    } else {
+        match InterfaceEditor::open(ed, path) {
+            Ok(editor) => {
+                st.show_game_view(ed);
+                st.interface = Some(editor);
+                st.interface_collapsed.clear();
+            }
+            Err(error) => ed.report(Err(error)),
         }
     }
 }
@@ -2344,24 +2373,13 @@ fn assets(ui: &mut Ui, ed: &mut Editor, st: &mut UiState) {
                         } else if group.name == "Fabs" && r.double_clicked() {
                             let result = ed.place_fab(&path, None);
                             ed.report(result);
+                        } else if group.name == "Interface" && r.clicked() {
+                            open_interface_asset(ed, st, &path);
                         } else if active_preview && (r.double_clicked() || r.triple_clicked()) {
                             match group.name {
                                 "Scripts" => ed.open_script(&path),
                                 "Interface" => {
-                                    if st.interface.as_ref().is_some_and(|interface| interface.path == path) {
-                                        st.show_game_view(ed);
-                                    } else if st.has_unsaved_interface() {
-                                        ed.notify("Save or revert the current interface before opening another one.");
-                                    } else {
-                                        match InterfaceEditor::open(ed, &path) {
-                                            Ok(editor) => {
-                                                st.show_game_view(ed);
-                                                st.interface = Some(editor);
-                                                st.interface_collapsed.clear();
-                                            }
-                                            Err(error) => ed.report(Err(error)),
-                                        }
-                                    }
+                                    open_interface_asset(ed, st, &path);
                                 }
                                 "Sprites" | "Sounds" | "Models" if !ed.playing => {
                                     if st.has_unsaved_interface() {

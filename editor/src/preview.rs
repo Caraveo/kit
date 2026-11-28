@@ -236,6 +236,9 @@ fn load(resources: &Resources, asset: &str) -> Result<Content> {
         };
         return Ok(Content::Model(model));
     }
+    if ext == "kfab" {
+        return Ok(Content::Model(load_fab(resources, asset)?));
+    }
     if preview::VIDEOS.contains(&ext.as_str()) {
         return Ok(Content::Video {
             file: resources.resolve(asset)?.canonicalize()?,
@@ -243,6 +246,38 @@ fn load(resources: &Resources, asset: &str) -> Result<Content> {
             texture: None,
             note: String::new(),
         });
+    }
+
+    fn load_fab(resources: &Resources, asset: &str) -> Result<preview::Model> {
+        let text = resources.read_text(asset)?;
+        let fab = kit::gamesys::SceneFile::from_json(&text)?;
+        let mut world_matrices = std::collections::HashMap::new();
+        let mut triangles = Vec::new();
+        let mut total = 0;
+
+        for entity in &fab.entities {
+            let local = entity.transform.matrix();
+            let world = entity
+                .parent
+                .and_then(|parent| world_matrices.get(&parent).copied())
+                .map_or(local, |parent| parent * local);
+            world_matrices.insert(entity.id, world);
+            let Some(model) = &entity.model else { continue };
+            if model.mesh_asset.is_empty() {
+                continue;
+            }
+            let geometry = preview::model(resources, &model.mesh_asset)
+                .with_context(|| format!("loading Fab model {}", model.mesh_asset))?;
+            total += geometry.total;
+            for triangle in geometry.triangles {
+                triangles.push(preview::Triangle {
+                    positions: triangle.positions.map(|position| world.transform_point3(position)),
+                    color: triangle.color,
+                });
+            }
+        }
+        ensure!(total > 0, "The Fab has no imported 3D model geometry to preview");
+        Ok(preview::Model { triangles, total })
     }
     if kit::gamesys::is_sound(asset) {
         let (bytes, truncated) = preview::sample(resources, asset, 64 * 1024 * 1024)?;
