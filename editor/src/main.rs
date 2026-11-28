@@ -1059,8 +1059,9 @@ impl ApplicationHandler for EditorApp {
                     popup.cursor_pos = [position.x, position.y];
                 }
                 WindowEvent::MouseInput { state: ElementState::Pressed, button: MouseButton::Left, .. }
-                    if popup.cursor_pos[1] <= 34.0
-                        && popup.cursor_pos[0] < (f64::from(popup.window.inner_size().width) - 48.0).max(0.0) =>
+                    if popup.cursor_pos[1] <= 34.0 * popup.window.scale_factor()
+                        && popup.cursor_pos[0]
+                            < (f64::from(popup.window.inner_size().width) - 48.0 * popup.window.scale_factor()).max(0.0) =>
                 {
                     let _ = popup.window.drag_window();
                 }
