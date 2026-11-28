@@ -713,6 +713,7 @@ impl EditorApp {
         self.sync_popup(event_loop)?;
         let Some(gpu) = self.gpu.as_mut() else { return Ok(()) };
         let detached = false;
+        self.ui.native_popups = !self.popups.is_empty();
         let raw = gpu.egui_state.take_egui_input(&gpu.window);
         let editor = &mut self.editor;
         let ui_state = &mut self.ui;

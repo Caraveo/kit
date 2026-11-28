@@ -49,7 +49,7 @@ impl Harness {
             ..Default::default()
         };
         let (ed, st) = (&mut self.ed, &mut self.st);
-        let mut out = self.ctx.run_ui(raw, |ui| ui::draw(ui, ed, st));
+        let mut out = self.ctx.run_ui(raw, |ui| ui::draw(ui, ed, st, false));
         out.textures_delta.clear();
         // Like the app's frame loop: record an undo step whenever the editor is idle.
         let at_rest = !self.ctx.input(|i| i.pointer.any_down()) && self.ctx.memory(|m| m.focused().is_none());

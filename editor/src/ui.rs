@@ -71,6 +71,7 @@ impl Default for Views {
 }
 
 pub struct UiState {
+    pub(crate) native_popups: bool,
     pub new_project: Option<crate::new_project::Wizard>,
     views: Views,
     pub viewport_tex: Option<egui::TextureId>,
@@ -459,6 +460,7 @@ impl UiState {
 
     pub fn new(recent: Vec<PathBuf>, gpu_name: String) -> Self {
         Self {
+            native_popups: false,
             new_project: None,
             views: Views::default(),
             viewport_tex: None,
@@ -1019,7 +1021,7 @@ pub fn draw(root: &mut Ui, ed: &mut Editor, st: &mut UiState, detached: bool) {
     }
     welcome(&ctx, ed, st);
     notice(&ctx, ed);
-    if detached {
+    if !st.native_popups {
         code::script_window(&ctx, ed);
         new_asset_dialog(&ctx, ed, st);
         rename_asset_dialog(&ctx, ed, st);

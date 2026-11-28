@@ -946,6 +946,9 @@ impl Editor {
     // ----------------------------------------------------------------- editing
 
     pub fn spawn(&mut self, preset: Preset, parent: Option<Entity>) -> Entity {
+        let editor_camera_eye = self.camera.eye();
+        let editor_camera_target = self.camera.target;
+        let editor_camera_two_d = self.camera.two_d;
         let w = &mut self.app.world;
         let mut t = Transform::IDENTITY;
         if parent.is_none() && !self.camera.two_d {
@@ -974,8 +977,17 @@ impl Editor {
                 w.insert(e, Sprite { size: Vec2::ONE, ..Default::default() });
             }
             Preset::Camera => {
-                let mut ct = Transform::from_xyz(0.0, 2.0, 8.0);
-                ct.look_at(Vec3::ZERO, Vec3::Y);
+                let mut ct = Transform::from_xyz(
+                    editor_camera_eye.x,
+                    editor_camera_eye.y,
+                    editor_camera_eye.z,
+                );
+                let target = if editor_camera_two_d {
+                    Vec3::new(editor_camera_eye.x, editor_camera_eye.y, 0.0)
+                } else {
+                    editor_camera_target
+                };
+                ct.look_at(target, Vec3::Y);
                 *w.get_mut::<Transform>(e).unwrap() = ct;
                 w.insert(e, Camera::perspective());
             }
