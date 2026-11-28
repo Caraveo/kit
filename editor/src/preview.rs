@@ -263,20 +263,37 @@ fn load(resources: &Resources, asset: &str) -> Result<Content> {
                 .map_or(local, |parent| parent * local);
             world_matrices.insert(entity.id, world);
             let Some(model) = &entity.model else { continue };
-            if model.mesh_asset.is_empty() {
+            if !model.visible {
                 continue;
             }
-            let geometry = preview::model(resources, &model.mesh_asset)
-                .with_context(|| format!("loading Fab model {}", model.mesh_asset))?;
-            total += geometry.total;
-            for triangle in geometry.triangles {
-                triangles.push(preview::Triangle {
-                    positions: triangle.positions.map(|position| world.transform_point3(position)),
-                    color: triangle.color,
-                });
+            let color = model.color.to_array();
+            if model.mesh_asset.is_empty() {
+                let mesh = kit::render::build_mesh(model.mesh);
+                total += mesh.indices.len() / 3;
+                for face in mesh.indices.chunks_exact(3) {
+                    let positions = [face[0], face[1], face[2]].map(|index| {
+                        world.transform_point3(mesh.vertices[index as usize].pos.into())
+                    });
+                    triangles.push(preview::Triangle { positions, color });
+                }
+            } else {
+                let geometry = preview::model(resources, &model.mesh_asset)
+                    .with_context(|| format!("loading Fab model {}", model.mesh_asset))?;
+                total += geometry.total;
+                for triangle in geometry.triangles {
+                    triangles.push(preview::Triangle {
+                        positions: triangle.positions.map(|position| world.transform_point3(position)),
+                        color: [
+                            triangle.color[0] * color[0],
+                            triangle.color[1] * color[1],
+                            triangle.color[2] * color[2],
+                            triangle.color[3] * color[3],
+                        ],
+                    });
+                }
             }
         }
-        ensure!(total > 0, "The Fab has no imported 3D model geometry to preview");
+        ensure!(total > 0, "The Fab has no 3D model geometry to preview");
         Ok(preview::Model { triangles, total })
     }
     if kit::gamesys::is_sound(asset) {
