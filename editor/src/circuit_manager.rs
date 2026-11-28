@@ -276,6 +276,7 @@ pub fn window(ctx: &egui::Context, ed: &mut Editor, cm: &mut CircuitManager, rex
         .open(&mut open)
         .default_size([820.0, 540.0])
         .resizable(false)
+        .movable(false)
         .collapsible(false)
         .frame(
             Frame::new()

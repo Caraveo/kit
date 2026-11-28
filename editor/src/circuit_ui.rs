@@ -236,6 +236,7 @@ pub fn settings_window(ctx: &egui::Context, ed: &mut Editor, win: &mut SettingsW
         .open(&mut open)
         .default_width(440.0)
         .resizable(false)
+        .movable(false)
         .collapsible(false)
         .frame(
             Frame::new()

@@ -145,6 +145,7 @@ pub fn window(ctx: &egui::Context, ed: &mut Editor, wiz: &mut ExportWizard) -> W
         .open(&mut open)
         .default_width(560.0)
         .resizable(false)
+        .movable(false)
         .collapsible(false)
         .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
         .frame(
