@@ -44,8 +44,9 @@ pub fn window(ctx: &Context, ed: &mut Editor, panel: &mut PublishPanel, rex: &Re
     if !panel.open {
         return;
     }
+    let mut open = panel.open;
     Window::new(RichText::new("Publish to Kit Store").strong())
-        .title_bar(false)
+        .open(&mut open)
         .default_size([620.0, 620.0])
         .show(ctx, |ui| {
             ui.label("Game listing details and release submission");
@@ -113,4 +114,5 @@ pub fn window(ctx: &Context, ed: &mut Editor, panel: &mut PublishPanel, rex: &Re
             });
             ui.small("Every submitted release becomes an immutable revision and stays private until an administrator approves it.");
         });
+    panel.open = open;
 }

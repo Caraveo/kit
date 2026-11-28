@@ -382,6 +382,7 @@ impl EditorApp {
         let ((width, height), (min_width, min_height)) = Self::popup_size(kind);
         let attributes = Window::default_attributes()
             .with_title("Kit")
+            .with_decorations(false)
             .with_inner_size(LogicalSize::new(width, height))
             .with_min_inner_size(LogicalSize::new(min_width, min_height))
             .with_window_icon(app_icon());

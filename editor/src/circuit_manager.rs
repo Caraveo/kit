@@ -270,9 +270,10 @@ pub fn window(ctx: &egui::Context, ed: &mut Editor, cm: &mut CircuitManager, rex
     {
         ctx.request_repaint_after(std::time::Duration::from_millis(100));
     }
+    let mut open = cm.open;
     egui::Window::new(RichText::new("Circuit Manager").strong())
         .id(Id::new("circuit_manager"))
-        .title_bar(false)
+        .open(&mut open)
         .default_size([820.0, 540.0])
         .collapsible(false)
         .frame(
@@ -283,6 +284,7 @@ pub fn window(ctx: &egui::Context, ed: &mut Editor, cm: &mut CircuitManager, rex
                 .inner_margin(Margin::same(18)),
         )
         .show(ctx, |ui| body(ui, ed, cm, rex));
+    cm.open = open;
 }
 
 fn body(ui: &mut egui::Ui, ed: &mut Editor, cm: &mut CircuitManager, rex: &mut crate::rex_panel::RexPanel) {

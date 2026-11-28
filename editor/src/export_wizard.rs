@@ -136,12 +136,13 @@ pub fn window(ctx: &egui::Context, ed: &mut Editor, wiz: &mut ExportWizard) -> W
     if !wiz.open {
         return WizardRequests::default();
     }
+    let mut open = true;
     let mut pick_folder = false;
     let mut import_key = false;
     let title = ed.project.as_ref().map(|p| p.config.project.title.clone()).unwrap_or_default();
     egui::Window::new(RichText::new("Export").strong())
         .id(Id::new("export_wizard"))
-        .title_bar(false)
+        .open(&mut open)
         .default_width(560.0)
         .resizable(false)
         .collapsible(false)
@@ -346,6 +347,9 @@ pub fn window(ctx: &egui::Context, ed: &mut Editor, wiz: &mut ExportWizard) -> W
                 _ => {}
             }
         });
+    if !open && !ed.exporting() {
+        wiz.open = false;
+    }
     WizardRequests { pick_folder, import_key }
 }
 

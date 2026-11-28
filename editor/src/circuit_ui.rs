@@ -229,10 +229,11 @@ pub fn project_menu(ui: &mut Ui, ed: &mut Editor, win: &mut SettingsWindow) {
 
 pub fn settings_window(ctx: &egui::Context, ed: &mut Editor, win: &mut SettingsWindow) {
     let Some((m, values)) = win.open.as_mut() else { return };
+    let mut open = true;
     let mut save = false;
     egui::Window::new(RichText::new(&m.circuit.name).strong())
         .id(Id::new(("circuit_settings", &m.circuit.id)))
-        .title_bar(false)
+        .open(&mut open)
         .default_width(440.0)
         .resizable(false)
         .collapsible(false)
@@ -290,6 +291,10 @@ pub fn settings_window(ctx: &egui::Context, ed: &mut Editor, win: &mut SettingsW
                 }
                 Err(e) => win.error = Some(format!("{e:#}")),
             }
+            if !open {
+                win.open = None;
+            }
+
         }
     }
 }
